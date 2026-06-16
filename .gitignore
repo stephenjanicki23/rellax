@@ -1,4 +1,6 @@
 .DS_Store
 
 rellax-build.js
-npm-debug.log
+npm-debug.logbetting/__pycache__/
+betting/**/__pycache__/
+betting/.env
