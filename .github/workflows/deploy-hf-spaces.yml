@@ -21,12 +21,11 @@ jobs:
 
           # Clone (or init) the Space repo
           REPO_URL="https://sjanicki23:${HF_TOKEN}@huggingface.co/spaces/sjanicki23/sports-betting-edges"
-          git clone --depth 1 "$REPO_URL" /tmp/hf_space 2>/dev/null || {
-            mkdir /tmp/hf_space
-            cd /tmp/hf_space
-            git init
-            git remote add origin "$REPO_URL"
-          }
+          if ! git clone --depth 1 "$REPO_URL" /tmp/hf_space 2>/dev/null; then
+            mkdir -p /tmp/hf_space
+            git -C /tmp/hf_space init
+            git -C /tmp/hf_space remote add origin "$REPO_URL"
+          fi
 
           # Sync betting/ into Space root (exclude dev-only files)
           rsync -a --delete \
@@ -35,7 +34,7 @@ jobs:
             --exclude='*.pyc' \
             --exclude='deploy.sh' \
             --exclude='tests/' \
-            betting/ /tmp/hf_space/
+            "$GITHUB_WORKSPACE/betting/" /tmp/hf_space/
 
           cd /tmp/hf_space
           git add -A
