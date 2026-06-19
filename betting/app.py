@@ -65,6 +65,40 @@ def _bet_size(kelly: float) -> float:
     return round(raw * 2) / 2  # round to nearest $0.50
 
 
+def _signal_style(df: pd.DataFrame):
+    """
+    Color each row by signal strength:
+      Green  — both market EV and model EV are positive (double signal)
+      Yellow — exactly one is positive (single signal)
+      Red    — neither is positive
+    """
+    if df.empty:
+        return df
+
+    def _row_bg(row):
+        try:
+            ev_pos = float(row["EV %"]) > 0
+        except (ValueError, TypeError):
+            ev_pos = False
+
+        mev = row.get("Model EV %", "—")
+        try:
+            mev_pos = float(mev) > 0
+        except (ValueError, TypeError):
+            mev_pos = False
+
+        if ev_pos and mev_pos:
+            bg = "background-color: #c8f7c5"   # green
+        elif ev_pos or mev_pos:
+            bg = "background-color: #fef9c3"   # yellow
+        else:
+            bg = "background-color: #fde8e8"   # red
+
+        return [bg] * len(row)
+
+    return df.style.apply(_row_bg, axis=1)
+
+
 # ---------------------------------------------------------------------------
 # Scanner tab
 # ---------------------------------------------------------------------------
@@ -143,6 +177,7 @@ def scan(sports: list[str], min_ev_pct: float):
     df = pd.DataFrame(rows, columns=SCAN_COLS) if rows else pd.DataFrame(columns=SCAN_COLS)
     if not df.empty:
         df = df.sort_values("EV %", ascending=False).reset_index(drop=True)
+    df = _signal_style(df)
 
     status = "\n".join(status_parts)
     if rows:
