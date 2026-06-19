@@ -9,9 +9,8 @@ ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 # Sports to scan
 SPORTS = {
     "nfl": "americanfootball_nfl",
-    "ncaaf": "americanfootball_ncaaf",
     "mlb": "baseball_mlb",
-    "mls": "soccer_usa_mls",
+    "world_cup": "soccer_fifa_world_cup",
 }
 
 # Minimum edge (model prob - implied prob) to report

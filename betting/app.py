@@ -16,9 +16,8 @@ import config
 
 SPORT_OPTIONS = {
     "NFL": "americanfootball_nfl",
-    "College Football (NCAAF)": "americanfootball_ncaaf",
     "MLB Baseball": "baseball_mlb",
-    "MLS Soccer": "soccer_usa_mls",
+    "FIFA World Cup": "soccer_fifa_world_cup",
 }
 
 COLUMNS = [
@@ -125,7 +124,7 @@ with gr.Blocks(title="Sports Betting Edge Finder", theme=gr.themes.Soft()) as de
         with gr.Column(scale=1):
             sports_in = gr.CheckboxGroup(
                 choices=list(SPORT_OPTIONS.keys()),
-                value=["NFL", "MLB Baseball"],
+                value=["NFL", "MLB Baseball", "FIFA World Cup"],
                 label="Sports to scan",
             )
             min_ev_in = gr.Slider(
