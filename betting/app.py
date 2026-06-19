@@ -27,8 +27,9 @@ BANKROLL = storage.BANKROLL
 
 SCAN_COLS = [
     "Game", "Bet On", "Best Odds", "American",
-    "Book", "Fair %", "Implied %", "EV %", "Bet Size ($)",
-    "Game Time",
+    "Book", "Fair %", "Implied %", "EV %",
+    "Model %", "Model EV %",
+    "Bet Size ($)", "Game Time",
 ]
 
 HISTORY_COLS = [
@@ -108,7 +109,10 @@ def scan(sports: list[str], min_ev_pct: float):
 
         for ge in edges:
             game_str = f"{ge.away_team} @ {ge.home_team}"
-            for o in sorted(ge.outcomes, key=lambda x: x.ev, reverse=True):
+            # Sort by best of market EV or model EV
+            def _sort_key(o):
+                return max(o.ev, o.model_ev if o.model_ev is not None else o.ev)
+            for o in sorted(ge.outcomes, key=_sort_key, reverse=True):
                 bs = _bet_size(o.kelly)
                 rows.append({
                     "Game": game_str,
@@ -119,6 +123,8 @@ def scan(sports: list[str], min_ev_pct: float):
                     "Fair %": round(o.fair_prob * 100, 1),
                     "Implied %": round(100 / o.best_odds, 1),
                     "EV %": round(o.ev * 100, 2),
+                    "Model %": round(o.model_prob * 100, 1) if o.model_prob is not None else "—",
+                    "Model EV %": round(o.model_ev * 100, 2) if o.model_ev is not None else "—",
                     "Bet Size ($)": bs,
                     "Game Time": _fmt_time(ge.commence_time),
                     # extra fields for history (not shown in scan table)

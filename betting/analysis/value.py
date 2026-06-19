@@ -14,8 +14,11 @@ Strategy:
 
 from __future__ import annotations
 from dataclasses import dataclass, field
+from typing import Optional
 import config
 from config import SHARP_BOOKS
+
+_WORLD_CUP_KEY = "soccer_fifa_world_cup"
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +71,8 @@ class Outcome:
     edge: float             # fair_prob - implied_prob(best_odds)
     ev: float               # expected value per unit
     kelly: float            # full kelly fraction
+    model_prob: Optional[float] = None   # team-model probability (World Cup)
+    model_ev: Optional[float] = None     # EV using model probability
 
 
 @dataclass
@@ -139,6 +144,26 @@ def _consensus_fair_probs(
     return result
 
 
+def _world_cup_model_probs(home: str, away: str) -> dict[str, float] | None:
+    """
+    Return {team_name: model_prob} for a World Cup fixture, or None if
+    either team isn't in the Elo database.
+    Outcome names use Draw for the draw side.
+    """
+    try:
+        from models.world_cup import predict
+    except ImportError:
+        return None
+    result = predict(home, away)
+    if result is None:
+        return None
+    return {
+        home: result["p_home"],
+        "Draw": result["p_draw"],
+        away: result["p_away"],
+    }
+
+
 def find_edges(game: dict, sport_key: str) -> GameEdges | None:
     """
     Analyze a single game dict (as returned by The Odds API) and return
@@ -167,6 +192,11 @@ def find_edges(game: dict, sport_key: str) -> GameEdges | None:
     best_odds_map = _best_odds_per_outcome(bookmakers)
     fair_probs = _consensus_fair_probs(bookmakers, outcome_names)
 
+    # World Cup: load Elo+Poisson model probabilities when available
+    model_probs: dict[str, float] | None = None
+    if sport_key == _WORLD_CUP_KEY:
+        model_probs = _world_cup_model_probs(home, away)
+
     edges = GameEdges(
         sport=sport_key,
         home_team=home,
@@ -184,7 +214,16 @@ def find_edges(game: dict, sport_key: str) -> GameEdges | None:
         ev = expected_value(fp, odds)
         kelly = kelly_fraction(fp, odds)
 
-        if ev >= config.MIN_EV:
+        # Model-based EV (World Cup only)
+        mp: float | None = None
+        mev: float | None = None
+        if model_probs is not None:
+            mp = model_probs.get(name)
+            if mp is not None:
+                mev = expected_value(mp, odds)
+
+        # Qualify: either market EV or model EV clears the threshold
+        if ev >= config.MIN_EV or (mev is not None and mev >= config.MIN_EV):
             edges.outcomes.append(
                 Outcome(
                     name=name,
@@ -194,6 +233,8 @@ def find_edges(game: dict, sport_key: str) -> GameEdges | None:
                     edge=edge,
                     ev=ev,
                     kelly=kelly,
+                    model_prob=mp,
+                    model_ev=mev,
                 )
             )
 
