@@ -43,10 +43,10 @@ def _fmt_time(iso: str) -> str:
         return iso
 
 
-def scan(api_key: str, sports: list[str], min_ev_pct: float) -> tuple[pd.DataFrame, str]:
-    key = api_key.strip() or os.getenv("ODDS_API_KEY", "")
+def scan(sports: list[str], min_ev_pct: float) -> tuple[pd.DataFrame, str]:
+    key = os.getenv("ODDS_API_KEY", "")
     if not key:
-        return pd.DataFrame(columns=COLUMNS), "❌ No API key provided."
+        return pd.DataFrame(columns=COLUMNS), "❌ ODDS_API_KEY is not configured. Add it as a Space Secret."
 
     config.MIN_EV = min_ev_pct / 100.0
     config.MIN_EDGE = max(0.01, min_ev_pct / 200.0)
@@ -58,7 +58,6 @@ def scan(api_key: str, sports: list[str], min_ev_pct: float) -> tuple[pd.DataFra
     client = OddsClient(api_key=key)
     rows = []
     status_parts = []
-    quota_remaining = "?"
 
     for label, sport_key in sport_keys.items():
         try:
@@ -110,21 +109,12 @@ with gr.Blocks(title="Sports Betting Edge Finder", theme=gr.themes.Soft()) as de
         Pulls live moneyline odds from multiple sportsbooks, strips the vig to find the
         **true probability**, then flags bets where a book is offering *better-than-fair* odds.
 
-        **Get a free API key** (500 requests/month) at [the-odds-api.com](https://the-odds-api.com).
-        On Hugging Face Spaces, set `ODDS_API_KEY` as a **Space Secret** — leave the field blank
-        and it will be picked up automatically.
-
         > ⚠️ For informational purposes only. Gamble responsibly.
         """
     )
 
     with gr.Row():
         with gr.Column(scale=1):
-            api_key_in = gr.Textbox(
-                label="Odds API Key (or set ODDS_API_KEY secret)",
-                placeholder="paste key here, or leave blank if set as a Space Secret",
-                type="password",
-            )
             sports_in = gr.CheckboxGroup(
                 choices=list(SPORT_OPTIONS.keys()),
                 value=["NFL", "MLB Baseball"],
@@ -147,7 +137,7 @@ with gr.Blocks(title="Sports Betting Edge Finder", theme=gr.themes.Soft()) as de
 
     scan_btn.click(
         fn=scan,
-        inputs=[api_key_in, sports_in, min_ev_in],
+        inputs=[sports_in, min_ev_in],
         outputs=[results_table, status_box],
     )
 
