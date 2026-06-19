@@ -140,7 +140,6 @@ with gr.Blocks(title="Sports Betting Edge Finder", theme=gr.themes.Soft()) as de
         with gr.Column(scale=3):
             results_table = gr.Dataframe(
                 headers=COLUMNS,
-                datatype=["str"] * len(COLUMNS),
                 label="Value Bets",
                 wrap=True,
             )
