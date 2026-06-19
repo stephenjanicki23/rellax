@@ -19,6 +19,15 @@ jobs:
           git config --global user.email "ci@github"
           git config --global user.name "GitHub Actions"
 
+          # Create the Space if it doesn't exist (409 = already exists, both are fine)
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "https://huggingface.co/api/repos/create" \
+            -H "Authorization: Bearer ${HF_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"type":"space","name":"sports-betting-edges","sdk":"gradio","private":false}')
+          echo "Space create response: $HTTP"
+          [[ "$HTTP" == "200" || "$HTTP" == "409" ]] || { echo "Failed to create Space (HTTP $HTTP)"; exit 1; }
+
           # Clone (or init) the Space repo
           REPO_URL="https://sjanicki23:${HF_TOKEN}@huggingface.co/spaces/sjanicki23/sports-betting-edges"
           if ! git clone --depth 1 "$REPO_URL" /tmp/hf_space 2>/dev/null; then
