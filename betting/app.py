@@ -88,11 +88,11 @@ def _signal_style(df: pd.DataFrame):
             mev_pos = False
 
         if ev_pos and mev_pos:
-            bg = "background-color: #c8f7c5"   # green
+            bg = "background-color: #c8f7c5; color: black"   # green
         elif ev_pos or mev_pos:
-            bg = "background-color: #fef9c3"   # yellow
+            bg = "background-color: #fef9c3; color: black"   # yellow
         else:
-            bg = "background-color: #fde8e8"   # red
+            bg = "background-color: #fde8e8; color: black"   # red
 
         return [bg] * len(row)
 
