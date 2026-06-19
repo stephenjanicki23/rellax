@@ -52,7 +52,6 @@ def scan(sports: list[str], min_ev_pct: float) -> tuple[pd.DataFrame, str]:
         )
 
     config.MIN_EV = min_ev_pct / 100.0
-    config.MIN_EDGE = max(0.01, min_ev_pct / 200.0)
 
     sport_keys = {s: SPORT_OPTIONS[s] for s in sports if s in SPORT_OPTIONS}
     if not sport_keys:
@@ -128,7 +127,7 @@ with gr.Blocks(title="Sports Betting Edge Finder", theme=gr.themes.Soft()) as de
                 label="Sports to scan",
             )
             min_ev_in = gr.Slider(
-                minimum=0.5, maximum=10.0, value=2.0, step=0.5,
+                minimum=0.0, maximum=10.0, value=2.0, step=0.5,
                 label="Minimum EV % threshold",
                 info="Higher = fewer, higher-confidence edges",
             )

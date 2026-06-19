@@ -14,7 +14,8 @@ Strategy:
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from config import SHARP_BOOKS, MIN_EDGE, MIN_EV
+import config
+from config import SHARP_BOOKS
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +184,7 @@ def find_edges(game: dict, sport_key: str) -> GameEdges | None:
         ev = expected_value(fp, odds)
         kelly = kelly_fraction(fp, odds)
 
-        if edge >= MIN_EDGE or ev >= MIN_EV:
+        if ev >= config.MIN_EV:
             edges.outcomes.append(
                 Outcome(
                     name=name,
