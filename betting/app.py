@@ -20,6 +20,8 @@ SPORT_OPTIONS = {
     "NFL": "americanfootball_nfl",
     "MLB Baseball": "baseball_mlb",
     "FIFA World Cup": "soccer_fifa_world_cup",
+    "Tennis ATP": "tennis_atp",
+    "Tennis WTA": "tennis_wta",
 }
 ALL_SPORTS = list(SPORT_OPTIONS.keys())
 
@@ -228,6 +230,94 @@ def delete(bet_id: str, sport_filter: str):
 
 
 # ---------------------------------------------------------------------------
+# Tennis Matchup tab
+# ---------------------------------------------------------------------------
+
+_TENNIS_PLAYERS = sorted([
+    "Jannik Sinner", "Carlos Alcaraz", "Alexander Zverev", "Daniil Medvedev",
+    "Novak Djokovic", "Casper Ruud", "Holger Rune", "Andrey Rublev",
+    "Stefanos Tsitsipas", "Taylor Fritz", "Ben Shelton", "Tommy Paul",
+    "Grigor Dimitrov", "Hubert Hurkacz", "Lorenzo Musetti",
+    "Felix Auger-Aliassime", "Ugo Humbert", "Arthur Fils", "Matteo Berrettini",
+    "Sebastian Korda", "Francisco Cerundolo", "Nicolas Jarry", "Karen Khachanov",
+    "Jack Draper", "Alejandro Davidovich Fokina", "Alexei Popyrin",
+    "Nuno Borges", "Jordan Thompson",
+    # WTA
+    "Aryna Sabalenka", "Iga Swiatek", "Coco Gauff", "Elena Rybakina",
+    "Jessica Pegula", "Qinwen Zheng", "Madison Keys", "Emma Navarro",
+    "Mirra Andreeva", "Daria Kasatkina", "Barbora Krejcikova", "Paula Badosa",
+    "Jelena Ostapenko", "Liudmila Samsonova", "Beatriz Haddad Maia",
+    "Anna Kalinskaya", "Jasmine Paolini", "Diana Shnaider", "Caroline Garcia",
+])
+
+
+def tennis_matchup(player1: str, player2: str, surface: str) -> str:
+    """Return a markdown breakdown of the tennis model prediction."""
+    try:
+        from models.tennis import predict, lookup
+    except ImportError:
+        return "Tennis model not available."
+
+    if not player1 or not player2:
+        return "Select both players."
+    if player1 == player2:
+        return "Select two different players."
+
+    result = predict(player1, player2, surface)
+    if result is None:
+        p1_known = lookup(player1) is not None
+        p2_known = lookup(player2) is not None
+        missing = []
+        if not p1_known:
+            missing.append(player1)
+        if not p2_known:
+            missing.append(player2)
+        return f"Player(s) not in database: {', '.join(missing)}"
+
+    p1_pct = result["p1_win"] * 100
+    p2_pct = result["p2_win"] * 100
+    fav = player1 if p1_pct >= p2_pct else player2
+    fav_pct = max(p1_pct, p2_pct)
+
+    def bar(val: int, max_val: int = 100) -> str:
+        filled = round(val / max_val * 20)
+        return "█" * filled + "░" * (20 - filled)
+
+    adv_note = ""
+    if result["surface_advantage"] not in ("Neutral", player1, player2):
+        adv_note = ""
+    elif result["surface_advantage"] == player1:
+        adv_note = f"  ← surface suits **{player1}**"
+    elif result["surface_advantage"] == player2:
+        adv_note = f"  ← surface suits **{player2}**"
+    else:
+        adv_note = "  (surface neutral)"
+
+    def _pref_tag(preferred: str, current: str) -> str:
+        return f"✅ home surface" if preferred == current else f"({preferred} preferred)"
+
+    md = f"""
+### {player1} vs {player2} — {surface.title()} Court
+
+**Model Prediction:** {fav} wins with **{fav_pct:.1f}%** probability{adv_note}
+
+| | {player1} | {player2} |
+|---|---|---|
+| **Win Prob** | **{p1_pct:.1f}%** | **{p2_pct:.1f}%** |
+| Surface Elo | {result['elo1']} | {result['elo2']} |
+| Serve | {result['serve1']}/100 `{bar(result['serve1'])}` | {result['serve2']}/100 `{bar(result['serve2'])}` |
+| Return | {result['return1']}/100 `{bar(result['return1'])}` | {result['return2']}/100 `{bar(result['return2'])}` |
+| Fitness | {result['fitness1']}/100 `{bar(result['fitness1'])}` | {result['fitness2']}/100 `{bar(result['fitness2'])}` |
+| Mental | {result['mental1']}/100 `{bar(result['mental1'])}` | {result['mental2']}/100 `{bar(result['mental2'])}` |
+| Best surface | {_pref_tag(result['preferred1'], surface)} | {_pref_tag(result['preferred2'], surface)} |
+
+> **How to use:** Compare these model probabilities to the implied odds at your sportsbook.
+> If the model says 60% but the book prices it at 50% (2.00 decimal), that's a +EV bet.
+"""
+    return md.strip()
+
+
+# ---------------------------------------------------------------------------
 # App layout
 # ---------------------------------------------------------------------------
 
@@ -240,7 +330,7 @@ _key_status = (
 with gr.Blocks(title="Sports Betting Edge Finder", theme=gr.themes.Soft()) as demo:
     gr.Markdown(
         f"""
-        # 🏈⚾⚽ Sports Betting Edge Finder
+        # 🏈⚾⚽🎾 Sports Betting Edge Finder
         **Status:** {_key_status} &nbsp;|&nbsp; Bankroll: **${BANKROLL:.0f}** &nbsp;|&nbsp;
         Bet sizes use **¼ Kelly**
         > ⚠️ For informational purposes only. Gamble responsibly.
@@ -330,6 +420,49 @@ with gr.Blocks(title="Sports Betting Edge Finder", theme=gr.themes.Soft()) as de
 
             # Initial load
             demo.load(fn=load_history, inputs=[sport_filter], outputs=[history_table, summary_md])
+
+        # ── Tab 3: Tennis Matchup Analyzer ─────────────────────────────────
+        with gr.Tab("🎾 Tennis Matchup"):
+            gr.Markdown(
+                """
+                ### Player vs Player Analysis
+                Select two players and a surface to see the model's win probability breakdown,
+                including serve, return, fitness, and mental ratings.
+                Use this alongside the Edge Scanner to find value in live tennis odds.
+                """
+            )
+            with gr.Row():
+                p1_in = gr.Dropdown(
+                    choices=_TENNIS_PLAYERS,
+                    label="Player 1",
+                    scale=2,
+                )
+                p2_in = gr.Dropdown(
+                    choices=_TENNIS_PLAYERS,
+                    label="Player 2",
+                    scale=2,
+                )
+                surface_in = gr.Radio(
+                    choices=["hard", "clay", "grass"],
+                    value="hard",
+                    label="Surface",
+                    scale=1,
+                )
+                analyze_btn = gr.Button("Analyze", variant="primary", scale=0)
+
+            matchup_out = gr.Markdown()
+
+            analyze_btn.click(
+                fn=tennis_matchup,
+                inputs=[p1_in, p2_in, surface_in],
+                outputs=[matchup_out],
+            )
+            # Also re-run when surface changes (if players already selected)
+            surface_in.change(
+                fn=tennis_matchup,
+                inputs=[p1_in, p2_in, surface_in],
+                outputs=[matchup_out],
+            )
 
 
 if __name__ == "__main__":

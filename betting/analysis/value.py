@@ -19,6 +19,7 @@ import config
 from config import SHARP_BOOKS
 
 _WORLD_CUP_KEY = "soccer_fifa_world_cup"
+_TENNIS_KEYS = {"tennis_atp", "tennis_wta"}
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +165,27 @@ def _world_cup_model_probs(home: str, away: str) -> dict[str, float] | None:
     }
 
 
+def _tennis_model_probs(player1: str, player2: str, sport_key: str) -> dict[str, float] | None:
+    """
+    Return {player_name: model_prob} for a tennis match using surface-adjusted
+    Elo ratings. Returns None if either player isn't in the database.
+    """
+    try:
+        from models.tennis import predict, detect_surface
+    except ImportError:
+        return None
+    surface = detect_surface(sport_key)
+    result = predict(player1, player2, surface)
+    if result is None:
+        return None
+    return {
+        player1: result["p1_win"],
+        player2: result["p2_win"],
+        "_surface": surface,
+        "_surface_advantage": result["surface_advantage"],
+    }
+
+
 def find_edges(game: dict, sport_key: str) -> GameEdges | None:
     """
     Analyze a single game dict (as returned by The Odds API) and return
@@ -192,10 +214,12 @@ def find_edges(game: dict, sport_key: str) -> GameEdges | None:
     best_odds_map = _best_odds_per_outcome(bookmakers)
     fair_probs = _consensus_fair_probs(bookmakers, outcome_names)
 
-    # World Cup: load Elo+Poisson model probabilities when available
+    # Load sport-specific model probabilities when available
     model_probs: dict[str, float] | None = None
     if sport_key == _WORLD_CUP_KEY:
         model_probs = _world_cup_model_probs(home, away)
+    elif sport_key in _TENNIS_KEYS:
+        model_probs = _tennis_model_probs(home, away, sport_key)
 
     edges = GameEdges(
         sport=sport_key,

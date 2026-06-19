@@ -11,6 +11,8 @@ SPORTS = {
     "nfl": "americanfootball_nfl",
     "mlb": "baseball_mlb",
     "world_cup": "soccer_fifa_world_cup",
+    "tennis_atp": "tennis_atp",
+    "tennis_wta": "tennis_wta",
 }
 
 # Minimum edge (model prob - implied prob) to report
