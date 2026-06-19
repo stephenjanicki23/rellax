@@ -2,8 +2,9 @@ name: Deploy to Hugging Face Spaces
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, claude/sports-betting-edges-yr9mh8]
     paths: [betting/**]
+  workflow_dispatch:
 
 jobs:
   deploy:
