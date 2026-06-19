@@ -29,6 +29,7 @@ jobs:
 
           # Sync betting/ into Space root (exclude dev-only files)
           rsync -a --delete \
+            --exclude='.git/' \
             --exclude='.env' \
             --exclude='__pycache__/' \
             --exclude='*.pyc' \
