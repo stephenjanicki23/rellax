@@ -44,9 +44,13 @@ def _fmt_time(iso: str) -> str:
 
 
 def scan(sports: list[str], min_ev_pct: float) -> tuple[pd.DataFrame, str]:
-    key = os.getenv("ODDS_API_KEY", "")
+    key = os.getenv("ODDS_API_KEY", "").strip()
     if not key:
-        return pd.DataFrame(columns=COLUMNS), "❌ ODDS_API_KEY is not configured. Add it as a Space Secret."
+        return pd.DataFrame(columns=COLUMNS), (
+            "❌ ODDS_API_KEY secret is not loaded.\n\n"
+            "If you just added the secret, go to your Space page → ⋮ menu → Restart Space "
+            "so the new secret takes effect."
+        )
 
     config.MIN_EV = min_ev_pct / 100.0
     config.MIN_EDGE = max(0.01, min_ev_pct / 200.0)
@@ -102,12 +106,16 @@ def scan(sports: list[str], min_ev_pct: float) -> tuple[pd.DataFrame, str]:
     return df, status
 
 
+_key_status = "🟢 API key loaded" if os.getenv("ODDS_API_KEY", "").strip() else "🔴 API key not found — add ODDS_API_KEY as a Space Secret, then restart the Space"
+
 with gr.Blocks(title="Sports Betting Edge Finder", theme=gr.themes.Soft()) as demo:
     gr.Markdown(
-        """
+        f"""
         # 🏈⚾⚽ Sports Betting Edge Finder
         Pulls live moneyline odds from multiple sportsbooks, strips the vig to find the
         **true probability**, then flags bets where a book is offering *better-than-fair* odds.
+
+        **Status:** {_key_status}
 
         > ⚠️ For informational purposes only. Gamble responsibly.
         """
