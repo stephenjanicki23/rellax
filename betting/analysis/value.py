@@ -181,8 +181,6 @@ def _tennis_model_probs(player1: str, player2: str, sport_key: str) -> dict[str,
     return {
         player1: result["p1_win"],
         player2: result["p2_win"],
-        "_surface": surface,
-        "_surface_advantage": result["surface_advantage"],
     }
 
 

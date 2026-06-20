@@ -26,9 +26,14 @@ class OddsClient:
         used = resp.headers.get("x-requests-used", "?")
         if resp.status_code == 401:
             raise OddsAPIError("Invalid API key.")
+        if resp.status_code == 404:
+            raise OddsAPIError(f"Sport not found — key may be unavailable or off-season.")
+        if resp.status_code == 422:
+            raise OddsAPIError(f"Sport key not supported by your subscription.")
         if resp.status_code == 429:
             raise OddsAPIError(f"Rate limit hit. Remaining quota: {remaining}")
-        resp.raise_for_status()
+        if not resp.ok:
+            raise OddsAPIError(f"API error {resp.status_code}: {resp.text[:200]}")
         print(f"  [API] {path} — quota used: {used}, remaining: {remaining}")
         return resp.json()
 
