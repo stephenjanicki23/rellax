@@ -18,6 +18,7 @@ import type {
   RosterEntry,
   StatLine,
 } from '@/domain/types';
+import { POSITIONS } from '@/domain/types';
 import { DEFAULT_LEAGUE_CONFIG } from '@/domain/league-config';
 
 export const SAMPLE_SOURCE = 'synthetic-sample';
@@ -196,21 +197,85 @@ export function buildSampleTeams(options: { drafted?: boolean } = {}): FantasyTe
   }
 
   if (options.drafted) {
-    // Snake-draft the sample pool by simple positional value so rosters are realistic.
-    const pool = orderedSamplePool();
-    let index = 0;
-    for (let round = 0; round < 16; round++) {
-      const order = round % 2 === 0 ? teams : [...teams].reverse();
-      for (const team of order) {
-        const playerId = pool[index++];
-        if (!playerId) continue;
-        const entry: RosterEntry = { playerId, slot: 'BENCH', acquisitionType: 'DRAFT' };
-        team.roster.push(entry);
-      }
-    }
+    runSampleDraft(teams, 16);
+    for (const team of teams) assignSampleLineup(team);
   }
 
   return teams;
+}
+
+/**
+ * Snake-draft the sample pool.
+ *
+ * Skill positions go by value, and the last two rounds take a kicker and a defence — which
+ * is what managers actually do, and which keeps the sample league from permanently
+ * reporting unfillable K/DST slots.
+ */
+export function runSampleDraft(teams: FantasyTeam[], rounds: number): void {
+  const skillPool = orderedSamplePool().filter((id) => !id.startsWith('k-') && !id.startsWith('dst-'));
+  const kickers = POSITION_SPECS.find((s) => s.position === 'K');
+  const defenses = POSITION_SPECS.find((s) => s.position === 'DST');
+
+  let index = 0;
+  for (let round = 0; round < rounds; round++) {
+    const order = round % 2 === 0 ? teams : [...teams].reverse();
+    const roundsFromEnd = rounds - round;
+
+    order.forEach((team, seat) => {
+      let playerId: string | undefined;
+      if (roundsFromEnd === 2 && kickers) {
+        playerId = `k-${seat + 1}`;
+      } else if (roundsFromEnd === 1 && defenses) {
+        playerId = `dst-${seat + 1}`;
+      } else {
+        playerId = skillPool[index++];
+      }
+      if (!playerId) return;
+      const entry: RosterEntry = { playerId, slot: 'BENCH', acquisitionType: 'DRAFT' };
+      team.roster.push(entry);
+    });
+  }
+}
+
+/**
+ * Put the sample rosters into starting slots.
+ *
+ * Real providers report a lineup, so the sample must too — otherwise every screen reports
+ * "no lineup set", which is a genuine state but not a useful default for exploring the app.
+ * Deliberately imperfect: it fills by draft order rather than by projection, so the lineup
+ * optimiser still has real changes to recommend.
+ */
+export function assignSampleLineup(team: FantasyTeam): void {
+  const slotPlan: Array<{ slot: RosterEntry['slot']; eligible: Position[] }> = [
+    { slot: 'QB', eligible: ['QB'] },
+    { slot: 'QB', eligible: ['QB'] },
+    { slot: 'RB', eligible: ['RB'] },
+    { slot: 'RB', eligible: ['RB'] },
+    { slot: 'WR', eligible: ['WR'] },
+    { slot: 'WR', eligible: ['WR'] },
+    { slot: 'TE', eligible: ['TE'] },
+    { slot: 'FLEX', eligible: ['RB', 'WR', 'TE'] },
+    { slot: 'K', eligible: ['K'] },
+    { slot: 'DST', eligible: ['DST'] },
+  ];
+
+  const used = new Set<string>();
+  for (const plan of slotPlan) {
+    const entry = team.roster.find(
+      (candidate) =>
+        !used.has(candidate.playerId) &&
+        plan.eligible.includes(positionOfSampleId(candidate.playerId)),
+    );
+    if (!entry) continue;
+    used.add(entry.playerId);
+    entry.slot = plan.slot;
+  }
+}
+
+/** Sample ids encode their position, e.g. "rb-12". */
+export function positionOfSampleId(playerId: string): Position {
+  const prefix = playerId.split('-')[0]?.toUpperCase() ?? 'WR';
+  return (POSITIONS as readonly string[]).includes(prefix) ? (prefix as Position) : 'WR';
 }
 
 /** Players ordered roughly as they would come off the board in a 2-QB 0.5-PPR league. */

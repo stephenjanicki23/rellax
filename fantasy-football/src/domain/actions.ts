@@ -44,6 +44,8 @@ export interface WeeklyReport {
   grade: TeamGrade;
   startersProjection: number;
   lineupChanges: Array<{ startPlayerId: string; benchPlayerId: string; gain: number }>;
+  /** False when no player occupies a starting slot on my roster. */
+  lineupIsSet: boolean;
   actions: RecommendedAction[];
   needs: TeamNeedsReport | null;
   waiverTargets: WaiverRecommendation[];
@@ -75,6 +77,7 @@ export function buildWeeklyReport(
       grade: emptyGrade(),
       startersProjection: 0,
       lineupChanges: [],
+      lineupIsSet: false,
       actions: [],
       needs: null,
       waiverTargets: [],
@@ -99,18 +102,34 @@ export function buildWeeklyReport(
     myTeam.roster.filter((r) => r.slot !== 'BENCH' && r.slot !== 'IR').map((r) => r.playerId),
   );
 
+  // A roster with nothing in a starting slot has no lineup set at all. That is a
+  // different problem from a suboptimal lineup, and pairing optimal starters against
+  // nobody would produce nonsense swaps ("start X over <nobody>, +350 points").
+  const lineupIsSet = currentStarterIds.size > 0;
+
   const shouldStart = [...optimalIds].filter((id) => !currentStarterIds.has(id));
   const shouldSit = [...currentStarterIds].filter((id) => !optimalIds.has(id));
-  const lineupChanges = shouldStart.map((startId, index) => {
-    const benchId = shouldSit[index] ?? '';
-    return {
-      startPlayerId: startId,
-      benchPlayerId: benchId,
-      gain: round2(
-        (values.get(startId)?.projectedPoints ?? 0) - (values.get(benchId)?.projectedPoints ?? 0),
-      ),
-    };
-  });
+
+  // Pair each promotion with the demotion it displaces. Best incoming player against the
+  // worst outgoing one, which is the swap a manager would actually make.
+  const byPointsDesc = (a: string, b: string) =>
+    (values.get(b)?.projectedPoints ?? 0) - (values.get(a)?.projectedPoints ?? 0);
+  const promotions = [...shouldStart].sort(byPointsDesc);
+  const demotions = [...shouldSit].sort((a, b) => byPointsDesc(b, a));
+
+  const lineupChanges = lineupIsSet
+    ? promotions.slice(0, demotions.length).map((startId, index) => {
+        const benchId = demotions[index]!;
+        return {
+          startPlayerId: startId,
+          benchPlayerId: benchId,
+          gain: round2(
+            (values.get(startId)?.projectedPoints ?? 0) -
+              (values.get(benchId)?.projectedPoints ?? 0),
+          ),
+        };
+      })
+    : [];
 
   // Waiver targets from the free-agent pool.
   const rosteredIds = new Set(teams.flatMap((t) => t.roster.map((r) => r.playerId)));
@@ -147,6 +166,7 @@ export function buildWeeklyReport(
     values,
     myFaabRemaining: myTeam.faabRemaining,
     unfilledSlots: optimal.unfilledSlots,
+    lineupIsSet,
   });
 
   return {
@@ -154,6 +174,7 @@ export function buildWeeklyReport(
     grade,
     startersProjection: optimal.startersPoints,
     lineupChanges,
+    lineupIsSet,
     actions,
     needs: myNeeds,
     waiverTargets,
@@ -173,11 +194,34 @@ interface RankInput {
   values: Map<string, ValuedPlayer>;
   myFaabRemaining: number;
   unfilledSlots: string[];
+  /** False when no player is in a starting slot — the lineup has never been set. */
+  lineupIsSet: boolean;
 }
 
 export function rankActions(input: RankInput): RecommendedAction[] {
   const actions: RecommendedAction[] = [];
   const name = (id: string) => input.values.get(id)?.player.name ?? 'Unknown player';
+
+  // A lineup that was never set is the first thing to fix — it costs more than any
+  // single swap, and it is entirely under your control.
+  if (!input.lineupIsSet) {
+    actions.push({
+      kind: 'LINEUP_CHANGE',
+      priority: 'HIGH',
+      headline: 'Set your starting lineup',
+      detail:
+        'No player on your roster is currently in a starting slot, so this roster would score nothing.',
+      reasoning: [
+        'Every rostered player is on the bench or IR.',
+        'The optimal lineup for this roster is shown on the Matchups page.',
+      ],
+      confidence: 0.99,
+      expectedGain: null,
+      risk: null,
+      alternative: null,
+      dataUsed: ['rosters', 'league-config'],
+    });
+  }
 
   // Unfillable starting slots are always the top problem.
   for (const slot of input.unfilledSlots) {
