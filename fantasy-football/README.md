@@ -113,6 +113,7 @@ All server-side; nothing is exposed to the browser. See `.env.example`.
 
 | Variable | Purpose |
 | --- | --- |
+| `DASHBOARD_PASSWORD` | Password gate. Required on any deploy carrying ESPN cookies |
 | `DATABASE_URL` | PostgreSQL, for persistence and history |
 | `ANTHROPIC_API_KEY` | Optional. Without it the deterministic engine analysis is used |
 | `ESPN_LEAGUE_ID`, `ESPN_SEASON` | Your league |
@@ -123,6 +124,15 @@ The ESPN client is a `server-only` module, so importing it into a client compone
 build error — the cookies cannot reach the browser.
 
 ---
+
+## Deploying
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) — Vercel (set root directory to `fantasy-football`)
+or the included `Dockerfile`.
+
+There are no user accounts yet, so `src/middleware.ts` enforces a password gate: with
+ESPN credentials configured and no `DASHBOARD_PASSWORD`, the app refuses to serve rather
+than exposing your league to anyone with the URL.
 
 ## Known limits
 
