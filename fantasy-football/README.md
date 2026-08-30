@@ -127,8 +127,13 @@ build error — the cookies cannot reach the browser.
 
 ## Deploying
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) — Vercel (set root directory to `fantasy-football`)
-or the included `Dockerfile`.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) — Vercel or the included `Dockerfile`.
+
+For a shareable demo, deploy with **no environment variables**: the app runs on the
+labelled synthetic sample league, so there is nothing real to expose. Import the repo at
+<https://vercel.com/new>, pick this branch, and set **Root Directory** to
+`fantasy-football` — the repository root is an unrelated JS library, so the build fails
+without it.
 
 There are no user accounts yet, so `src/middleware.ts` enforces a password gate: with
 ESPN credentials configured and no `DASHBOARD_PASSWORD`, the app refuses to serve rather
