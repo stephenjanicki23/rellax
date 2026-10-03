@@ -8,6 +8,7 @@ import { recordString } from '../engine/league/standings';
 import { currentPick } from '../engine/economy/draft';
 import { expiringPlayers, FA_DAYS } from '../engine/economy/freeAgency';
 import { capSpace } from '../engine/economy/contracts';
+import { rosterSize } from '../engine/economy/roster';
 import { NewGame } from './pages/NewGame';
 import { Dashboard } from './pages/Dashboard';
 import { RosterPage } from './pages/Roster';
@@ -257,6 +258,10 @@ function TopBar() {
         onClick={() => {
           if (capSpace(league, league.userTeamId) < 0) {
             toast('You are over the salary cap. Trade, demote or release players before the season starts.', 'bad');
+            return;
+          }
+          if (rosterSize(league, league.userTeamId) > league.config.economics.rosterMax) {
+            toast(`Your active roster is over the ${league.config.economics.rosterMax}-man limit. Send players to the minors or release them first.`, 'bad');
             return;
           }
           void nextPhase();
