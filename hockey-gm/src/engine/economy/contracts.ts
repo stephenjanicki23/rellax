@@ -2,40 +2,16 @@ import type { Rng } from '../core/rng';
 import { clamp } from '../core/math';
 import type { League, Player, Team } from '../types';
 import { capProjection, teamCapSheet } from '../cba/capManager';
+import { contractValue, marketAbility } from '../cba/market';
 
-/** Ability as perceived by the market: current ability plus some credit for youth upside. */
+/** Ability as perceived by the market (see cba/market). */
 export function perceivedAbility(p: Player, season: number): number {
-  const age = season - p.birthYear;
-  const upside = Math.max(0, p.pa - p.ca);
-  const credit = age <= 21 ? 0.3 : age <= 23 ? 0.22 : age <= 25 ? 0.12 : 0;
-  return p.ca + upside * credit;
+  return marketAbility(p, season);
 }
 
-/** Statistical bump/penalty from last season's production (market loves points). */
-function productionAdj(p: Player): number {
-  const last = [...p.career].reverse().find((c) => !c.playoffs);
-  if (!last || last.stats.gp < 20) return 0;
-  const s = last.stats;
-  if (p.pos === 'G') {
-    const sv = s.sa ? (s.sa - s.ga) / s.sa : 0.9;
-    return clamp((sv - 0.905) * 120, -4, 4);
-  }
-  const ppg = (s.g + s.a1 + s.a2) / s.gp;
-  const expected = p.pos === 'D' ? 0.1 + (p.ca - 110) * 0.008 : 0.15 + (p.ca - 110) * 0.012;
-  return clamp((ppg - expected) * 12, -5, 6);
-}
-
-/** Fair annual salary (thousands) for a player on the open market. */
+/** Fair annual cap hit (thousands) on the open market — the CBA market-value engine. */
 export function marketValue(p: Player, league: Pick<League, 'season' | 'cap'>): number {
-  const age = league.season - p.birthYear;
-  const ability = perceivedAbility(p, league.season) + productionAdj(p);
-  const x = clamp((ability - 105) / 85, 0, 1.2);
-  let v = league.cap.minSalary + 14_500 * x * x;
-  if (p.pos === 'G') v *= 0.9;
-  if (age >= 33) v *= clamp(1 - 0.09 * (age - 32), 0.35, 1);
-  v *= league.cap.upper / 92_000;
-  const max = league.cap.upper * 0.2;
-  return Math.round(clamp(v, league.cap.minSalary, max) / 5) * 5;
+  return contractValue(p, league as League).value;
 }
 
 /** Contract term a player/team would typically agree to. */

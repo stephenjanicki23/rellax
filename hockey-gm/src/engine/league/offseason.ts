@@ -29,6 +29,7 @@ import { generateCoach } from '../team/coaching';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable } from '../economy/roster';
 import { advanceContracts } from '../cba/contractService';
+import { aiQualifyingDecisions, prepareExpiries } from '../cba/rfa';
 
 export function endRegularSeasonHooks(league: League): void {
   if (!league.draftCombineDone) runCombine(league);
@@ -205,8 +206,15 @@ function rollContracts(league: League): void {
 export function startResignPhase(league: League): void {
   finishDraft(league);
   rollContracts(league);
-  for (const t of league.teams) if (isCpu(league, t.id)) aiResign(league, t.id);
   league.phase = 'resign';
+  league.offseasonStep = 'qualifyingOffers';
+  // Classify expiring contracts and build the qualifying-offer list.
+  prepareExpiries(league);
+  for (const t of league.teams) {
+    if (!isCpu(league, t.id)) continue;
+    aiResign(league, t.id);
+    aiQualifyingDecisions(league, t.id);
+  }
   const mine = expiringPlayers(league, league.userTeamId);
   if (mine.length) {
     addNews(league, { category: 'signing', headline: `${mine.length} of your players have expiring contracts — re-sign them before free agency opens`, teamIds: [league.userTeamId], playerIds: mine.map((p) => p.id), importance: 3 });
@@ -309,7 +317,10 @@ export function advanceOffseason(league: League, auto = false): void {
       break;
     }
     case 'resign':
-      if (auto) aiResign(league, league.userTeamId);
+      if (auto) {
+        aiResign(league, league.userTeamId);
+        aiQualifyingDecisions(league, league.userTeamId);
+      }
       startFreeAgency(league);
       break;
     case 'freeAgency': {
