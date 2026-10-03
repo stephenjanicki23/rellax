@@ -11,9 +11,22 @@ import type { ScheduledGame, Team } from '../../engine/types';
 import { recordString } from '../../engine/league/standings';
 import { playoffRoundName } from '../../engine/league/playoffs';
 
-type Speed = 'pause' | '1' | '2' | '5' | '10';
-/** Game seconds simulated per real second at 1x. A full game takes about six minutes at 1x. */
-const BASE_RATE = 10;
+type Speed = 'pause' | '1' | '2' | '5' | '10' | '30' | '60';
+const SPEEDS: { id: Speed; label: string }[] = [
+  { id: 'pause', label: '❚❚ Pause' },
+  { id: '1', label: '▶ 1×' },
+  { id: '2', label: '2×' },
+  { id: '5', label: '5×' },
+  { id: '10', label: '10×' },
+  { id: '30', label: '30×' },
+  { id: '60', label: '60×' },
+];
+
+/** Sim state after one engine step, queued until the playback clock reaches it. */
+interface Frame {
+  elapsed: number;
+  snap: GameSnapshot;
+}
 
 export function LiveGame() {
   const { league } = useGame();
@@ -98,32 +111,52 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     if (out.length) setLines((prev) => [...out.reverse(), ...prev].slice(0, 400));
   };
 
+  // Playback runs on game time: at N× the clock advances N game seconds per
+  // real second. The engine advances a whole possession per step, so it runs
+  // one step ahead and the display catches up smoothly; whistles cost no time.
+  const playRef = useRef<{ t: number; cur: Frame; queue: Frame[]; pending: GameEvent[] } | null>(null);
+  if (!playRef.current) playRef.current = { t: 0, cur: { elapsed: 0, snap: sim.snapshot() }, queue: [], pending: [] };
+  const [dispT, setDispT] = useState(0);
+
+  const advanceTo = (t: number) => {
+    const pb = playRef.current!;
+    pb.t = t;
+    let guard = 0;
+    while (!sim.finished && sim.elapsed <= t && guard++ < 20000) {
+      pb.pending.push(...sim.step());
+      pb.queue.push({ elapsed: sim.elapsed, snap: sim.snapshot() });
+    }
+    while (pb.queue.length && pb.queue[0].elapsed <= t) pb.cur = pb.queue.shift()!;
+    const due = pb.pending.filter((e) => e.t <= t);
+    if (due.length) {
+      pb.pending = pb.pending.filter((e) => e.t > t);
+      pushEvents(due);
+    }
+    setSnap(pb.cur.snap);
+    setDispT(t);
+    if (sim.finished && !pb.queue.length && !pb.pending.length) {
+      setFinished(true);
+      setSpeed('pause');
+    }
+  };
+
   useEffect(() => {
     if (speed === 'pause' || finished) return;
-    const rate = BASE_RATE * Number(speed);
+    const rate = Number(speed);
+    let last = performance.now();
     const id = setInterval(() => {
-      const target = sim.elapsed + rate * 0.1;
-      const evs: GameEvent[] = [];
-      let guard = 0;
-      while (!sim.finished && sim.elapsed < target && guard++ < 200) evs.push(...sim.step());
-      pushEvents(evs);
-      setSnap(sim.snapshot());
-      if (sim.finished) {
-        setFinished(true);
-        setSpeed('pause');
-      }
-    }, 100);
+      const now = performance.now();
+      const dt = (now - last) / 1000;
+      last = now;
+      advanceTo(playRef.current!.t + dt * rate);
+    }, 50);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speed, finished]);
 
   const instant = () => {
-    const evs: GameEvent[] = [];
-    while (!sim.finished) evs.push(...sim.step());
-    pushEvents(evs);
-    setSnap(sim.snapshot());
-    setFinished(true);
-    setSpeed('pause');
+    while (!sim.finished) sim.step();
+    advanceTo(Infinity);
   };
 
   const finalize = async () => {
@@ -133,6 +166,11 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   };
 
   const s = snap;
+  // Interpolate the clock toward the next queued engine state.
+  const next = playRef.current.queue[0];
+  const nextClock = next ? next.snap.clock - (next.elapsed - dispT) : -1;
+  const period = next && nextClock >= 0 ? next.snap.period : s.period;
+  const clock = next && nextClock >= 0 ? nextClock : s.clock;
   const ppSide = s.ppTimeLeft[0] > 0 ? 0 : s.ppTimeLeft[1] > 0 ? 1 : -1;
   const goals = lines.filter((l) => l.kind === 'goal' && l.text.startsWith('GOAL')).reverse();
   const pens = lines.filter((l) => l.kind === 'penalty').reverse();
@@ -162,8 +200,8 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
             <span className="score" style={{ marginLeft: 'auto' }}>{s.score[0]}</span>
           </div>
           <div className="clock">
-            <div className="big">{s.inShootout ? 'SO' : periodLabel(s.period, playoff)}</div>
-            <div className="mono" style={{ fontSize: 18 }}>{clockLabel(s.clock, s.periodLength)}</div>
+            <div className="big">{s.inShootout ? 'SO' : periodLabel(period, playoff)}</div>
+            <div className="mono" style={{ fontSize: 18 }}>{clockLabel(clock, s.periodLength)}</div>
             <div className="muted" style={{ fontSize: 11 }}>{info}</div>
           </div>
           <div className="team away">
@@ -179,7 +217,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
         <div className="row" style={{ marginTop: 14, justifyContent: 'center' }}>
           {!finished ? (
             <>
-              <Seg value={speed} onChange={setSpeed} options={[{ id: 'pause', label: '❚❚ Pause' }, { id: '1', label: '▶ 1×' }, { id: '2', label: '2×' }, { id: '5', label: '5×' }, { id: '10', label: '10×' }]} />
+              <Seg value={speed} onChange={setSpeed} options={SPEEDS} />
               <button className="btn" onClick={instant}>⏭ Instant result</button>
             </>
           ) : (
