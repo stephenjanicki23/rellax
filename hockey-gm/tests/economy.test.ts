@@ -7,7 +7,7 @@ import { evaluateTrade, executeTrade, playerTradeValue, type TradeProposal } fro
 import { currentPick, makeDraftPick, suggestPick } from '../src/engine/economy/draft';
 import { estimate } from '../src/engine/economy/scouting';
 import { makeOffer, faPool, demandFor } from '../src/engine/economy/freeAgency';
-import { playersOf } from '../src/engine/league/helpers';
+import { rosterSize } from '../src/engine/economy/roster';
 import type { League } from '../src/engine/types';
 
 describe('contracts & cap', () => {
@@ -107,7 +107,7 @@ describe('offseason: draft, re-sign, free agency', () => {
     for (const t of league.teams) {
       if (t.id === league.userTeamId) continue;
       expect(payroll(league, t.id)).toBeLessThanOrEqual(league.cap.upper * 1.001);
-      const n = playersOf(league, t.id).length;
+      const n = rosterSize(league, t.id);
       expect(n).toBeGreaterThanOrEqual(20);
       expect(n).toBeLessThanOrEqual(league.config.economics.rosterMax);
     }

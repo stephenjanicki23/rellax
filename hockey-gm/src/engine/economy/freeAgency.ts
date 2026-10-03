@@ -10,7 +10,7 @@ import { seedFrom, Rng } from '../core/rng';
 import type { FreeAgentOffer, League, Player } from '../types';
 import { addNews, addTransaction, isCpu, playersOf, teamName, withRng } from '../league/helpers';
 import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, makeContract, payroll } from './contracts';
-import { signPlayer, releasePlayer } from './roster';
+import { signPlayer, releasePlayer, rosterSize } from './roster';
 import { fullName, isForward } from '../player/ability';
 import { teamStrength } from '../team/strength';
 import { PERSONALITIES } from '../player/personality';
@@ -160,7 +160,7 @@ export function makeOffer(league: League, teamId: number, p: Player, salary: num
   if (salary > league.cap.upper * 0.2) return { ok: false, message: 'Exceeds the maximum contract.' };
   const committed = league.faOffers.filter((o) => o.teamId === teamId && o.playerId !== p.id).reduce((s, o) => s + o.salary, 0);
   if (salary + committed > capSpace(league, teamId) + 1) return { ok: false, message: 'Not enough cap space (including your other pending offers).' };
-  if (playersOf(league, teamId).length >= league.config.economics.rosterMax) return { ok: false, message: 'Your roster is full.' };
+  if (rosterSize(league, teamId) >= league.config.economics.rosterMax) return { ok: false, message: 'Your roster is full.' };
   league.faOffers = league.faOffers.filter((o) => !(o.teamId === teamId && o.playerId === p.id));
   const offer: FreeAgentOffer = { playerId: p.id, teamId, salary, years, day: league.faDay, ntc: false };
   // Outside the free-agency period (in-season), players decide immediately.
@@ -194,7 +194,7 @@ export function aiOffers(league: League, rng: Rng): void {
   for (const o of league.faOffers) offerCount.set(o.playerId, (offerCount.get(o.playerId) ?? 0) + 1);
   const teams = rng.shuffle(league.teams.filter((t) => isCpu(league, t.id)));
   for (const team of teams) {
-    const roster = playersOf(league, team.id);
+    const roster = playersOf(league, team.id).filter((p) => !(p.injury && p.injury.daysRemaining > 7));
     const pay = payroll(league, team.id);
     const mine = league.faOffers.filter((o) => o.teamId === team.id);
     const underFloor = pay < league.cap.floor;

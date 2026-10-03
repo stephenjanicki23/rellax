@@ -6,6 +6,13 @@ import { emptyStatLine } from '../core/statline';
 
 const healthy = (p: Player) => !p.injury || p.injury.daysRemaining <= 0;
 
+/** Players on injured reserve (out more than a week) do not count against the roster limit. */
+export const onIR = (p: Player): boolean => !!p.injury && p.injury.daysRemaining > 7;
+
+export function rosterSize(league: League, teamId: number): number {
+  return playersOf(league, teamId, ['active']).filter((p) => !onIR(p)).length;
+}
+
 export function rosterCounts(players: Player[]): { F: number; D: number; G: number; total: number } {
   const h = players.filter(healthy);
   return {
@@ -97,7 +104,7 @@ export function ensureDressable(league: League, teamId: number): void {
 export function trimRoster(league: League, teamId: number): void {
   const max = league.config.economics.rosterMax;
   for (let guard = 0; guard < 10; guard++) {
-    const active = playersOf(league, teamId, ['active']);
+    const active = playersOf(league, teamId, ['active']).filter((p) => !onIR(p));
     if (active.length <= max) return;
     const c = rosterCounts(active);
     const canLose = (p: Player) => {
