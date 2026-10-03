@@ -7,7 +7,7 @@
  */
 import { clamp } from '../core/math';
 import { Rng, seedFrom } from '../core/rng';
-import { emptyStatLine, points as statPoints } from '../core/statline';
+import { compactStatLine, emptyStatLine, points as statPoints } from '../core/statline';
 import type { League, SeasonHistory } from '../types';
 import { addNews, addTransaction, emptyRecord, isCpu, playersOf, points, teamName } from './helpers';
 import { computeAwards, computePlayoffMvp, announceAwards } from './awards';
@@ -37,8 +37,8 @@ function archiveCareers(league: League): void {
   for (const [idStr, e] of Object.entries(league.seasonStats)) {
     const p = league.players[Number(idStr)];
     if (!p) continue;
-    if (e.reg.gp > 0) p.career.push({ season: league.season, teamId: e.teamId, playoffs: false, stats: e.reg });
-    if (e.po.gp > 0) p.career.push({ season: league.season, teamId: e.teamId, playoffs: true, stats: e.po });
+    if (e.reg.gp > 0) p.career.push({ season: league.season, teamId: e.teamId, playoffs: false, stats: compactStatLine(e.reg) });
+    if (e.po.gp > 0) p.career.push({ season: league.season, teamId: e.teamId, playoffs: true, stats: compactStatLine(e.po) });
     if (e.reg.gp > 0) p.proSeasons++;
     // Playoff reputation: small, slow-moving, based on playoff production vs. regular season.
     if (e.po.gp >= 4) {
@@ -138,6 +138,7 @@ export function yearlyDevelopment(league: League): void {
   for (const p of Object.values(league.players)) {
     if (p.status === 'retired') continue;
     const before = p.ca;
+    if (p.status === 'active' || p.status === 'prospect') (p.caHistory ??= []).push([league.season, p.ca]);
     const ctx = devContext(league, p, 0.62);
     if (p.status === 'draft' || p.status === 'fa') {
       ctx.minors = true;

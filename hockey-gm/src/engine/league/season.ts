@@ -139,6 +139,12 @@ export function userGameToday(league: League): ScheduledGame | undefined {
   return gamesOnDay(league, league.day).find((g) => g.home === league.userTeamId || g.away === league.userTeamId);
 }
 
+/** Make sure today's games exist (playoff games are created day by day) and return the user's. */
+export function prepareUserGame(league: League): ScheduledGame | undefined {
+  if (league.phase === 'playoffs') playoffGamesForToday(league, true);
+  return userGameToday(league);
+}
+
 export function nextUserGame(league: League): ScheduledGame | undefined {
   return league.schedule
     .filter((g) => !g.played && (g.home === league.userTeamId || g.away === league.userTeamId))

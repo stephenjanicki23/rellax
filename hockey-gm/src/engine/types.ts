@@ -243,6 +243,8 @@ export interface Player {
   seasonToiMin: number;
   /** Ratings snapshot at season start for "breakout" detection. */
   caSeasonStart: number;
+  /** [season, CA at season end] pairs for development charts. */
+  caHistory: [number, number][];
 }
 
 export type OffenseStyle = 'cycle' | 'rush' | 'possession' | 'dumpChase' | 'balanced';

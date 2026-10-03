@@ -196,6 +196,7 @@ export function generatePlayer(rng: Rng, opts: GenerateOptions): Player {
     devBank: 0,
     seasonToiMin: 0,
     caSeasonStart: ca,
+    caHistory: [],
   };
   player.expectedToi = expectedToiFor(player);
   return player;

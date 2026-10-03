@@ -9,6 +9,7 @@ import { points as statPoints, savePct } from './core/statline';
 import type { League } from './types';
 import { simulateGame } from './sim/engine';
 import { buildGameInput } from './league/gameInput';
+import type { GameResult } from './sim/gameTypes';
 
 export interface BatchSummary {
   games: number;
@@ -42,26 +43,27 @@ export interface BatchSummary {
   highScoringPct: number; // 9+ total goals
 }
 
-/** Simulate `n` games from the current schedule without touching league state. */
-export function runGameBatch(league: League, n: number, salt = 0): BatchSummary {
-  const t0 = Date.now();
-  const games = league.schedule.filter((g) => !g.playoff);
-  const totals: number[] = [];
-  const shots: number[] = [];
-  const margins = { '1': 0, '2': 0, '3': 0, '4': 0, '5+': 0, OT: 0 } as Record<string, number>;
-  const acc = { goals: 0, shots: 0, att: 0, blocked: 0, missed: 0, xg: 0, ppOpp: 0, ppg: 0, shg: 0, hits: 0, blocks: 0, tk: 0, gv: 0, pim: 0, sa: 0, ga: 0, assists: 0, en: 0, inj: 0, fights: 0 };
-  let homeWins = 0;
-  let ot = 0;
-  let so = 0;
-  for (let i = 0; i < n; i++) {
-    const g = games[i % games.length];
-    const r = simulateGame(buildGameInput(league, g.id, false, 7919 + salt * 100003 + i));
-    totals.push(r.homeGoals + r.awayGoals);
-    if (r.homeGoals > r.awayGoals) homeWins++;
-    if (r.ot) ot++;
-    if (r.so) so++;
+/** Accumulates game results into a BatchSummary. */
+export class BatchAccumulator {
+  private totals: number[] = [];
+  private shots: number[] = [];
+  private margins: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0, '5+': 0, OT: 0 };
+  private acc = { goals: 0, shots: 0, att: 0, blocked: 0, missed: 0, xg: 0, ppOpp: 0, ppg: 0, shg: 0, hits: 0, blocks: 0, tk: 0, gv: 0, pim: 0, sa: 0, ga: 0, assists: 0, en: 0, inj: 0, fights: 0 };
+  private homeWins = 0;
+  private ot = 0;
+  private so = 0;
+  private n = 0;
+  private t0 = Date.now();
+
+  add(r: GameResult): void {
+    const acc = this.acc;
+    this.n++;
+    this.totals.push(r.homeGoals + r.awayGoals);
+    if (r.homeGoals > r.awayGoals) this.homeWins++;
+    if (r.ot) this.ot++;
+    if (r.so) this.so++;
     const m = Math.abs(r.homeGoals - r.awayGoals);
-    margins[r.ot ? 'OT' : m >= 5 ? '5+' : String(m)]++;
+    this.margins[r.ot ? 'OT' : m >= 5 ? '5+' : String(m)]++;
     for (const t of r.teams) {
       acc.goals += t.goals;
       acc.shots += t.shots;
@@ -77,7 +79,7 @@ export function runGameBatch(league: League, n: number, salt = 0): BatchSummary 
       acc.tk += t.tk;
       acc.gv += t.gv;
       acc.pim += t.pim;
-      shots.push(t.shots);
+      this.shots.push(t.shots);
     }
     for (const p of Object.values(r.players)) {
       acc.sa += p.sa;
@@ -90,38 +92,71 @@ export function runGameBatch(league: League, n: number, salt = 0): BatchSummary 
     acc.inj += r.injuries.length;
     acc.fights += r.penalties.filter((p) => p.infraction === 'Fighting').length / 2;
   }
-  const tg = n * 2;
-  return {
-    games: n,
-    ms: Date.now() - t0,
-    goalsPerTeam: acc.goals / tg,
-    shotsPerTeam: acc.shots / tg,
-    attemptsPerTeam: acc.att / tg,
-    blockedPerTeam: acc.blocked / tg,
-    missedPerTeam: acc.missed / tg,
-    xgPerTeam: acc.xg / tg,
-    shPct: acc.goals / Math.max(1, acc.shots),
-    svPct: acc.sa ? (acc.sa - acc.ga) / acc.sa : 0,
-    ppOppPerTeam: acc.ppOpp / tg,
-    ppPct: acc.ppOpp ? acc.ppg / acc.ppOpp : 0,
-    shGoalsPerTeam: acc.shg / tg,
-    hitsPerTeam: acc.hits / tg,
-    blocksPerTeam: acc.blocks / tg,
-    takeawaysPerTeam: acc.tk / tg,
-    giveawaysPerTeam: acc.gv / tg,
-    pimPerTeam: acc.pim / tg,
-    homeWinPct: homeWins / n,
-    otPct: ot / n,
-    soPct: so / n,
-    enGoalsPerGame: acc.en / n,
-    assistsPerGoal: acc.goals ? acc.assists / acc.goals : 0,
-    injuriesPerGame: acc.inj / n,
-    fightsPerGame: acc.fights / n,
-    totalGoalsHist: histogram(totals, 0, 14),
-    marginHist: Object.entries(margins).map(([label, count]) => ({ label, count })),
-    shotsHist: histogram(shots, 15, 50),
-    highScoringPct: totals.filter((t) => t >= 9).length / n,
-  };
+
+  summary(): BatchSummary {
+    const acc = this.acc;
+    const n = Math.max(1, this.n);
+    const tg = n * 2;
+    return {
+      games: this.n,
+      ms: Date.now() - this.t0,
+      goalsPerTeam: acc.goals / tg,
+      shotsPerTeam: acc.shots / tg,
+      attemptsPerTeam: acc.att / tg,
+      blockedPerTeam: acc.blocked / tg,
+      missedPerTeam: acc.missed / tg,
+      xgPerTeam: acc.xg / tg,
+      shPct: acc.goals / Math.max(1, acc.shots),
+      svPct: acc.sa ? (acc.sa - acc.ga) / acc.sa : 0,
+      ppOppPerTeam: acc.ppOpp / tg,
+      ppPct: acc.ppOpp ? acc.ppg / acc.ppOpp : 0,
+      shGoalsPerTeam: acc.shg / tg,
+      hitsPerTeam: acc.hits / tg,
+      blocksPerTeam: acc.blocks / tg,
+      takeawaysPerTeam: acc.tk / tg,
+      giveawaysPerTeam: acc.gv / tg,
+      pimPerTeam: acc.pim / tg,
+      homeWinPct: this.homeWins / n,
+      otPct: this.ot / n,
+      soPct: this.so / n,
+      enGoalsPerGame: acc.en / n,
+      assistsPerGoal: acc.goals ? acc.assists / acc.goals : 0,
+      injuriesPerGame: acc.inj / n,
+      fightsPerGame: acc.fights / n,
+      totalGoalsHist: histogram(this.totals, 0, 14),
+      marginHist: Object.entries(this.margins).map(([label, count]) => ({ label, count })),
+      shotsHist: histogram(this.shots, 15, 50),
+      highScoringPct: this.totals.filter((t) => t >= 9).length / n,
+    };
+  }
+}
+
+function batchGame(league: League, i: number, salt: number): GameResult {
+  const games = league.schedule.filter((g) => !g.playoff);
+  const g = games[i % games.length];
+  return simulateGame(buildGameInput(league, g.id, false, 7919 + salt * 100003 + i));
+}
+
+/** Simulate `n` games from the current schedule without touching league state. */
+export function runGameBatch(league: League, n: number, salt = 0): BatchSummary {
+  const acc = new BatchAccumulator();
+  for (let i = 0; i < n; i++) acc.add(batchGame(league, i, salt));
+  return acc.summary();
+}
+
+/** Same as runGameBatch but yields between chunks so a UI can stay responsive. */
+export async function runGameBatchAsync(league: League, n: number, onProgress: (done: number) => void, salt = 0, isCancelled: () => boolean = () => false): Promise<BatchSummary> {
+  const acc = new BatchAccumulator();
+  for (let i = 0; i < n; i++) {
+    acc.add(batchGame(league, i, salt));
+    if (i % 40 === 39) {
+      onProgress(i + 1);
+      await new Promise((r) => setTimeout(r, 0));
+      if (isCancelled()) break;
+    }
+  }
+  onProgress(n);
+  return acc.summary();
 }
 
 export interface SeasonSummary {

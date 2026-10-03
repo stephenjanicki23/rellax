@@ -49,8 +49,13 @@ export function estimate(league: League, p: Player): Estimate {
   const unk = (100 - k) / 100;
   const sdCa = 4 + unk * 26 * (1.15 - q.ca / 250);
   const sdPa = 5 + unk * 34 * (1.15 - q.pa / 250) + (p.status === 'draft' || p.status === 'prospect' ? 4 : 0);
-  const ca = Math.round(clamp(p.ca + biasCa * sdCa * 0.55, 1, 200));
+  // Your own staff knows exactly what your players can do today; the ceiling is still a guess.
+  const own = p.teamId === league.userTeamId && p.status !== 'draft';
+  const ca = own ? p.ca : Math.round(clamp(p.ca + biasCa * sdCa * 0.55, 1, 200));
   const pa = Math.round(clamp(Math.max(ca, p.pa + biasPa * sdPa * 0.55), 1, 200));
+  if (own) {
+    return { ca, pa, caLow: ca, caHigh: ca, paLow: Math.round(clamp(Math.max(ca, pa - sdPa), 1, 200)), paHigh: Math.round(clamp(pa + sdPa, 1, 200)), knowledge: k, exact: false };
+  }
   return {
     ca,
     pa,
@@ -66,7 +71,7 @@ export function estimate(league: League, p: Player): Estimate {
 /** Displayed attribute (0-200) with uncertainty for poorly-scouted players. */
 export function displayedAttr(league: League, p: Player, k: AttrKey): { value: number; range: number } {
   const know = knowledgeOf(league, p);
-  if (know >= 95) return { value: p.attrs[k], range: 0 };
+  if (know >= 95 || (p.teamId === league.userTeamId && p.status !== 'draft')) return { value: p.attrs[k], range: 0 };
   const r = new Rng(seedFrom(league.seed, 'attr', p.id, k));
   const sd = ((100 - know) / 100) * 30;
   return { value: Math.round(clamp(p.attrs[k] + r.normal(0, sd * 0.5), 1, 200)), range: Math.round(sd) };

@@ -36,3 +36,10 @@ export function fmtToi(seconds: number): string {
   const s = Math.round(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+/** Round fractional fields (xG etc.) for compact archival storage. */
+export function compactStatLine(s: StatLine): StatLine {
+  const out = { ...s };
+  for (const k of KEYS) if (!Number.isInteger(out[k])) out[k] = Math.round(out[k] * 100) / 100;
+  return out;
+}
