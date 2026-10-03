@@ -108,7 +108,7 @@ export function finalizeRecords(league: League): void {
     const reg = careerSum(p, false);
     const po = careerSum(p, true);
     for (const def of CAREER) {
-      const playoff = def.key.startsWith('cPo');
+      const playoff = def.key === 'cPoGoals' || def.key === 'cPoPoints';
       const s = playoff ? po : reg;
       if (def.eligible && !def.eligible(s, p, league)) continue;
       const v = def.value(s, p);

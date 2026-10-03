@@ -154,7 +154,13 @@ Season level, across many seeds:
 - starting goalies between ~.880 and ~.930
 - ~20 injuries and ~200 man-games lost per team
 
-Over 5 or more simulated seasons, the talent level stays flat (top-400 ability drift < 1 point/season) and the league produces different champions.
+A 20-season headless run (`seed: decades`, about 4 minutes) gave:
+- 11 different champions; team points σ 12–20 every season
+- scoring leaders between 107 and 153 points
+- starting goalies between .880 and .940
+- no crashes, with history, records and careers building up
+
+Raw ratings drift upward slowly at first (top-400 ability 141 → 150 over about 12 seasons, then flat). The engine's rating baseline absorbs this, so scoring does not inflate. Saves grow by about 0.7 MB per season (≈20 MB after 20 seasons), which is fine for IndexedDB.
 
 To keep scoring stable over decades even if ratings drift, the engine measures ratings relative to the league's current talent level (`ratingBaseline`).
 

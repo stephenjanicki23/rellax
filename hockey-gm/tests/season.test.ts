@@ -103,6 +103,8 @@ describe('full season', () => {
     for (const k of ['Hart', 'Vezina', 'Norris', 'Calder', 'Conn Smythe', 'Art Ross']) expect(names.some((n) => n.includes(k))).toBe(true);
     expect(league.records.singleSeason.goals.value).toBeGreaterThan(30);
     expect(league.records.team.tPoints.value).toBeGreaterThan(90);
+    // Career regular-season points can never trail career goals.
+    expect(league.records.career.cPoints.value).toBeGreaterThanOrEqual(league.records.career.cGoals.value);
     // Careers archived.
     const scorer = league.players[league.records.singleSeason.points.playerId!];
     expect(scorer.career.some((c) => c.season === h.season)).toBe(true);
