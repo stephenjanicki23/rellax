@@ -12,13 +12,21 @@ import { makeContract, marketValue, typicalTerm, teamBudget } from '../economy/c
 import { generateSchedule } from './schedule';
 import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
+import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
+import type { NhlSnapshot } from '../data/nhl/types';
+import NHL_SNAPSHOT from '../data/nhl/rosters.json';
 
 export interface CreateLeagueOptions {
   seed?: string;
   season?: number;
   userTeamId?: number;
   config?: LeagueConfig;
+  /** Real roster snapshot to use; `false` forces generated rosters. Defaults to the bundled NHL snapshot. */
+  rosters?: NhlSnapshot | false;
 }
+
+/** Active roster shape taken from a real roster (the rest go to the minors / system). */
+const REAL_ACTIVE = { F: 14, D: 7, G: 2 };
 
 export const SAVE_VERSION = 1;
 
@@ -51,7 +59,7 @@ function forwardPositions(rng: Rng, n: number): Position[] {
 export function createLeague(opts: CreateLeagueOptions = {}): League {
   const cfg = opts.config ?? DEFAULT_CONFIG;
   validateConfig(cfg);
-  const seed = opts.seed ?? `phl-${Date.now()}`;
+  const seed = opts.seed ?? `nhl-${Date.now()}`;
   const season = opts.season ?? 2026;
   const rng = new Rng(seed);
   const ids = { player: 1, coach: 1, news: 1, game: 1, tx: 1, pick: 1, scout: 1 };
@@ -99,11 +107,58 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     return p;
   };
 
+  const snap = opts.rosters === undefined ? (NHL_SNAPSHOT as NhlSnapshot) : opts.rosters;
+  const abbrs = teams.map((t) => t.abbr);
+  const real = snap && snapshotHasRosters(snap, abbrs) ? buildRealPlayers(rng, snap, abbrs, season, () => ids.player++) : null;
+
+  const signContract = (p: Player) => {
+    const age = season - p.birthYear;
+    const mv = marketValue(p, valueCtx);
+    const years = typicalTerm(p, season, rng);
+    const elc = age <= 22 && rng.chance(0.6);
+    p.contract = elc
+      ? makeContract(rng.int(cfg.economics.minSalary, cfg.economics.elcMaxSalary), rng.int(1, 3), season - 1, false, 'ELC')
+      : makeContract(mv * clamp(rng.normal(1, 0.15), 0.6, 1.35), rng.int(1, years), season - 1, mv > 6000 && age >= 27 && rng.chance(0.5));
+  };
+
   // ── Rosters
   for (const t of teams) {
     const teamOffset = rng.normal(0, 3);
     const star = rng.chance(0.2) ? rng.float(10, 22) : 0;
     const fPos = forwardPositions(rng, F_SLOTS.length);
+    let realExtras = 0;
+    if (real) {
+      // Best players by position make the active roster; the rest start in the system.
+      const mine = real.get(t.abbr)!;
+      const taken = { F: 0, D: 0, G: 0 };
+      for (const p of mine) {
+        const g = p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : 'F';
+        p.teamId = t.id;
+        if (taken[g] < REAL_ACTIVE[g]) {
+          taken[g]++;
+          p.status = 'active';
+        } else {
+          p.status = 'prospect';
+          realExtras++;
+        }
+        signContract(p);
+        addPlayer(p);
+      }
+      // Fill any gaps (e.g. injured players missing from the feed) with depth players.
+      const fill = (pos: Position, n: number) => {
+        for (let i = 0; i < n; i++) {
+          const target = clamp(108 + rng.normal(0, 5), 95, 120);
+          const p = generatePlayer(rng, { id: ids.player++, pos, targetCA: Math.round(target), age: pickAge(rng, target), season });
+          p.teamId = t.id;
+          p.status = 'active';
+          signContract(p);
+          addPlayer(p);
+        }
+      };
+      fill('C', REAL_ACTIVE.F - taken.F);
+      fill('D', REAL_ACTIVE.D - taken.D);
+      fill('G', REAL_ACTIVE.G - taken.G);
+    }
     const make = (pos: Position, base: number, slotIdx: number) => {
       let target = base + teamOffset + rng.normal(0, 6);
       if (slotIdx === 0 && pos !== 'G' && pos !== 'D') target += star;
@@ -120,11 +175,13 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
         : makeContract(mv * clamp(rng.normal(1, 0.15), 0.6, 1.35), rng.int(1, years), season - 1, mv > 6000 && age >= 27 && rng.chance(0.5));
       return addPlayer(p);
     };
-    F_SLOTS.forEach((ca, i) => make(fPos[i], ca, i));
-    D_SLOTS.forEach((ca, i) => make('D', ca, i));
-    G_SLOTS.forEach((ca, i) => make('G', ca, i));
+    if (!real) {
+      F_SLOTS.forEach((ca, i) => make(fPos[i], ca, i));
+      D_SLOTS.forEach((ca, i) => make('D', ca, i));
+      G_SLOTS.forEach((ca, i) => make('G', ca, i));
+    }
     // Prospects in the system.
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < Math.max(3, 9 - realExtras); i++) {
       let p = generateProspect(rng, ids.player++, season, rng.int(18, 21));
       // Every organisation starts with at least one goaltending prospect.
       if (i === 0 && p.pos !== 'G') {

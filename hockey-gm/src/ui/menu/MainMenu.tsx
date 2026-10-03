@@ -258,7 +258,7 @@ function Footer({ emblem }: { emblem: boolean }) {
     const div = DEFAULT_CONFIG.divisions.find((d) => d.id === b.divisionId)!;
     return [
       ['Preseason', `${a.city} ${a.name} open training camp at ${a.arena}`],
-      ['Dominion Cup', `Early odds make the ${b.city} ${b.name} favourites in the ${div.name} Division`],
+      ['Stanley Cup', `Early odds make the ${b.city} ${b.name} favourites in the ${div.name} Division`],
       ['Tip', 'Play Now drops you straight into an exhibition game — no save required'],
       ['Scouting', "In Franchise mode you only see estimates of other teams' players until your scouts get a good look"],
       ['Rumor', `${c.city} reportedly shopping a veteran defenseman before opening night`],
@@ -491,7 +491,7 @@ function FranchiseNew({ onBack }: { onBack: () => void }) {
           League seed
           <input id="franchise-seed" type="text" value={seed} onChange={(e) => setSeed(e.target.value)} />
         </label>
-        <button className="mm-back" onClick={() => setSeed(`phl-${Math.floor(Math.random() * 1e9).toString(36)}`)}>
+        <button className="mm-back" onClick={() => setSeed(`nhl-${Math.floor(Math.random() * 1e9).toString(36)}`)}>
           New random league
         </button>
         <button className="mm-back" onClick={() => setSeed(EXHIBITION_SEED)}>

@@ -10,7 +10,8 @@ import { seedFrom, Rng } from '../core/rng';
 import type { FreeAgentOffer, League, Player } from '../types';
 import { addNews, addTransaction, isCpu, playersOf, teamName, withRng } from '../league/helpers';
 import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, makeContract, payroll } from './contracts';
-import { signPlayer, releasePlayer, rosterSize } from './roster';
+import { signPlayer, releasePlayer, rosterSize, rosterCounts, ensureDressable, trimRoster } from './roster';
+import { executeTrade } from './trade';
 import { fullName, isForward } from '../player/ability';
 import { teamStrength } from '../team/strength';
 import { PERSONALITIES } from '../player/personality';
@@ -218,6 +219,8 @@ export function aiOffers(league: League, rng: Rng): void {
         const weakest = grp === 'G' && bestG < 138 ? bestG : (groups[grp][0]?.ca ?? 90);
         const age = league.season - p.birthYear;
         let score = p.ca - weakest + (need ? 12 : 0) - (offerCount.get(p.id) ?? 0) * 5 + rng.normal(0, 6);
+        // A team without a real starting goalie makes him the priority.
+        if (grp === 'G' && bestG < 128 && p.ca > bestG + 5) score += 25;
         if (team.strategy === 'rebuild' && age >= 31) score -= 14;
         if (team.strategy === 'contend') score += (p.ca - 130) * 0.15;
         return { p, grp, score, need };
@@ -239,6 +242,46 @@ export function aiOffers(league: League, rng: Rng): void {
       slots--;
       made++;
       counts[grp as 'F' | 'D' | 'G']++;
+    }
+  }
+}
+
+/**
+ * Cap-clearing trades: CPU teams well under the floor take on a salaried
+ * veteran from a CPU team pressed against the cap, for a late pick. This is
+ * how real floor teams add talent, and it keeps rebuilding teams from
+ * bottoming out completely.
+ */
+export function absorbCapDumps(league: League): void {
+  const cpu = league.teams.filter((t) => isCpu(league, t.id));
+  const poor = cpu.filter((t) => payroll(league, t.id) < league.cap.floor * 0.95).sort((a, b) => payroll(league, a.id) - payroll(league, b.id));
+  const group = (p: Player) => (p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : 'F');
+  const MIN = { F: 13, D: 7, G: 2 };
+  for (const team of poor) {
+    for (let moves = 0; moves < 3; moves++) {
+      const shortfall = league.cap.floor - payroll(league, team.id);
+      if (shortfall < league.cap.minSalary * 2) break;
+      let best: Player | null = null;
+      for (const giver of cpu) {
+        if (giver.id === team.id || payroll(league, giver.id) < league.cap.upper * 0.9) continue;
+        const active = playersOf(league, giver.id, ['active']);
+        const c = rosterCounts(active);
+        for (const p of active) {
+          const sal = p.contract?.salary ?? 0;
+          if (sal < league.cap.minSalary * 2 || sal > shortfall + league.cap.minSalary * 3) continue;
+          if (league.season - p.birthYear < 26 || p.id === giver.captain || p.contract?.ntc) continue;
+          if (c[group(p)] <= MIN[group(p)]) continue;
+          if (!best || p.ca > best.ca) best = p;
+        }
+      }
+      if (!best) break;
+      const from = best.teamId!;
+      const pick = league.draftPicks
+        .filter((d) => d.ownerId === team.id && d.season > league.season && d.round >= 4)
+        .sort((a, b) => b.round - a.round)[0];
+      executeTrade(league, { from: team.id, to: from, give: pick ? [{ kind: 'pick', id: pick.id }] : [], get: [{ kind: 'player', id: best.id }] });
+      trimRoster(league, team.id);
+      ensureDressable(league, from);
     }
   }
 }
@@ -283,7 +326,10 @@ export function processFADay(league: League): boolean {
     playerDecisions(league, rng, league.faDay >= FA_DAYS - 1);
   });
   league.faDay++;
-  if (league.faDay >= FA_DAYS) enforceCapFloor(league);
+  if (league.faDay >= FA_DAYS) {
+    absorbCapDumps(league);
+    enforceCapFloor(league);
+  }
   return league.faDay >= FA_DAYS;
 }
 

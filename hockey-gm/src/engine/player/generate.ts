@@ -18,6 +18,8 @@ export interface GenerateOptions {
   nat?: string;
   /** 0..1 – how elite the player is relative to the league (affects archetype mix). */
   tier?: number;
+  /** Per-attribute offsets applied before CA normalisation (see generateAttributes). */
+  bias?: Partial<Record<AttrKey, number>>;
 }
 
 export function pickNationality(rng: Rng): (typeof NAME_POOLS)[number] {
@@ -72,6 +74,8 @@ export function generateAttributes(
   archetype: ArchetypeId,
   targetCA: number,
   personality: PersonalityId,
+  /** Extra per-attribute offsets (e.g. derived from real-world stats) applied before CA normalisation. */
+  bias?: Partial<Record<AttrKey, number>>,
 ): Attributes {
   const attrs = emptyAttributes(0);
   const def = ARCHETYPES[archetype];
@@ -95,6 +99,7 @@ export function generateAttributes(
     const base = 95 + (targetCA - 120) * 0.35;
     attrs[k] = base + (p.mental[k] ?? 0) + (def.gen[k] ?? 0) + rng.normal(0, 20);
   }
+  if (bias) for (const k of Object.keys(bias) as AttrKey[]) attrs[k] += bias[k]!;
   for (const k of [...skillKeys, ...MENTAL_ATTRS]) attrs[k] = clamp(attrs[k], 1, 200);
 
   // Shift skill attributes until CA matches the target (mental stays as-is).
@@ -129,7 +134,7 @@ export function generatePlayer(rng: Rng, opts: GenerateOptions): Player {
   const tier = opts.tier ?? clamp((opts.targetCA - 110) / 70, 0, 1);
   const archetype = opts.archetype ?? pickArchetype(rng, opts.pos, tier);
   const personality = pickPersonality(rng);
-  const attrs = generateAttributes(rng, opts.pos, archetype, opts.targetCA, personality);
+  const attrs = generateAttributes(rng, opts.pos, archetype, opts.targetCA, personality, opts.bias);
   const ca = computeCA(attrs, opts.pos);
   const pa = Math.max(ca, opts.pa ?? rollPotential(rng, ca, opts.age));
   const devCurve = pickDevCurve(rng);

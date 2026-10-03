@@ -1,6 +1,6 @@
 # Hockey GM
 
-A hockey franchise simulation in the spirit of Football Manager. You run one team in a fictional 32-team league (the **Premier Hockey League**). You set lines and tactics, scout prospects, draft, trade, sign free agents and manage the cap. Over the seasons the league builds up its own history.
+A hockey franchise simulation in the spirit of Football Manager. You run one of the 32 **NHL** teams, with real rosters and ratings estimated from each player's NHL stats. You set lines and tactics, scout prospects, draft, trade, sign free agents and manage the cap. Over the seasons the league builds up its own history.
 
 > **Repository note.** This app lives in `hockey-gm/`. The repository also holds the unrelated [`rellax`](https://github.com/dixonandmoe/rellax) parallax library and a `fantasy-football/` app. This project does not modify either of them.
 
@@ -33,7 +33,7 @@ Saves live in each player's own browser, so every visitor has their own careers.
 
 ## What's in the game
 
-**League.** The league has 32 teams, 2 conferences and 4 divisions, and plays an 82-game schedule with 41 home games per team, division weighting, and no three games in three nights. Playoffs use a divisional and wild-card bracket with best-of-seven series in a 2-2-1-1-1 format, played for the Dominion Cup. All of it is data-driven in [`src/engine/data/leagueConfig.ts`](src/engine/data/leagueConfig.ts): teams, divisions, conferences, season length, playoff format and economics.
+**League.** The league is the NHL: 32 teams, 2 conferences and 4 divisions, playing the 84-game schedule (from 2026-27) with 42 home games per team, division weighting, and no three games in three nights. Playoffs use a divisional and wild-card bracket with best-of-seven series in a 2-2-1-1-1 format, played for the Stanley Cup. All of it is data-driven in [`src/engine/data/leagueConfig.ts`](src/engine/data/leagueConfig.ts): teams, divisions, conferences, season length, playoff format and economics.
 
 **Players.** Each player has 42 attributes on a 0–200 scale: skating, shooting, puck skills, hockey IQ, physical, defensive, mental, and 9 goalie attributes. Players also have:
 - an **archetype** (Sniper, Playmaker, Power Forward, Two-Way, Grinder, Enforcer, Defensive Forward, five defenseman types and three goalie styles) that shapes both the attribute profile *and* how ratings turn into on-ice performance
@@ -178,6 +178,27 @@ Balance knobs live in `TUNING` in `engine.ts`; the analytics screen shows them r
 
 ---
 
+## Real NHL rosters
+
+`src/engine/data/nhl/rosters.json` is a snapshot of every team's current roster with each player's last three regular seasons. It comes from the NHL's public stats feed (`api-web.nhle.com`). Refresh it with:
+
+```
+npm run fetch:nhl            # current season
+npm run fetch:nhl -- --season 2026
+```
+
+[`realPlayers.ts`](src/engine/data/nhl/realPlayers.ts) turns the records into players:
+- **Value score:** points, goals and ice time per game for skaters, and save % with start volume for goalies. Seasons are weighted newest first, and small samples are pulled toward replacement level.
+- **Ability:** players are ranked league-wide by position group, and the rank is mapped onto the generator's calibrated ability curve. Because of this, engine balance doesn't change.
+- **Style:** the stat profile picks the archetype (sniper, playmaker, enforcer, puck-mover, ...). It also shifts individual attributes: shooting % and shot volume, assists, faceoff %, size and penalty minutes.
+- **Active roster:** each team's best 14 forwards, 7 defensemen and 2 goalies make the active roster. The rest start in the system.
+
+If the snapshot is missing a team, the game falls back to generated players.
+
+Two offseason AI rules keep real rosters stable over many seasons:
+- When free agency ends, CPU teams well under the cap floor take on salaried veterans from capped-out CPU teams for a late pick, like real cap-clearing trades.
+- A team short of a goalie or skater recalls from its system only if no clearly better free agent is affordable. AI teams without a real starting goalie make signing one their priority.
+
 ## Testing
 
 - `tests/rng.test.ts`: determinism, serialisable state, distribution sanity
@@ -199,5 +220,6 @@ Balance knobs live in `TUNING` in `engine.ts`; the analytics screen shows them r
 
 - Box scores store a game summary (goals, shots, xG, stars, goalies). Full per-player game logs are not kept, to keep saves small.
 - No waivers, offer sheets, dead cap from buyouts, or minor-league standings. Prospects simply develop "in the system".
-- The league is fictional, and team logos are generated placeholders.
+- Team logos are generated placeholders, not official NHL marks. Coaches, GMs, prospects, free agents and future draft classes are generated.
+- Ratings are estimates from production stats. Defensive play and goaltending without large samples are the least certain.
 - Simulation runs on the main thread in daily chunks, which keeps the UI responsive. A full season takes about 7–10 s in a browser. A Web Worker would make it fully non-blocking.

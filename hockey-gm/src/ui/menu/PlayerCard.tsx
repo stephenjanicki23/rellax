@@ -8,7 +8,7 @@ import type { AttrKey, Player, Team } from '../../engine/types';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, GOALIE_ATTRS, MENTAL_ATTRS } from '../../engine/types';
 import { ARCHETYPES } from '../../engine/player/archetypes';
 import { PERSONALITIES, TRAITS } from '../../engine/player/personality';
-import { NAME_POOLS } from '../../engine/data/names';
+import { countryLabel } from '../../engine/data/names';
 import { TeamLogo } from '../components/common';
 import { attrLabel } from '../attrLabels';
 import { heightLabel, weightLabel } from '../format';
@@ -46,7 +46,7 @@ export function PlayerCardView({ p, team, season, rate, ovr, potential, personal
   const isG = p.pos === 'G';
   const groups = isG ? GOALIE_ATTR_GROUPS : ATTR_GROUPS;
   const arch = ARCHETYPES[p.archetype];
-  const nat = NAME_POOLS.find((n) => n.code === p.nat)?.label ?? p.nat;
+  const nat = countryLabel(p.nat);
   const keys = groups.flatMap((g) => g.keys).filter((k) => (isG || !(GOALIE_ATTRS as readonly string[]).includes(k)) && !(MENTAL_ATTRS as readonly string[]).includes(k));
   const ranked = [...keys].sort((a, b) => rate(b).value - rate(a).value);
   const pers = personality === undefined ? PERSONALITIES[p.personality].label : personality;

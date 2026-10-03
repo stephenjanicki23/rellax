@@ -6,7 +6,7 @@ import type { GameInput } from '../../engine/sim/gameTypes';
 import { teamStrength } from '../../engine/team/strength';
 import { clamp } from '../../engine/core/math';
 
-export const EXHIBITION_SEED = 'phl-exhibition-rosters';
+export const EXHIBITION_SEED = 'nhl-exhibition-rosters';
 let cached: League | null = null;
 
 export function exhibitionLeague(): League {

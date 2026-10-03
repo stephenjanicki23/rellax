@@ -10,14 +10,14 @@ import type { League } from '../src/engine/types';
 
 describe('schedule', () => {
   const teams = DEFAULT_CONFIG.teams.map((t, i) => ({ id: i, divisionId: t.divisionId, conferenceId: DEFAULT_CONFIG.divisions.find((d) => d.id === t.divisionId)!.conferenceId }));
-  it('gives every team 82 games, 41 at home', () => {
+  it('gives every team 84 games, 42 at home', () => {
     const s = generateSchedule(teams, DEFAULT_CONFIG, new Rng('sched'), 1);
-    expect(s.length).toBe(32 * 41);
+    expect(s.length).toBe(32 * 42);
     for (const t of teams) {
       const mine = s.filter((g) => g.home === t.id || g.away === t.id);
-      expect(mine.length).toBe(82);
+      expect(mine.length).toBe(84);
       const home = mine.filter((g) => g.home === t.id).length;
-      expect(Math.abs(home - 41)).toBeLessThanOrEqual(1);
+      expect(Math.abs(home - 42)).toBeLessThanOrEqual(1);
     }
   });
   it('never schedules a team twice on one day or three days in a row', () => {
@@ -30,7 +30,7 @@ describe('schedule', () => {
   });
   it('weights division opponents most', () => {
     const counts = pairCounts(teams, DEFAULT_CONFIG);
-    const div = counts.get('0-1')!; // BOS-MTL same division
+    const div = counts.get('0-1')!; // BOS-BUF same division
     const inter = counts.get('0-16')!; // BOS-CHI other conference
     expect(div).toBeGreaterThan(inter);
   });
@@ -50,8 +50,8 @@ describe('full season', () => {
     let wins = 0;
     let gp = 0;
     for (const r of rows) {
-      expect(r.rec.gp).toBe(82);
-      expect(r.rec.w + r.rec.l + r.rec.otl).toBe(82);
+      expect(r.rec.gp).toBe(84);
+      expect(r.rec.w + r.rec.l + r.rec.otl).toBe(84);
       wins += r.rec.w;
       gp += r.rec.gp;
     }

@@ -83,14 +83,15 @@ export function ensureDressable(league: League, teamId: number): void {
     const prospect = playersOf(league, teamId, ['prospect'])
       .filter((p) => match(p) && healthy(p))
       .sort((a, b) => b.ca - a.ca)[0];
-    if (prospect) {
-      promote(league, prospect, teamId === league.userTeamId);
-      continue;
-    }
     const fa = Object.values(league.players)
       .filter((p) => p.status === 'fa' && match(p) && healthy(p))
       .sort((a, b) => b.ca - a.ca)
       .find((p) => Math.min(marketValue(p, league), league.cap.minSalary * 1.5) <= Math.max(league.cap.minSalary, capSpace(league, teamId)));
+    // Recall from the system unless a clearly better free agent is affordable.
+    if (prospect && (!fa || fa.ca < prospect.ca + 8)) {
+      promote(league, prospect, teamId === league.userTeamId);
+      continue;
+    }
     if (fa) {
       signPlayer(league, fa, teamId, Math.max(league.cap.minSalary, Math.min(marketValue(fa, league), league.cap.minSalary * 1.5)), 1);
       addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [fa.id], description: `${teamName(league, teamId)} sign ${fullName(fa)} to a one-year deal` });
