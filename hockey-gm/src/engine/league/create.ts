@@ -11,6 +11,7 @@ import { generateCoach, tacticsForRoster, DEFAULT_TACTICS } from '../team/coachi
 import { makeContract, marketValue, typicalTerm, teamBudget } from '../economy/contracts';
 import { generateSchedule } from './schedule';
 import { emptyRecord } from './helpers';
+import { projectedPoints } from '../team/strength';
 
 export interface CreateLeagueOptions {
   seed?: string;
@@ -124,7 +125,12 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     G_SLOTS.forEach((ca, i) => make('G', ca, i));
     // Prospects in the system.
     for (let i = 0; i < 9; i++) {
-      const p = generateProspect(rng, ids.player++, season, rng.int(18, 21));
+      let p = generateProspect(rng, ids.player++, season, rng.int(18, 21));
+      // Every organisation starts with at least one goaltending prospect.
+      if (i === 0 && p.pos !== 'G') {
+        do p = generateProspect(rng, p.id, season, rng.int(19, 21));
+        while (p.pos !== 'G');
+      }
       // Already a year or more into development.
       const yearsIn = season - p.birthYear - 18;
       p.ca = Math.min(p.pa, p.ca + yearsIn * 6);
@@ -225,7 +231,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     phase: 'regular',
     day: 0,
     config: cfg,
-    settings: { godMode: false, injuryRate: 1, tradeDifficulty: 1 },
+    settings: { godMode: false, injuryRate: 1, tradeDifficulty: 1, autoManageUser: false },
     cap,
     teams,
     players,
@@ -248,8 +254,11 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     scouting: { knowledge: {} },
     chemistry: {},
     nextId: ids,
+    projections: {},
+    ratingBaseline: 120,
     aiMemory: Object.fromEntries(teams.map((t) => [t.id, { lastTradeDay: -100, coachHotSeat: 0 }])),
   };
   for (const p of Object.values(players)) p.caSeasonStart = p.ca;
+  league.projections = Object.fromEntries(teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   return league;
 }

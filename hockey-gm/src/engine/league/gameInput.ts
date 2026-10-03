@@ -103,5 +103,6 @@ export function buildGameInput(league: League, gameId: number, recordEvents = fa
     playoff: !!g.playoff,
     recordEvents,
     regularSeasonOT: league.config.season.regularSeasonOT,
+    ratingBaseline: league.ratingBaseline ?? 120,
   };
 }

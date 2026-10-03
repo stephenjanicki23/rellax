@@ -66,3 +66,8 @@ export function addTransaction(league: League, t: Omit<Transaction, 'id' | 'seas
 export function age(p: Player, season: number): number {
   return season - p.birthYear;
 }
+
+/** Is this team run by the AI (all CPU teams, plus the user's team in auto-manage mode)? */
+export function isCpu(league: League, teamId: number): boolean {
+  return teamId !== league.userTeamId || league.settings.autoManageUser;
+}

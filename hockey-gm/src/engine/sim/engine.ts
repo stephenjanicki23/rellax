@@ -40,9 +40,9 @@ export const TUNING = {
   chemWeight: 0.1,
   coachWeight: 0.07,
   moraleWeight: 0.04,
-  finishOffset: 0.12,
-  shooterWeight: 0.26,
-  goalieWeight: 0.29,
+  finishOffset: 0.09,
+  shooterWeight: 0.24,
+  goalieWeight: 0.25,
   /** Stick/hold penalties per second of play (both teams combined). */
   penaltyRate: 1 / 1700,
   /** Probability a hit draws a penalty. */
@@ -60,7 +60,8 @@ export const TUNING = {
 type Zone = 'D' | 'N' | 'O';
 type Side = 0 | 1;
 
-const zs = (v: number): number => (v - 120) / 30;
+let BASE = 120;
+const zs = (v: number): number => (v - BASE) / 30;
 
 interface SP {
   id: number;
@@ -319,6 +320,7 @@ export class GameSim {
 
   constructor(input: GameInput) {
     this.input = input;
+    BASE = input.ratingBaseline ?? 120;
     this.rng = new Rng(`game|${input.seed}`);
     this.regOT = input.regularSeasonOT ?? { minutes: 5, skaters: 3, shootout: true };
     this.homeAdv = input.neutral ? 0 : TUNING.homeAdv;
@@ -1183,7 +1185,7 @@ export class GameSim {
       shootMod = pp === 'shooting' ? 0.1 : pp === 'overload' ? -0.06 : pp === 'netFront' ? 0.03 : 0;
     }
     if (dStyle === 'passive') shootMod += 0.04;
-    let pShot = 0.22 + 0.28 * this.setupQ + shootMod + (carrier.style.shoot - 1) * 0.1;
+    let pShot = 0.22 + 0.28 * this.setupQ + shootMod + (carrier.style.shoot - 1) * 0.07;
     if (this.ozPlays === 1 && this.rush) pShot += this.oddMan ? 0.35 : 0.14;
     if (this.ozPlays === 1 && this.turnoverFlag) pShot += 0.2;
     if (this.ozPlays === 1 && this.ozFaceoff) pShot += 0.08;
@@ -1222,7 +1224,7 @@ export class GameSim {
     if (!others.length) return;
     const pp = sitA === 'PP' ? A.tactics.pp : null;
     const receiver = this.pickW(others, (p) => {
-      let w = Math.exp(0.35 * p.offIQ) * (0.55 + 0.45 * p.style.shoot);
+      let w = Math.exp(0.25 * p.offIQ) * (0.6 + 0.4 * p.style.shoot);
       if (!p.isF) w *= pp === 'umbrella' ? 1.3 : sitA === 'PP' ? 0.9 : 0.75;
       if (pp === 'netFront') w *= 0.7 + 0.3 * p.style.netFront;
       return w;
@@ -1232,7 +1234,7 @@ export class GameSim {
     if (oStyle === 'possession') gain += 0.025;
     if (oStyle === 'cycle') gain += 0.02 * (this.val(carrier, 'phys') + 0.5);
     if (pp === 'overload') gain += 0.035;
-    if (sitA === "PP") gain += 0.04 + 0.02 * strDiff;
+    if (sitA === "PP") gain += 0.05 + 0.02 * strDiff;
     gain += (open - 1) * 0.08;
     if (dStyle === 'passive') gain -= 0.015;
     gain = clamp(gain, 0.01, 0.3);
@@ -1262,7 +1264,7 @@ export class GameSim {
     if (B.tactics.defense === 'passive') pHD -= 0.03;
     if (B.goalie === null) pHD += 0.3;
     if (sitA === 'PK') pHD -= 0.08;
-    if (sitA === "PP") pHD += 0.1;
+    if (sitA === "PP") pHD += 0.13;
     let pLD = shooter.isF ? 0.34 - 0.25 * this.setupQ - 0.05 * (shooter.style.netFront - 1) : 0.72 - 0.25 * this.setupQ;
     if (pp === 'umbrella') pLD += 0.06;
     if (pp === 'shooting') pLD += 0.08;
@@ -1444,6 +1446,12 @@ export class GameSim {
   }
 
   private shooterSkill(p: SP, type: ShotType): number {
+    const s = this.rawShooterSkill(p, type);
+    // Diminishing returns at the elite end keep 90-goal seasons out of the league.
+    return s > 1.15 ? 1.15 + (s - 1.15) * 0.4 : s;
+  }
+
+  private rawShooterSkill(p: SP, type: ShotType): number {
     switch (type) {
       case 'slap':
         return this.val(p, 'slap');
@@ -1468,6 +1476,8 @@ export class GameSim {
     else if (danger === 'low') s = g.gLow;
     else s = g.gBase;
     if (screened) s = 0.5 * s + 0.5 * g.gScreen - 0.15;
+    // Diminishing returns for elite goaltending.
+    if (s > 1.1) s = 1.1 + (s - 1.1) * 0.5;
     return s + g.form + t.goalieConf + t.coachGk;
   }
 

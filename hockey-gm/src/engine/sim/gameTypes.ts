@@ -49,6 +49,12 @@ export interface GameInput {
   regularSeasonOT?: { minutes: number; skaters: number; shootout: boolean };
   /** Disable home-ice advantage (neutral site / testing). */
   neutral?: boolean;
+  /**
+   * Rating that counts as "average" for the engine (default 120). The league
+   * sets this from its current talent level so scoring stays stable even if
+   * ratings drift over decades.
+   */
+  ratingBaseline?: number;
 }
 
 export type GameEventType =

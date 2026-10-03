@@ -50,8 +50,8 @@ export function pickDevCurve(rng: Rng): DevCurve {
 /** Potential for an existing (non-draft) player of a given age and ability. */
 export function rollPotential(rng: Rng, ca: number, age: number): number {
   if (age >= 28) return Math.round(clamp(ca + Math.max(0, rng.normal(1, 2)), ca, 200));
-  const gapMean = (27 - age) * 5.2;
-  const gap = Math.max(0, rng.normal(gapMean, gapMean * 0.55 + 2));
+  const gapMean = Math.max(0, 26 - age) * 3.4;
+  const gap = Math.max(0, rng.normal(gapMean, gapMean * 0.6 + 2));
   return Math.round(clamp(ca + gap, ca, 198));
 }
 

@@ -122,6 +122,8 @@ export interface Contract {
   type: 'ELC' | 'standard';
   ntc: boolean;
   signedSeason: number;
+  /** Extension signed during the final year; takes effect next season. */
+  next?: { salary: number; years: number; ntc: boolean };
 }
 
 export interface StatLine {
@@ -439,6 +441,9 @@ export interface PlayoffBracket {
   rounds: PlayoffSeries[][];
   currentRound: number;
   champion: number | null;
+  roundStartDay: number;
+  /** Playoff qualifiers with their seed label per conference. */
+  seeds: { teamId: number; seed: number; label: string; conferenceId: string }[];
 }
 
 export type NewsCategory =
@@ -531,6 +536,8 @@ export interface LeagueSettings {
   godMode: boolean;
   injuryRate: number; // multiplier
   tradeDifficulty: number; // 0.5 easy .. 1.5 hard
+  /** Let the AI run the user's team too (holiday mode / validation runs). */
+  autoManageUser: boolean;
 }
 
 export interface League {
@@ -568,6 +575,10 @@ export interface League {
   /** Shared ice time between teammates: "minId-maxId" -> seconds. */
   chemistry: Record<string, number>;
   nextId: { player: number; coach: number; news: number; game: number; tx: number; pick: number; scout: number };
+  /** Engine rating baseline (see GameInput.ratingBaseline). */
+  ratingBaseline: number;
+  /** Preseason projected points per team (for expectations / coach of the year). */
+  projections: Record<number, number>;
   /** Per-team in-season performance memory used by AI GMs. */
   aiMemory: Record<number, { lastTradeDay: number; coachHotSeat: number }>;
 }
