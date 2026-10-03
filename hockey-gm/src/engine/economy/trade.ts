@@ -7,16 +7,20 @@
  * through their own (imperfect) scouting.
  */
 import { clamp } from '../core/math';
+import { describeTradeAsset, executeMoves, tradeConsent, validateMoves, type TradeAsset, type TradeCheck, type TradeMove } from '../cba/tradeRules';
+import { fullCapHit, remainingYears } from '../cba/contract';
+import { capSeason } from '../cba/capManager';
+import { retentionErrors } from '../cba/tradeRules';
+import { financialPlan } from '../ai/finance';
 import type { DraftPick, League, Player, Team } from '../types';
-import { addNews, addTransaction, playersOf, teamName, withRng } from '../league/helpers';
+import { playersOf, withRng } from '../league/helpers';
 import { aiPerceivedPA } from './scouting';
-import { capSpace, marketValue, payroll } from './contracts';
+import { capSpace, marketValue } from './contracts';
 import { fullName, isForward } from '../player/ability';
 import { standingRows } from '../league/standings';
 import { projectedPoints } from '../team/strength';
-import { emptyStatLine } from '../core/statline';
 
-export type TradeAsset = { kind: 'player'; id: number } | { kind: 'pick'; id: number };
+export type { TradeAsset, TradeMove, TradeCheck, TeamCapImpact } from '../cba/tradeRules';
 
 export interface TradeProposal {
   /** Team making the proposal (often the user). */
@@ -27,6 +31,8 @@ export interface TradeProposal {
   give: TradeAsset[];
   /** Assets `from` receives from `to`. */
   get: TradeAsset[];
+  /** Salary retained by the team sending a player (share of his cap hit, ≤ 50%). */
+  retain?: { playerId: number; pct: number }[];
 }
 
 export interface TradeEvaluation {
@@ -35,6 +41,17 @@ export interface TradeEvaluation {
   valueOut: number;
   errors: string[];
   reason: string;
+}
+
+/** A two-team proposal as a list of moves. */
+export function proposalMoves(t: TradeProposal): TradeMove[] {
+  const pct = (a: TradeAsset) => (a.kind === 'player' ? t.retain?.find((r) => r.playerId === a.id)?.pct : undefined);
+  return [...t.give.map((a) => ({ asset: a, from: t.from, to: t.to, retainPct: pct(a) })), ...t.get.map((a) => ({ asset: a, from: t.to, to: t.from, retainPct: pct(a) }))];
+}
+
+/** Full legality check with per-team cap before/after (UI and AI). */
+export function checkTrade(league: League, t: TradeProposal): TradeCheck {
+  return validateMoves(league, proposalMoves(t));
 }
 
 function weights(team: Team): { now: number; fut: number } {
@@ -120,79 +137,41 @@ export function assetValue(league: League, teamId: number, a: TradeAsset): numbe
 }
 
 export function describeAsset(league: League, a: TradeAsset): string {
-  if (a.kind === 'player') {
-    const p = league.players[a.id];
-    return p ? `${fullName(p)} (${p.pos})` : 'Unknown player';
-  }
-  const pick = league.draftPicks.find((x) => x.id === a.id);
-  if (!pick) return 'Unknown pick';
-  const own = pick.originalTeamId === pick.ownerId ? '' : ` (${league.teams[pick.originalTeamId].abbr})`;
-  return `${pick.season} Round ${pick.round} pick${own}`;
-}
-
-function ownsAsset(league: League, teamId: number, a: TradeAsset): boolean {
-  if (a.kind === 'player') {
-    const p = league.players[a.id];
-    return !!p && p.teamId === teamId && (p.status === 'active' || p.status === 'prospect');
-  }
-  const pick = league.draftPicks.find((x) => x.id === a.id);
-  return !!pick && pick.ownerId === teamId && pick.playerId === undefined;
-}
-
-function salaryOf(league: League, assets: TradeAsset[]): number {
-  let s = 0;
-  for (const a of assets) {
-    if (a.kind !== 'player') continue;
-    const p = league.players[a.id];
-    if (p?.status === 'active' && p.contract) s += p.contract.salary;
-  }
-  return s;
-}
-
-function activeCount(league: League, assets: TradeAsset[]): number {
-  return assets.filter((a) => a.kind === 'player' && league.players[a.id]?.status === 'active').length;
+  return describeTradeAsset(league, a);
 }
 
 export function validateTrade(league: League, t: TradeProposal): string[] {
-  const errors: string[] = [];
-  if (t.from === t.to) errors.push('A team cannot trade with itself.');
-  if (!t.give.length && !t.get.length) errors.push('The trade is empty.');
-  for (const a of t.give) if (!ownsAsset(league, t.from, a)) errors.push(`${describeAsset(league, a)} is not available.`);
-  for (const a of t.get) if (!ownsAsset(league, t.to, a)) errors.push(`${describeAsset(league, a)} is not available.`);
-  if (league.phase === 'regular' && league.day > league.tradeDeadlineDay) errors.push('The trade deadline has passed.');
-  if (league.phase === 'playoffs') errors.push('Trades are frozen during the playoffs.');
-  const capLimit = league.phase === 'regular' ? league.cap.upper : league.cap.upper * 1.1;
-  const fromAfter = payroll(league, t.from) - salaryOf(league, t.give) + salaryOf(league, t.get);
-  const toAfter = payroll(league, t.to) - salaryOf(league, t.get) + salaryOf(league, t.give);
-  if (fromAfter > capLimit && salaryOf(league, t.get) > salaryOf(league, t.give)) errors.push(`${teamName(league, t.from)} would exceed the salary cap.`);
-  if (toAfter > capLimit && salaryOf(league, t.give) > salaryOf(league, t.get)) errors.push(`${teamName(league, t.to)} would exceed the salary cap.`);
-  const max = league.config.economics.rosterMax + 3;
-  if (playersOf(league, t.from).length - activeCount(league, t.give) + activeCount(league, t.get) > max) errors.push(`${teamName(league, t.from)} would have too many players.`);
-  if (playersOf(league, t.to).length - activeCount(league, t.get) + activeCount(league, t.give) > max) errors.push(`${teamName(league, t.to)} would have too many players.`);
-  return errors;
+  return checkTrade(league, t).errors;
 }
 
-/** Would a no-trade-clause player waive it for a move to this team? Deterministic per player/team/day. */
+/** Would a clause player agree to a move to this team? (no clause, or not on his M-NTC list → true) */
 export function ntcWaived(league: League, p: Player, dest: number): boolean {
-  if (!p.contract?.ntc) return true;
-  const destTeam = league.teams[dest];
-  const contender = destTeam.strategy === 'contend';
-  const unhappy = p.morale < 35;
-  const h = Math.abs(Math.sin(p.id * 97.13 + dest * 13.7 + league.season * 3.1)) % 1;
-  const pWaive = (contender ? 0.45 : 0.12) + (unhappy ? 0.4 : 0);
-  return h < pWaive;
+  return tradeConsent(league, p, dest).granted;
+}
+
+/** Value of salary retention to a team: retained dollars × years, positive for the receiver, a cost for the retainer. */
+function retentionValue(league: League, m: TradeMove): number {
+  if (m.asset.kind !== 'player' || !m.retainPct) return 0;
+  const p = league.players[m.asset.id];
+  if (!p?.contract) return 0;
+  return ((fullCapHit(p.contract) * m.retainPct) / 1000) * Math.min(4, remainingYears(p.contract, capSeason(league))) * 3;
+}
+
+/** One team's view of a set of moves. */
+export function teamTradeValue(league: League, teamId: number, moves: TradeMove[]): { valueIn: number; valueOut: number } {
+  let valueIn = 0, valueOut = 0;
+  for (const m of moves) {
+    if (m.to === teamId) valueIn += assetValue(league, teamId, m.asset) + retentionValue(league, m);
+    if (m.from === teamId) valueOut += assetValue(league, teamId, m.asset) + retentionValue(league, m) * 0.8;
+  }
+  return { valueIn, valueOut };
 }
 
 /** CPU evaluation of a proposal from the receiving team's point of view. */
 export function evaluateTrade(league: League, t: TradeProposal): TradeEvaluation {
-  const errors = validateTrade(league, t);
-  for (const a of t.get) {
-    if (a.kind !== 'player') continue;
-    const p = league.players[a.id];
-    if (p && !ntcWaived(league, p, t.from)) errors.push(`${fullName(p)} will not waive his no-trade clause.`);
-  }
-  const valueIn = t.give.reduce((s, a) => s + assetValue(league, t.to, a), 0);
-  const valueOut = t.get.reduce((s, a) => s + assetValue(league, t.to, a), 0);
+  const moves = proposalMoves(t);
+  const errors = validateMoves(league, moves).errors;
+  const { valueIn, valueOut } = teamTradeValue(league, t.to, moves);
   if (errors.length) return { accept: false, valueIn, valueOut, errors, reason: errors[0] };
   const team = league.teams[t.to];
   // User proposals face a slightly higher bar (CPU GMs are wary of being fleeced).
@@ -207,39 +186,34 @@ export function evaluateTrade(league: League, t: TradeProposal): TradeEvaluation
   return { accept, valueIn, valueOut, errors, reason };
 }
 
-export function executeTrade(league: League, t: TradeProposal): void {
-  const move = (a: TradeAsset, toTeam: number) => {
-    if (a.kind === 'player') {
-      const p = league.players[a.id];
-      p.teamId = toTeam;
-      if (p.rightsTeamId !== null) p.rightsTeamId = toTeam;
-      p.morale = Math.max(20, p.morale - 8);
-      if (!league.seasonStats[p.id]) league.seasonStats[p.id] = { reg: emptyStatLine(), po: emptyStatLine(), teamId: toTeam };
-      else league.seasonStats[p.id].teamId = toTeam;
-    } else {
-      const pick = league.draftPicks.find((x) => x.id === a.id);
-      if (pick) pick.ownerId = toTeam;
-    }
-  };
-  for (const a of t.give) move(a, t.to);
-  for (const a of t.get) move(a, t.from);
-  for (const tid of [t.from, t.to]) {
-    league.teams[tid].autoLines = tid === league.userTeamId ? league.teams[tid].autoLines : true;
-    league.aiMemory[tid] = { ...league.aiMemory[tid], lastTradeDay: league.day };
-  }
-  const desc = `${teamName(league, t.from)} acquire ${t.get.map((a) => describeAsset(league, a)).join(', ') || 'future considerations'} from ${teamName(league, t.to)} for ${t.give.map((a) => describeAsset(league, a)).join(', ') || 'future considerations'}`;
-  const playerIds = [...t.give, ...t.get].filter((a) => a.kind === 'player').map((a) => a.id);
-  const pickIds = [...t.give, ...t.get].filter((a) => a.kind === 'pick').map((a) => a.id);
-  addTransaction(league, { kind: 'trade', teamIds: [t.from, t.to], playerIds, pickIds, description: desc });
-  const stars = playerIds.map((id) => league.players[id]).filter((p) => p.reputation >= 55);
-  addNews(league, {
-    category: 'trade',
-    headline: stars.length ? `Blockbuster: ${fullName(stars[0])} traded to ${teamName(league, stars[0].teamId)}` : `Trade completed between ${league.teams[t.from].city} and ${league.teams[t.to].city}`,
-    body: desc,
-    teamIds: [t.from, t.to],
-    playerIds,
-    importance: stars.length ? 4 : 2,
+export interface MultiTradeEvaluation {
+  accept: boolean;
+  check: TradeCheck;
+  teams: { teamId: number; valueIn: number; valueOut: number; accept: boolean; reason: string }[];
+}
+
+/** Multi-team trade: every CPU team must like its part and the whole thing must be legal. */
+export function evaluateMultiTrade(league: League, moves: TradeMove[]): MultiTradeEvaluation {
+  const check = validateMoves(league, moves);
+  const userIn = moves.some((m) => m.from === league.userTeamId || m.to === league.userTeamId);
+  const ids = [...new Set(moves.flatMap((m) => [m.from, m.to]))];
+  const teams = ids.map((teamId) => {
+    const { valueIn, valueOut } = teamTradeValue(league, teamId, moves);
+    if (teamId === league.userTeamId) return { teamId, valueIn, valueOut, accept: true, reason: '' };
+    const margin = (userIn ? 1.08 : 1.02) * league.settings.tradeDifficulty;
+    const accept = valueIn >= valueOut * margin + 1.5;
+    const t = league.teams[teamId];
+    return { teamId, valueIn, valueOut, accept, reason: accept ? `${t.abbr} are on board.` : `${t.abbr} want more for their part.` };
   });
+  return { accept: check.ok && teams.every((t) => t.accept), check, teams };
+}
+
+export function executeMultiTrade(league: League, moves: TradeMove[]): void {
+  executeMoves(league, moves);
+}
+
+export function executeTrade(league: League, t: TradeProposal): void {
+  executeMoves(league, proposalMoves(t));
 }
 
 /** Ask the CPU team what it would want added to make a proposal work. */
@@ -306,12 +280,21 @@ export function findAiTrade(league: League): TradeProposal | null {
       ...league.draftPicks.filter((p) => p.ownerId === buyer.id && p.playerId === undefined && p.season <= league.season + 1).map((p) => ({ kind: 'pick' as const, id: p.id })),
     ];
     const give: TradeAsset[] = [];
+    let retain: TradeProposal['retain'];
+    let targetValue2 = targetValue;
     if (target.contract.salary > room) {
-      const filler = roster
-        .filter((p) => p.contract && p.contract.salary >= target.contract!.salary - room && p.ca < target.ca - 3 && p.id !== target.id)
-        .sort((a, b) => a.ca - b.ca)[0];
-      if (!filler) return null;
-      give.push({ kind: 'player', id: filler.id });
+      // Sellers may retain salary (up to 50%) to make the deal fit, and ask more for it.
+      const pct = Math.ceil(((target.contract.salary - room) / fullCapHit(target.contract)) * 20) / 20;
+      if (financialPlan(league, seller.id).retainToSell && pct <= 0.5 && !retentionErrors(league, target, seller.id, pct).length) {
+        retain = [{ playerId: target.id, pct }];
+        targetValue2 += retentionValue(league, { asset: { kind: 'player', id: target.id }, from: seller.id, to: buyer.id, retainPct: pct }) * 0.8;
+      } else {
+        const filler = roster
+          .filter((p) => p.contract && p.contract.salary >= target.contract!.salary - room && p.ca < target.ca - 3 && p.id !== target.id)
+          .sort((a, b) => a.ca - b.ca)[0];
+        if (!filler) return null;
+        give.push({ kind: 'player', id: filler.id });
+      }
     }
     const ranked = pool
       .map((a) => ({ a, sv: assetValue(league, seller.id, a), bv: assetValue(league, buyer.id, a) }))
@@ -319,11 +302,11 @@ export function findAiTrade(league: League): TradeProposal | null {
       .sort((x, y) => y.sv / Math.max(1, y.bv) - x.sv / Math.max(1, x.bv));
     let got = give.reduce((s, a) => s + assetValue(league, seller.id, a), 0);
     for (const x of ranked) {
-      if (got >= targetValue * 1.05 + 2) break;
+      if (got >= targetValue2 * 1.05 + 2) break;
       give.push(x.a);
       got += x.sv;
     }
-    const proposal: TradeProposal = { from: buyer.id, to: seller.id, give, get: [{ kind: 'player', id: target.id }] };
+    const proposal: TradeProposal = { from: buyer.id, to: seller.id, give, get: [{ kind: 'player', id: target.id }], retain };
     const sellerSide = evaluateTrade(league, proposal);
     if (!sellerSide.accept) return null;
     // Buyer must also believe it's worth it.

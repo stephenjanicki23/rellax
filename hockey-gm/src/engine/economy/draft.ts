@@ -1,11 +1,13 @@
-import { clamp } from '../core/math';
+import { STATIC, elcMaxFor, rulesFor } from '../cba/rules';
+import { buildContract } from '../cba/contract';
+import { registerContract } from '../cba/contractService';
 import { emptyStatLine } from '../core/statline';
 import type { DraftPick, League, Player } from '../types';
 import { addNews, addTransaction, playersOf, teamName, withRng, points } from '../league/helpers';
 import { playoffResultFor } from '../league/playoffs';
 import { compareRecords } from '../league/standings';
 import { aiPerceivedPA, estimate } from './scouting';
-import { makeContract } from './contracts';
+
 import { fullName } from '../player/ability';
 
 const LOTTERY_ODDS = [18.5, 13.5, 11.5, 9.5, 8.5, 7.5, 6.5, 6, 5, 3.5, 3, 2.5, 2, 1.5, 0.5, 0.5];
@@ -105,8 +107,7 @@ export function makeDraftPick(league: League, pickId: number, playerId: number):
   p.teamId = pick.ownerId;
   p.rightsTeamId = pick.ownerId;
   p.draft = { season: league.season, round: pick.round, pick: pick.pickNumber ?? 0, teamId: pick.ownerId };
-  const salary = clamp(Math.round(league.cap.minSalary + (league.config.economics.elcMaxSalary - league.cap.minSalary) * Math.max(0, 1 - (pick.pickNumber ?? 50) / 40)), league.cap.minSalary, league.config.economics.elcMaxSalary);
-  p.contract = makeContract(salary, league.config.economics.elcYears, league.season, false, 'ELC');
+  signDraftedElc(league, p, pick.ownerId, pick.pickNumber ?? 50);
   league.seasonStats[p.id] = { reg: emptyStatLine(), po: emptyStatLine(), teamId: pick.ownerId };
   addTransaction(league, { kind: 'draft', teamIds: [pick.ownerId], playerIds: [p.id], pickIds: [pick.id], description: `${teamName(league, pick.ownerId)} select ${fullName(p)} (${p.pos}) — Round ${pick.round}, Pick ${pick.pickNumber}` });
   if (pick.pickNumber === 1) {
@@ -169,4 +170,24 @@ export function finishDraft(league: League): void {
   // Draft picks for this season are now spent.
   league.draftPicks = league.draftPicks.filter((p) => p.season > league.season);
   league.draftOrder = [];
+}
+
+/**
+ * Entry-level contract for a drafted player (CBA Art. 9): term by age at
+ * signing, compensation up to the draft-year maximum (scaled by draft slot),
+ * signing bonus up to 10%, Schedule A bonuses for top picks, two-way.
+ */
+export function signDraftedElc(league: League, p: Player, teamId: number, pickNumber: number): void {
+  const start = league.season + 1;
+  const age = start - p.birthYear;
+  const term = STATIC().elcTermByAge[String(Math.min(24, Math.max(18, age)))] ?? 3;
+  const max = elcMaxFor(league.season);
+  const min = rulesFor(start).minimumSalary;
+  const slot = Math.max(0, 1 - pickNumber / 40);
+  const comp = Math.round(min + (max - min) * slot);
+  const sb = pickNumber <= 15 ? Math.round(comp * 0.1) : 0;
+  const perf = pickNumber <= 5 ? STATIC().elcScheduleABonusMax : pickNumber <= 32 ? 250 : 0;
+  const c = buildContract({ startSeason: start, salaries: new Array(term).fill(comp - sb), signingBonuses: new Array(term).fill(sb), perfBonuses: new Array(term).fill(perf), minorSalaries: new Array(term).fill(80), type: 'ELC', twoWay: true, signedSeason: league.season, origin: 'elc', ageAtStart: age }, start);
+  registerContract(league, p, teamId, c, { origin: 'elc', skipValidation: true, toMinors: true, announce: false });
+  p.status = 'prospect';
 }

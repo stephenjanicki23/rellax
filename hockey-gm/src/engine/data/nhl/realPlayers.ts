@@ -16,6 +16,7 @@ import type { ArchetypeId, AttrKey, Player, Position } from '../../types';
 import { generatePlayer } from '../../player/generate';
 import { abilityWeights, computeCA } from '../../player/ability';
 import { NAME_POOLS } from '../names';
+import { estimatePriorExperience } from '../../cba/import';
 import type { NhlPlayerRecord, NhlSnapshot } from './types';
 
 type Group = 'F' | 'D' | 'G';
@@ -257,8 +258,12 @@ export function buildRealPlayers(rng: Rng, snap: NhlSnapshot, abbrs: string[], s
     const fo = pos === 'C' ? skaterProfile(rec).fo : null;
     if (fo !== null) setAttrKeepingCA(p, 'faceoffs', clamp(118 + (fo - 0.5) * 700, 45, 195));
     if (!pool) p.junior = 'Europe';
-    const nhlSeasons = (rec.skater ?? rec.goalie ?? []).filter((l) => l.gp > 0).length;
-    p.proSeasons = Math.max(nhlSeasons, Math.max(0, age - 21));
+    const lines = (rec.skater ?? rec.goalie ?? []).filter((l) => l.gp > 0);
+    p.proSeasons = Math.max(lines.length, Math.max(0, age - 21));
+    // NHL experience before the save starts: the imported seasons plus an estimate for earlier ones.
+    const exp = estimatePriorExperience(p, season, lines.map((l) => ({ gp: l.gp })));
+    p.nhlGamesBefore = exp.games;
+    p.accruedBefore = exp.accrued;
     out.get(e.abbr)!.push(p);
   }
   for (const list of out.values()) list.sort((a, b) => b.ca - a.ca);

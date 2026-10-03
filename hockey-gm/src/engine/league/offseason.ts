@@ -27,7 +27,13 @@ import { teamBudget } from '../economy/contracts';
 import { expectedToiFor } from '../player/generate';
 import { generateCoach } from '../team/coaching';
 import { fullName } from '../player/ability';
-import { trimRoster, ensureDressable } from '../economy/roster';
+import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
+import { advanceContracts } from '../cba/contractService';
+import { aiQualifyingDecisions, prepareExpiries } from '../cba/rfa';
+import { processWaivers } from '../cba/waivers';
+import { applyElcSlides, pruneLedger, rolloverLtir, settlePerformanceBonuses, thirtyFivePlusRetirement } from '../cba/capActions';
+import { rulesFor } from '../cba/rules';
+import { aiBuyouts } from '../ai/finance';
 
 export function endRegularSeasonHooks(league: League): void {
   if (!league.draftCombineDone) runCombine(league);
@@ -112,6 +118,8 @@ export function finishSeason(league: League): void {
   const awards = computeAwards(league);
   const mvp = computePlayoffMvp(league);
   if (mvp) awards.push(mvp);
+  processWaivers(league, true);
+  settlePerformanceBonuses(league);
   archiveCareers(league);
   announceAwards(league, awards);
   if (champ != null) {
@@ -175,7 +183,10 @@ export function retirements(league: League): void {
     }
     if (!rng.chance(retirementChance(p, league.season + 1))) continue;
     const tid = p.teamId;
+    // A 35+ contract stays on the books after retirement.
+    if (p.contract && tid !== null) thirtyFivePlusRetirement(league, p, league.season);
     p.status = 'retired';
+    p.ltir = false;
     p.retiredSeason = league.season;
     p.teamId = null;
     p.contract = null;
@@ -197,22 +208,25 @@ export function retirements(league: League): void {
 
 /** Contract years tick down once the season is over; extensions kick in. */
 function rollContracts(league: League): void {
-  for (const p of Object.values(league.players)) {
-    if (!p.contract || p.status === 'retired') continue;
-    p.contract.years--;
-    if (p.contract.years <= 0 && p.contract.next) {
-      const n = p.contract.next;
-      p.contract = { salary: n.salary, years: n.years, type: 'standard', ntc: n.ntc, signedSeason: league.season };
-    }
-  }
+  for (const p of applyElcSlides(league, league.season))
+    if (p.teamId === league.userTeamId) addNews(league, { category: 'signing', headline: `${fullName(p)}'s entry-level contract slides a year (fewer than 10 NHL games at age ${league.season - p.birthYear})`, teamIds: [p.teamId], playerIds: [p.id], importance: 1 });
+  advanceContracts(league, league.season + 1);
 }
 
 /** Draft finished → begin re-signing period. */
 export function startResignPhase(league: League): void {
   finishDraft(league);
   rollContracts(league);
-  for (const t of league.teams) if (isCpu(league, t.id)) aiResign(league, t.id);
   league.phase = 'resign';
+  league.offseasonStep = 'qualifyingOffers';
+  // Classify expiring contracts and build the qualifying-offer list.
+  prepareExpiries(league);
+  aiBuyouts(league);
+  for (const t of league.teams) {
+    if (!isCpu(league, t.id)) continue;
+    aiResign(league, t.id);
+    aiQualifyingDecisions(league, t.id);
+  }
   const mine = expiringPlayers(league, league.userTeamId);
   if (mine.length) {
     addNews(league, { category: 'signing', headline: `${mine.length} of your players have expiring contracts — re-sign them before free agency opens`, teamIds: [league.userTeamId], playerIds: mine.map((p) => p.id), importance: 3 });
@@ -222,13 +236,12 @@ export function startResignPhase(league: League): void {
 /** Start the next season: schedule, cap growth, resets. */
 export function startNewSeason(league: League): void {
   league.season++;
+  // The books are now kept for the new season (capSeason depends on the phase).
+  league.phase = 'preseason';
   const cfg = league.config;
-  const growth = 1 + cfg.economics.capGrowth * (0.6 + new Rng(seedFrom(league.seed, 'cap', league.season)).next() * 0.8);
-  league.cap = {
-    upper: Math.round((league.cap.upper * growth) / 100) * 100,
-    floor: Math.round((league.cap.floor * growth) / 100) * 100,
-    minSalary: Math.round((league.cap.minSalary * (1 + cfg.economics.capGrowth / 2)) / 5) * 5,
-  };
+  const capRules = rulesFor(league.season);
+  league.cap = { upper: capRules.upperLimit, floor: capRules.lowerLimit, minSalary: capRules.minimumSalary };
+  pruneLedger(league);
   for (const t of league.teams) t.budget = teamBudget(t, league.cap.upper);
   const rng = new Rng(league.rng);
   league.schedule = generateSchedule(league.teams, cfg, rng, league.nextId.game);
@@ -289,16 +302,22 @@ export function startNewSeason(league: League): void {
   league.projections = Object.fromEntries(league.teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   league.ratingBaseline = ratingBaselineFor(league);
   league.phase = 'preseason';
+  rolloverLtir(league);
   addNews(league, { category: 'league', headline: `The ${league.season}-${(league.season + 1) % 100} season is set to begin. Salary cap: $${(league.cap.upper / 1000).toFixed(1)}M`, teamIds: [], playerIds: [], importance: 3 });
 }
 
 export function startRegularSeason(league: League): void {
   if (league.phase !== 'preseason') return;
+  processWaivers(league, true);
   for (const t of league.teams) {
     trimRoster(league, t.id);
     ensureDressable(league, t.id);
     // Filling a positional hole can push the roster back over the limit.
     trimRoster(league, t.id);
+    if (isCpu(league, t.id)) {
+      enforceCap(league, t.id);
+      ensureDressable(league, t.id);
+    }
   }
   league.phase = 'regular';
 }
@@ -315,7 +334,10 @@ export function advanceOffseason(league: League, auto = false): void {
       break;
     }
     case 'resign':
-      if (auto) aiResign(league, league.userTeamId);
+      if (auto) {
+        aiResign(league, league.userTeamId);
+        aiQualifyingDecisions(league, league.userTeamId);
+      }
       startFreeAgency(league);
       break;
     case 'freeAgency': {

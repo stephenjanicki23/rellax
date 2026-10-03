@@ -9,11 +9,17 @@ import { clamp } from '../core/math';
 import { seedFrom, Rng } from '../core/rng';
 import type { FreeAgentOffer, League, Player } from '../types';
 import { addNews, addTransaction, isCpu, playersOf, teamName, withRng } from '../league/helpers';
-import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, makeContract, payroll } from './contracts';
+import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, payroll } from './contracts';
+import { signFromOffer, type OfferTerms } from '../cba/contractService';
+import { signingScore, contractValue, freeAgentProfile } from '../cba/market';
+import { isRestricted, processQualifyingOffers, rfaDay } from '../cba/rfa';
+import { respondToOffer } from '../cba/negotiation';
+import { rulesFor } from '../cba/rules';
+import { capSeason } from '../cba/capManager';
 import { signPlayer, releasePlayer, rosterSize, rosterCounts, ensureDressable, trimRoster } from './roster';
-import { executeTrade } from './trade';
+import { executeTrade, validateTrade } from './trade';
+import { fitsPlan, planContext } from '../ai/finance';
 import { fullName, isForward } from '../player/ability';
-import { teamStrength } from '../team/strength';
 import { PERSONALITIES } from '../player/personality';
 
 export const FA_DAYS = 12;
@@ -49,37 +55,29 @@ export interface NegotiationResult {
 }
 
 /** Offer a contract to one of your own players (re-sign or extension). */
-export function offerContract(league: League, p: Player, salary: number, years: number): NegotiationResult {
+export function offerContract(league: League, p: Player, salary: number, years: number, terms: Partial<OfferTerms> = {}): NegotiationResult {
   if (p.teamId === null || !p.contract) return { ok: false, message: 'Not under contract with a team.' };
-  const ask = askingSalary(p, league, p.teamId, years);
-  const will = willingness(league, p);
-  if (salary < ask * 0.93) return { ok: false, message: `${fullName(p)}'s agent rejects it — he is looking for about $${(ask / 1000).toFixed(2)}M per year over ${years} years.` };
-  const roll = (seedFrom(league.seed, 'resign', league.season, p.id, years) % 1000) / 1000;
-  if (roll > will + (salary / ask - 1) * 2) return { ok: false, message: `${fullName(p)} wants to test the market rather than commit right now.` };
+  const resp = respondToOffer(league, p, p.teamId, { aav: salary, years });
+  if (!resp.accepted) return { ok: false, message: resp.message };
   const extension = p.contract.years >= 1;
-  if (extension) {
-    p.contract.next = { salary, years, ntc: false };
-  } else {
-    const ntc = years >= 4 && league.season - p.birthYear >= 26 && p.ca >= 150;
-    p.contract = makeContract(salary, years, league.season, ntc);
-  }
+  const ntc = years >= 4 && league.season - p.birthYear >= 26 && p.ca >= 150;
+  const res = signFromOffer(league, p, p.teamId, { aav: salary, years, clauses: ntc ? 'NTC' : null, ...terms }, { extension, origin: extension ? 'extension' : 'signing' });
+  if (!res.ok) return { ok: false, message: res.message };
   p.morale = clamp(p.morale + 6, 0, 100);
-  addTransaction(league, { kind: 'extension', teamIds: [p.teamId], playerIds: [p.id], description: `${teamName(league, p.teamId)} ${extension ? 'extend' : 're-sign'} ${fullName(p)}: ${years} yr / $${(salary / 1000).toFixed(2)}M AAV` });
-  if (p.reputation >= 50) addNews(league, { category: 'signing', headline: `${fullName(p)} ${extension ? 'signs a' : 'agrees to a'} ${years}-year, $${((salary * years) / 1000).toFixed(1)}M ${extension ? 'extension' : 'deal'} with ${teamName(league, p.teamId)}`, teamIds: [p.teamId], playerIds: [p.id], importance: 3 });
-  return { ok: true, message: `${fullName(p)} signs: ${years} years at $${(salary / 1000).toFixed(2)}M per season.` };
+  return { ok: true, message: res.message };
 }
 
-/** Arbitration-style resolution for restricted free agents: the arbitrator splits the difference. */
+/** Arbitration-style resolution for restricted free agents (full hearings live in cba/arbitration). */
 export function arbitrate(league: League, p: Player): NegotiationResult {
   if (!p.contract || p.teamId === null) return { ok: false, message: 'No rights held.' };
   if (!isRFA(p, league.season)) return { ok: false, message: 'Only restricted free agents are arbitration-eligible.' };
   const ask = askingSalary(p, league, p.teamId, 2);
   const teamOffer = Math.round(marketValue(p, league) * 0.82);
-  const award = Math.round(((ask + teamOffer) / 2) / 5) * 5;
+  const award = Math.max(league.cap.minSalary, Math.round(((ask + teamOffer) / 2) / 5) * 5);
   const years = league.season - p.birthYear >= 24 ? 2 : 1;
-  p.contract = makeContract(Math.max(league.cap.minSalary, award), years, league.season, false);
+  const res = signFromOffer(league, p, p.teamId, { aav: award, years }, { origin: 'arbitration', skipCapCheck: true });
+  if (!res.ok) return { ok: false, message: res.message };
   p.morale = clamp(p.morale - 6, 0, 100);
-  addTransaction(league, { kind: 'extension', teamIds: [p.teamId], playerIds: [p.id], description: `Arbitrator awards ${fullName(p)} ${years} yr / $${(award / 1000).toFixed(2)}M with ${teamName(league, p.teamId)}` });
   return { ok: true, message: `Arbitrator awards ${years} year(s) at $${(award / 1000).toFixed(2)}M.` };
 }
 
@@ -87,6 +85,11 @@ export function arbitrate(league: League, p: Player): NegotiationResult {
 export function aiResign(league: League, teamId: number): void {
   const team = league.teams[teamId];
   const exp = expiringPlayers(league, teamId).sort((a, b) => b.ca - a.ca);
+  const ctx = planContext(league, teamId);
+  const booked = (a: { salary: number; years: number }) => {
+    ctx.total += a.salary;
+    if (a.years >= 2) ctx.future -= a.salary;
+  };
   for (const p of exp) {
     const age = league.season - p.birthYear;
     const rfa = isRFA(p, league.season);
@@ -99,15 +102,21 @@ export function aiResign(league: League, teamId: number): void {
     if (team.strategy === 'rebuild' && age >= 31) want = want && p.ca >= 150;
     if (age >= 36 && p.ca < 145) want = false;
     if (p.status === 'prospect') want = p.pa >= 125 || p.ca >= 110;
+    // Long-term plan: frugal GMs let pricey depth walk; everyone checks future cap space.
+    if (want && p.status !== 'prospect') {
+      const fit = fitsPlan(league, teamId, p, ask.salary, ask.years, ctx);
+      const core = p.ca >= 150 || (age <= 25 && p.pa >= 155);
+      if (!fit.ok && !core) want = false;
+    }
     if (!want) continue;
     if (rfa) {
-      p.contract = makeContract(ask.salary, ask.years, league.season, false, p.status === 'prospect' && age <= 21 ? 'ELC' : 'standard');
+      if (signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, twoWay: p.status === 'prospect' }, { origin: 'signing', toMinors: p.status === 'prospect' }).ok) booked(ask);
       continue;
     }
     const roll = (seedFrom(league.seed, 'airesign', league.season, p.id) % 1000) / 1000;
     if (roll < willingness(league, p)) {
       const ntc = ask.years >= 4 && age >= 26 && p.ca >= 150;
-      p.contract = makeContract(ask.salary, ask.years, league.season, ntc);
+      if (signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, clauses: ntc ? 'NTC' : null }, { origin: 'signing' }).ok) booked(ask);
     }
   }
 }
@@ -123,32 +132,17 @@ export function releaseExpired(league: League): void {
   }
 }
 
-function roleScore(league: League, p: Player, teamId: number): number {
-  const group = playersOf(league, teamId, ['active']).filter((x) => (p.pos === 'G' ? x.pos === 'G' : p.pos === 'D' ? x.pos === 'D' : isForward(x.pos)));
-  const better = group.filter((x) => x.ca > p.ca).length;
-  const slots = p.pos === 'G' ? 2 : p.pos === 'D' ? 6 : 12;
-  return clamp(1 - better / slots, 0, 1);
-}
 
-/** How attractive an offer is to the player. ~1.0 = a fair, neutral offer. */
+/** How attractive an offer is to the player (~1.0 = fair, neutral). See cba/market signingScore. */
 export function offerUtility(league: League, p: Player, o: Pick<FreeAgentOffer, 'teamId' | 'salary' | 'years'>): number {
-  const age = league.season - p.birthYear;
-  const ask = askingSalary(p, league, null, o.years);
-  const money = o.salary / Math.max(1, ask);
-  const strengths = league.teams.map((t) => teamStrength(league, t.id).overall).sort((a, b) => a - b);
-  const mine = teamStrength(league, o.teamId).overall;
-  const winning = strengths.findIndex((s) => s >= mine) / Math.max(1, strengths.length - 1);
-  const role = roleScore(league, p, o.teamId);
-  const team = league.teams[o.teamId];
-  const lastTeam = [...p.career].reverse().find((c) => !c.playoffs)?.teamId;
-  const loyalty = lastTeam === o.teamId ? (p.prefs.loyalty - 0.8) * 0.2 : 0;
-  const stage = age >= 31 ? 1.4 : 0.8;
-  const yearsPref = age >= 30 ? (o.years - 2) * 0.03 : 0;
-  return money * p.prefs.money + (winning - 0.5) * 0.35 * p.prefs.winning * stage + (role - 0.5) * 0.25 * p.prefs.role + (team.appeal - 0.55) * 0.3 * p.prefs.location + loyalty + yearsPref - (p.prefs.money - 1);
+  return signingScore(league, p, { teamId: o.teamId, aav: o.salary, years: o.years }).total;
 }
 
 export function startFreeAgency(league: League): void {
+  // July 1: unqualified RFAs become UFAs, qualified RFAs stay with their club's rights.
+  processQualifyingOffers(league);
   releaseExpired(league);
+  league.offseasonStep = 'freeAgency';
   league.faOffers = [];
   league.faDay = 0;
   league.phase = 'freeAgency';
@@ -157,6 +151,13 @@ export function startFreeAgency(league: League): void {
 /** User makes (or updates) an offer to a free agent. */
 export function makeOffer(league: League, teamId: number, p: Player, salary: number, years: number): NegotiationResult {
   if (p.status !== 'fa') return { ok: false, message: 'Player is not a free agent.' };
+  if (isRestricted(p)) {
+    if (p.rightsTeamId !== teamId) return { ok: false, message: `${fullName(p)} is a restricted free agent (${teamName(league, p.rightsTeamId!)} hold his rights). Sign him to an offer sheet instead.` };
+    const resp = respondToOffer(league, p, teamId, { aav: salary, years });
+    if (!resp.accepted) return { ok: false, message: resp.message };
+    const res = signFromOffer(league, p, teamId, { aav: salary, years }, { origin: 'signing' });
+    return { ok: res.ok, message: res.message };
+  }
   if (salary < league.cap.minSalary) return { ok: false, message: `Minimum salary is $${league.cap.minSalary}K.` };
   if (salary > league.cap.upper * 0.2) return { ok: false, message: 'Exceeds the maximum contract.' };
   const committed = league.faOffers.filter((o) => o.teamId === teamId && o.playerId !== p.id).reduce((s, o) => s + o.salary, 0);
@@ -168,7 +169,9 @@ export function makeOffer(league: League, teamId: number, p: Player, salary: num
   if (league.phase !== 'freeAgency') {
     const u = offerUtility(league, p, offer);
     if (u >= 0.97) {
-      completeSigning(league, offer);
+      const res = signPlayer(league, p, teamId, salary, years, false);
+      if (!res.ok) return { ok: false, message: res.message };
+      league.faOffers = league.faOffers.filter((x) => x.playerId !== p.id);
       return { ok: true, message: `${fullName(p)} accepts your offer!` };
     }
     return { ok: false, message: `${fullName(p)} declines. He wants roughly $${(askingSalary(p, league, null, years) / 1000).toFixed(2)}M.` };
@@ -178,19 +181,25 @@ export function makeOffer(league: League, teamId: number, p: Player, salary: num
   return { ok: true, message: u >= 1.05 ? `${fullName(p)}'s camp is very interested.` : u >= 0.95 ? `${fullName(p)} is considering your offer.` : `${fullName(p)}'s agent says the offer is below what other teams are discussing.` };
 }
 
-function completeSigning(league: League, o: FreeAgentOffer): void {
+function completeSigning(league: League, o: FreeAgentOffer): boolean {
   const p = league.players[o.playerId];
-  signPlayer(league, p, o.teamId, o.salary, o.years, o.ntc);
+  const res = signPlayer(league, p, o.teamId, o.salary, o.years, o.ntc);
+  if (!res.ok) {
+    // Illegal now (cap/term/roster): the offer is void.
+    league.faOffers = league.faOffers.filter((x) => !(x.playerId === o.playerId && x.teamId === o.teamId));
+    return false;
+  }
   league.faOffers = league.faOffers.filter((x) => x.playerId !== o.playerId);
   addTransaction(league, { kind: 'signing', teamIds: [o.teamId], playerIds: [p.id], description: `${teamName(league, o.teamId)} sign ${fullName(p)} (${p.pos}): ${o.years} yr / $${(o.salary / 1000).toFixed(2)}M AAV` });
   if (p.reputation >= 45 || o.teamId === league.userTeamId) {
     addNews(league, { category: 'signing', headline: `${fullName(p)} signs ${o.years}-year, $${((o.salary * o.years) / 1000).toFixed(1)}M contract with ${teamName(league, o.teamId)}`, teamIds: [o.teamId], playerIds: [p.id], importance: p.reputation >= 60 ? 4 : 2 });
   }
+  return true;
 }
 
 /** CPU teams place offers on free agents that fit their needs and budget. */
 export function aiOffers(league: League, rng: Rng): void {
-  const fas = Object.values(league.players).filter((p) => p.status === 'fa' && !(p.injury && p.injury.daysRemaining > 60));
+  const fas = Object.values(league.players).filter((p) => p.status === 'fa' && !isRestricted(p) && !(p.injury && p.injury.daysRemaining > 60));
   const offerCount = new Map<number, number>();
   for (const o of league.faOffers) offerCount.set(o.playerId, (offerCount.get(o.playerId) ?? 0) + 1);
   const teams = rng.shuffle(league.teams.filter((t) => isCpu(league, t.id)));
@@ -228,14 +237,23 @@ export function aiOffers(league: League, rng: Rng): void {
       .filter((x) => x.score > 3)
       .sort((a, b) => b.score - a.score);
     let made = 0;
+    const ctx = planContext(league, team.id);
+    for (const o of mine) {
+      ctx.total += o.salary;
+      if (o.years >= 2) ctx.future -= o.salary;
+    }
     for (const { p, grp } of scored) {
       if (made >= 4 || slots <= 0) break;
       const age = league.season - p.birthYear;
       const years = typicalTerm(p, league.season, rng);
       const ask = askingSalary(p, league, null, years);
-      const eager = underFloor ? 1.12 : team.strategy === 'contend' ? 1.04 : team.strategy === 'rebuild' ? 1.06 : 1;
+      // Strategy and GM style decide how hard they bid (aggressive GMs sometimes overpay).
+      const eager = (underFloor ? 1.12 : team.strategy === 'contend' ? 1.04 : team.strategy === 'rebuild' ? 1.06 : 1) * ctx.plan.overpay;
       const bid = Math.max(league.cap.minSalary, Math.round((ask * rng.float(0.9, 1.08) * eager) / 5) * 5);
       if (bid > room) continue;
+      if (!underFloor && !fitsPlan(league, team.id, p, bid, years, ctx).ok) continue;
+      ctx.total += bid;
+      if (years >= 2) ctx.future -= bid;
       league.faOffers.push({ playerId: p.id, teamId: team.id, salary: bid, years, day: league.faDay, ntc: years >= 4 && age >= 27 && rng.chance(0.4) });
       offerCount.set(p.id, (offerCount.get(p.id) ?? 0) + 1);
       room -= bid;
@@ -291,7 +309,9 @@ export function absorbCapDumps(league: League): void {
       const pick = league.draftPicks
         .filter((d) => d.ownerId === team.id && d.season > league.season && d.round >= 4)
         .sort((a, b) => b.round - a.round)[0];
-      executeTrade(league, { from: team.id, to: from, give: pick ? [{ kind: 'pick', id: pick.id }] : [], get: [{ kind: 'player', id: best.id }] });
+      const dump = { from: team.id, to: from, give: pick ? [{ kind: 'pick' as const, id: pick.id }] : [], get: [{ kind: 'player' as const, id: best.id }] };
+      if (validateTrade(league, dump).length) break;
+      executeTrade(league, dump);
       trimRoster(league, team.id);
       ensureDressable(league, from);
     }
@@ -318,7 +338,7 @@ function playerDecisions(league: League, rng: Rng, final: boolean): void {
   for (const o of league.faOffers) byPlayer.set(o.playerId, [...(byPlayer.get(o.playerId) ?? []), o]);
   for (const [pid, offers] of byPlayer) {
     const p = league.players[pid];
-    if (!p || p.status !== 'fa') continue;
+    if (!p || p.status !== 'fa' || isRestricted(p)) continue;
     // Drop offers that no longer fit the team's cap.
     const valid = offers.filter((o) => o.salary <= capSpace(league, o.teamId) + 1 && playersOf(league, o.teamId).length < league.config.economics.rosterMax + 4);
     if (!valid.length) continue;
@@ -334,8 +354,11 @@ function playerDecisions(league: League, rng: Rng, final: boolean): void {
 /** Advance free agency by one day. Returns true when the period is over. */
 export function processFADay(league: League): boolean {
   withRng(league, (rng) => {
+    const final = league.faDay >= FA_DAYS - 1;
+    rfaDay(league, rng, final);
+    aiRfaNegotiations(league);
     aiOffers(league, rng);
-    playerDecisions(league, rng, league.faDay >= FA_DAYS - 1);
+    playerDecisions(league, rng, final);
   });
   league.faDay++;
   if (league.faDay >= FA_DAYS) {
@@ -362,4 +385,22 @@ export function pendingOffersFor(league: League, playerId: number): FreeAgentOff
 export function demandFor(league: League, p: Player): { salary: number; years: number } {
   const years = typicalTerm(p, league.season, new Rng(seedFrom(league.seed, 'term', p.id, league.season)));
   return { salary: askingSalary(p, league, null, years), years };
+}
+
+/** CPU clubs negotiate with their own unsigned RFAs early in free agency. */
+export function aiRfaNegotiations(league: League): void {
+  if (league.faDay > 7) return;
+  for (const p of Object.values(league.players)) {
+    if (!isRestricted(p) || !isCpu(league, p.rightsTeamId!)) continue;
+    if (league.offerSheets.some((o) => o.playerId === p.id && o.status === 'pending')) continue;
+    if (league.arbitration.some((a) => a.playerId === p.id && a.season === league.season && a.status === 'filed')) continue;
+    const teamId = p.rightsTeamId!;
+    const value = contractValue(p, league).value;
+    const prof = freeAgentProfile(p, league);
+    const years = Math.min(prof.desiredTerm, rulesFor(capSeason(league)).maxTermOwnTeam);
+    const offer = Math.round((value * (0.92 + league.faDay * 0.015)) / 5) * 5;
+    if (offer > capSpace(league, teamId) + 50) continue;
+    const resp = respondToOffer(league, p, teamId, { aav: offer, years });
+    if (resp.accepted) signFromOffer(league, p, teamId, { aav: offer, years }, { origin: 'signing' });
+  }
 }

@@ -3,6 +3,8 @@ import type { League, Lines, Player, Team } from '../types';
 import type { GameInput, GamePlayerInput, GameTeamInput } from '../sim/gameTypes';
 import { injuryRisk, severityShift } from '../player/injuries';
 import { dressedIds, repairLines, autoLines } from '../team/lines';
+import { enforcePlayoffCap } from '../cba/capActions';
+import { addNews } from './helpers';
 import { effectiveCoachRatings } from '../team/coaching';
 import { pairChemistry, pairKey } from '../team/chemistry';
 import { seedFrom } from '../core/rng';
@@ -61,7 +63,16 @@ export function teamGameInput(league: League, team: Team, day: number, playoff: 
   } else {
     repairLines(team.lines, roster);
   }
-  const lines = chooseStarter(league, team, team.lines, day, playoff, salt);
+  let lines = chooseStarter(league, team, team.lines, day, playoff, salt);
+  if (playoff) {
+    // Playoff cap (2025 MOU): dressed cap hits + dead cap must fit under the upper limit.
+    const pc = enforcePlayoffCap(league, team.id, lines, dressedIds);
+    if (pc.changes.length) {
+      lines = pc.lines;
+      if (team.id === league.userTeamId)
+        addNews(league, { category: 'league', headline: `Playoff cap: lineup adjusted — ${pc.changes.join('; ')}`, body: pc.errors.join(' '), teamIds: [team.id], playerIds: [], importance: 3 });
+    }
+  }
   const ids = dressedIds(lines);
   const dressed = ids.map((id) => league.players[id]).filter((p): p is Player => !!p);
   const head = team.staff.headCoach !== null ? league.coaches[team.staff.headCoach] : undefined;

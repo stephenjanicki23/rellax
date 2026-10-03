@@ -2,14 +2,20 @@ import { useMemo, useState } from 'react';
 import { useGame, mutate, toast } from '../store';
 import { Card, PlayerLink, Pos, Stars, TeamLogo } from '../components/common';
 import { playersOf } from '../../engine/league/helpers';
-import { balanceTrade, describeAsset, evaluateTrade, executeTrade, projectedPickNumber, validateTrade, type TradeAsset, type TradeProposal } from '../../engine/economy/trade';
+import { balanceTrade, checkTrade, describeAsset, evaluateTrade, executeTrade, projectedPickNumber, validateTrade, type TradeAsset, type TradeProposal } from '../../engine/economy/trade';
 import { estimate } from '../../engine/economy/scouting';
-import { fmtMoney, payroll } from '../../engine/economy/contracts';
+import { fmtMoney } from '../../engine/economy/contracts';
 import { trimRoster, ensureDressable } from '../../engine/economy/roster';
 import type { League } from '../../engine/types';
 import { shortDate } from '../format';
+import { activeClause } from '../../engine/cba/contract';
+import { capSeason } from '../../engine/cba/capManager';
 
 const key = (a: TradeAsset) => `${a.kind}-${a.id}`;
+const clauseOf = (league: League, p: League['players'][number]) => {
+  const cl = p.contract ? activeClause(p.contract, capSeason(league)) : null;
+  return cl ? cl.kind : null;
+};
 
 function AssetList({ league, teamId, selected, toggle }: { league: League; teamId: number; selected: TradeAsset[]; toggle: (a: TradeAsset) => void }) {
   const players = playersOf(league, teamId, ['active', 'prospect']).sort((a, b) => estimate(league, b).ca - estimate(league, a).ca);
@@ -31,7 +37,7 @@ function AssetList({ league, teamId, selected, toggle }: { league: League; teamI
                   <Pos pos={p.pos} />
                 </td>
                 <td>
-                  <PlayerLink p={p} /> {p.status === 'prospect' && <span className="pill">minors</span>} {p.contract?.ntc && <span className="pill warn">NTC</span>}
+                  <PlayerLink p={p} /> {p.status === 'prospect' && <span className="pill">minors</span>} {clauseOf(league, p) && <span className="pill warn">{clauseOf(league, p)}</span>}
                 </td>
                 <td className="num">{league.season - p.birthYear}</td>
                 <td>
@@ -68,11 +74,12 @@ export function TradesPage() {
   const [partner, setPartner] = useState(me === 0 ? 1 : 0);
   const [give, setGive] = useState<TradeAsset[]>([]);
   const [get, setGet] = useState<TradeAsset[]>([]);
-  const proposal: TradeProposal = { from: me, to: partner, give, get };
-  const ev = useMemo(() => (give.length || get.length ? evaluateTrade(league, proposal) : null), [league, version, partner, give, get]);
+  const [retain, setRetain] = useState<Record<number, number>>({});
+  const retainList = give.filter((a) => a.kind === 'player' && retain[a.id]).map((a) => ({ playerId: a.id, pct: retain[a.id] }));
+  const proposal: TradeProposal = { from: me, to: partner, give, get, retain: retainList };
+  const ev = useMemo(() => (give.length || get.length ? evaluateTrade(league, proposal) : null), [league, version, partner, give, get, retain]);
+  const chk = useMemo(() => (give.length || get.length ? checkTrade(league, proposal) : null), [league, version, partner, give, get, retain]);
   const toggle = (list: TradeAsset[], set: (l: TradeAsset[]) => void) => (a: TradeAsset) => set(list.some((x) => key(x) === key(a)) ? list.filter((x) => key(x) !== key(a)) : [...list, a]);
-  const salary = (assets: TradeAsset[]) => assets.reduce((s, a) => (a.kind === 'player' && league.players[a.id]?.status === 'active' ? s + (league.players[a.id].contract?.salary ?? 0) : s), 0);
-  const myPayAfter = payroll(league, me) - salary(give) + salary(get);
   const partnerTeam = league.teams[partner];
   const ratio = ev ? ev.valueIn / Math.max(1, ev.valueOut * 1.08) : 0;
   const recent = league.transactions.filter((t) => t.kind === 'trade').slice(0, 12);
@@ -174,14 +181,56 @@ export function TradesPage() {
               <h3 style={{ marginBottom: 4 }}>You receive</h3>
               {get.length ? get.map((a) => <div key={key(a)}>{describeAsset(league, a)}</div>) : <span className="dim">Nothing selected</span>}
             </div>
-            <div className="kv">
-              <span className="k">Your payroll after</span>
-              <span className={myPayAfter > league.cap.upper ? 'bad' : ''}>{fmtMoney(myPayAfter)}</span>
-              <span className="k">Salary in / out</span>
-              <span>
-                {fmtMoney(salary(get))} / {fmtMoney(salary(give))}
-              </span>
-            </div>
+            {give.some((a) => a.kind === 'player' && league.players[a.id]?.contract) && (
+              <div className="stack" style={{ gap: 4 }}>
+                <span className="muted" style={{ fontSize: 12 }}>Salary retention (you keep part of the cap hit)</span>
+                {give
+                  .filter((a) => a.kind === 'player' && league.players[a.id]?.contract)
+                  .map((a) => (
+                    <label key={a.id} className="row" style={{ gap: 6, fontSize: 12 }}>
+                      <span style={{ flex: 1 }}>{describeAsset(league, a)}</span>
+                      <select value={retain[a.id] ?? 0} onChange={(e) => setRetain({ ...retain, [a.id]: Number(e.target.value) })}>
+                        {[0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5].map((v) => (
+                          <option key={v} value={v}>{v ? `${Math.round(v * 100)}% retained` : 'No retention'}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+              </div>
+            )}
+            {chk && (
+              <table className="tbl" style={{ fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th>Cap</th>
+                    <th className="num">Before → after</th>
+                    <th className="num">Space</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chk.cap.map((c) => (
+                    <tr key={c.teamId}>
+                      <td>{league.teams[c.teamId].abbr}</td>
+                      <td className={`num ${c.ok ? '' : 'bad'}`}>
+                        <span className="muted">{fmtMoney(c.before)} →</span> {fmtMoney(c.after)}
+                      </td>
+                      <td className={`num ${c.spaceAfter < 0 ? 'bad' : 'good'}`}>{fmtMoney(c.spaceAfter)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {chk?.consents.map((c) => (
+              <div key={c.playerId} className={c.granted ? 'good' : 'bad'} style={{ fontSize: 12 }}>
+                {c.reason}
+              </div>
+            ))}
+            {chk?.warnings.map((w) => (
+              <div key={w} className="warn" style={{ fontSize: 12 }}>
+                {w}
+              </div>
+            ))}
+            {chk && chk.ok && <div className="good" style={{ fontSize: 12 }}>Trade is valid under the CBA (cap, clauses, retention, roster).</div>}
             {ev && (
               <>
                 <div>
@@ -193,7 +242,7 @@ export function TradesPage() {
                     <i style={{ width: `${Math.min(100, ratio * 100)}%`, background: ev.accept ? 'var(--good)' : ratio > 0.75 ? 'var(--warn)' : 'var(--bad)' }} />
                   </div>
                 </div>
-                {ev.errors.map((e) => (
+                {ev.errors.filter((e) => !chk?.consents.some((c) => c.reason === e)).map((e) => (
                   <div key={e} className="bad" style={{ fontSize: 12 }}>
                     {e}
                   </div>
@@ -216,7 +265,7 @@ export function TradesPage() {
               >
                 What would it take?
               </button>
-              <button className="btn ghost" onClick={() => { setGive([]); setGet([]); }}>
+              <button className="btn ghost" onClick={() => { setGive([]); setGet([]); setRetain({}); }}>
                 Clear
               </button>
             </div>

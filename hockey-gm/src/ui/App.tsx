@@ -33,6 +33,7 @@ import { TeamPage } from './pages/TeamPage';
 import { LiveGame } from './pages/LiveGame';
 import { SettingsPage } from './pages/Settings';
 import { ContractsPage } from './pages/Contracts';
+import { CapPage } from './pages/Cap';
 import { GameRecap } from './pages/GameRecap';
 
 const NAV: { section: string; items: { id: string; label: string; icon: string }[] }[] = [
@@ -51,6 +52,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
     section: 'Front Office',
     items: [
       { id: 'scouting', label: 'Scouting', icon: '◎' },
+      { id: 'cap', label: 'Salary Cap', icon: '$' },
       { id: 'trades', label: 'Trades', icon: '⇄' },
       { id: 'freeagency', label: 'Free Agency', icon: '✚' },
       { id: 'draft', label: 'Draft', icon: '⬇' },
@@ -154,6 +156,7 @@ function Routes() {
     players: <PlayersPage />,
     prospects: <ProspectsPage />,
     contracts: <ContractsPage />,
+    cap: <CapPage />,
     scouting: <ScoutingPage />,
     trades: <TradesPage />,
     freeagency: <FreeAgencyPage />,

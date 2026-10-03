@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:validation": "VALIDATION=1 vitest run tests/validation",
     "analyze": "tsx scripts/analyze.ts",
+    "fetch:contracts": "node scripts/fetch-contracts.mjs",
     "fetch:nhl": "node scripts/fetch-nhl.mjs"
   },
   "dependencies": {
