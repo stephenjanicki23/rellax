@@ -19,6 +19,16 @@ npm run dev                # http://localhost:5173
 | `npm run analyze -- 2000 3 [seed]` | CLI analytics: N-game batch plus N full seasons, checked against realistic ranges |
 | `npm run typecheck` | `tsc --noEmit` |
 
+## Hosting
+
+`npm run build` produces a static site in `dist/` (relative paths, hash routing, saves in the browser), so any static host works.
+
+- **GitHub Pages:** `.github/workflows/hockey-gm-pages.yml` tests, builds and deploys on every push to `master` that touches `hockey-gm/`. One-time setup: repository **Settings → Pages → Source: GitHub Actions**. The site appears at `https://<owner>.github.io/<repo>/`.
+- **Vercel:** import the repository, set **Root Directory** to `hockey-gm`, deploy. `vercel.json` sets the framework, output folder and asset caching.
+- **Anything else** (Netlify, Cloudflare Pages, S3): build command `npm run build`, publish directory `hockey-gm/dist`.
+
+Saves live in each player's own browser, so every visitor has their own careers.
+
 ---
 
 ## What's in the game
