@@ -439,6 +439,8 @@ export class GameSim {
       inShootout: this.inShootout,
       energy,
       lineIdx: [h.fIdx, a.fIdx],
+      teamStats: [{ ...h.stats, shotsByPeriod: [...h.stats.shotsByPeriod], goalsByPeriod: [...h.stats.goalsByPeriod] }, { ...a.stats, shotsByPeriod: [...a.stats.shotsByPeriod], goalsByPeriod: [...a.stats.goalsByPeriod] }],
+      box: this.penalties.map((p) => ({ team: p.team, player: p.player.id, remaining: p.remaining, minutes: p.minutes, coincidental: !!p.coincidental })),
     };
   }
 

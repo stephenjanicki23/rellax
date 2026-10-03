@@ -230,4 +230,8 @@ export interface GameSnapshot {
   inShootout: boolean;
   energy: Record<number, number>;
   lineIdx: [number, number];
+  /** Running team box-score totals (presentation copy). */
+  teamStats: [TeamGameStats, TeamGameStats];
+  /** Players currently serving penalties. */
+  box: { team: 0 | 1; player: number; remaining: number; minutes: number; coincidental: boolean }[];
 }

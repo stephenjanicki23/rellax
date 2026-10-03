@@ -22,6 +22,9 @@ export interface RinkPlayer {
   team: 0 | 1;
   pos: Position;
   number: number | null;
+  /** Display names (presentation only). */
+  first?: string;
+  last?: string;
 }
 
 export type ShotKind = 'goal' | 'save' | 'miss' | 'block';
@@ -50,6 +53,8 @@ export interface Frame {
   goalLight: 0 | 1 | null;
   /** Shot to add to the shot map when this frame is reached. */
   mark?: ShotMark;
+  /** The engine event this frame completes (on the last frame of each event). */
+  event?: GameEvent;
 }
 
 export interface IceState {
@@ -193,6 +198,12 @@ export class RinkDirector {
 
   /** Frames to play for one event (usually one; shots get a wind-up frame). */
   apply(e: GameEvent, ice: IceState): Frame[] {
+    const frames = this.applyInner(e, ice);
+    frames[frames.length - 1].event = e;
+    return frames;
+  }
+
+  private applyInner(e: GameEvent, ice: IceState): Frame[] {
     const p = ice.period;
     const seed = e.t * 13 + (e.p1 ?? 0);
     const t = e.team;

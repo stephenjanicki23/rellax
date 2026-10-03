@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { GameSnapshot } from '../../engine/sim/gameTypes';
+import type { GameEvent, GameSnapshot } from '../../engine/sim/gameTypes';
 import type { Team } from '../../engine/types';
-import { RINK, RinkDirector, attackDir, type Flash, type RinkPlayer, type ShotMark } from './director';
+import { clockLabel, periodLabel } from '../../engine/sim/commentary';
+import { RINK, RinkDirector, attackDir, type RinkPlayer, type ShotMark } from './director';
 import { RinkMotion, RinkTimeline, type Key, type TimelineItem } from './motion';
+import { teamBar } from '../teamColors';
 import './rink.css';
 
 /** Shared, mutable link between the live view's playback loop and the rink (read every frame). */
@@ -19,17 +21,76 @@ export interface RinkFeed {
   done: boolean;
 }
 
+type RinkTeam = Pick<Team, 'abbr' | 'colors' | 'logo' | 'city' | 'name'>;
+
 export interface LiveRinkProps {
   feed: RinkFeed;
   snap: GameSnapshot;
-  home: Pick<Team, 'abbr' | 'colors' | 'logo'>;
-  away: Pick<Team, 'abbr' | 'colors' | 'logo'>;
+  home: RinkTeam;
+  away: RinkTeam;
   players: RinkPlayer[];
+  playoff?: boolean;
+}
+
+interface Trajectory {
+  id: number;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  kind: ShotMark['kind'];
+  team: 0 | 1;
+}
+
+interface Chip {
+  id: number;
+  text: string;
+  team: 0 | 1 | null;
+  tone: 'info' | 'penalty' | 'save';
+}
+
+interface GoalInfo {
+  id: number;
+  event: GameEvent;
 }
 
 const STEP = 1 / 120;
+const POS_LABEL: Record<string, string> = { C: 'C', LW: 'LW', RW: 'RW', D: 'D', G: 'G' };
 
-export function LiveRink({ feed, snap, home, away, players }: LiveRinkProps) {
+/** Fine grain for the ice surface, generated once (static image: no per-frame filter cost). */
+let noiseUrl: string | null = null;
+function iceNoise(): string | null {
+  if (noiseUrl || typeof document === 'undefined') return noiseUrl;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  if (!g) return null;
+  const img = g.createImageData(256, 256);
+  let seed = 7;
+  for (let i = 0; i < img.data.length; i += 4) {
+    seed = (seed * 16807) % 2147483647;
+    const v = 200 + (seed % 56);
+    img.data[i] = img.data[i + 1] = v;
+    img.data[i + 2] = 255;
+    img.data[i + 3] = seed % 7 === 0 ? 40 : 14;
+  }
+  g.putImageData(img, 0, 0);
+  // A few skate scratches.
+  g.strokeStyle = 'rgba(150,170,190,0.18)';
+  g.lineWidth = 0.6;
+  for (let i = 0; i < 40; i++) {
+    seed = (seed * 16807) % 2147483647;
+    const x = seed % 256;
+    seed = (seed * 16807) % 2147483647;
+    const y = seed % 256;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + 30, y + 6, x + 60, y - 4);
+    g.stroke();
+  }
+  noiseUrl = c.toDataURL();
+  return noiseUrl;
+}
+
+export function LiveRink({ feed, snap, home, away, players, playoff = false }: LiveRinkProps) {
   const meta = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const engine = useRef<{ tl: RinkTimeline; motion: RinkMotion; consumed: number } | null>(null);
   if (!engine.current) {
@@ -37,14 +98,26 @@ export function LiveRink({ feed, snap, home, away, players }: LiveRinkProps) {
     engine.current = { tl, motion: new RinkMotion(tl, meta), consumed: 0 };
   }
   const els = useRef(new Map<number, SVGGElement>());
+  const heads = useRef(new Map<number, SVGGElement>());
   const puckEl = useRef<SVGGElement | null>(null);
+  const trailEl = useRef<SVGPolylineElement | null>(null);
   const [ids, setIds] = useState<number[]>([]);
   const [carrier, setCarrier] = useState<number | null>(null);
-  const [flash, setFlash] = useState<Flash | null>(null);
+  const [possTeam, setPossTeam] = useState<0 | 1 | null>(null);
+  const [active, setActive] = useState<number[]>([]);
+  const [injured, setInjured] = useState<number[]>([]);
+  const [penalized, setPenalized] = useState<number[]>([]);
+  const [savePulse, setSavePulse] = useState<{ id: number; n: number } | null>(null);
+  const [trajs, setTrajs] = useState<Trajectory[]>([]);
+  const [chips, setChips] = useState<Chip[]>([]);
+  const [goal, setGoal] = useState<GoalInfo | null>(null);
   const [light, setLight] = useState<0 | 1 | null>(null);
   const [shots, setShots] = useState<ShotMark[]>([]);
+  const [showMap, setShowMap] = useState(false);
   const [period, setPeriod] = useState(1);
   const [logoOk, setLogoOk] = useState(true);
+  const noise = useMemo(() => iceNoise(), []);
+  const seq = useRef(0);
 
   useEffect(() => {
     const { tl, motion } = engine.current!;
@@ -52,28 +125,101 @@ export function LiveRink({ feed, snap, home, away, players }: LiveRinkProps) {
     let last = performance.now();
     let idKey = '';
     let carrierNow: number | null = null;
+    let possNow: 0 | 1 | null = null;
+    const trail: { x: number; y: number }[] = [];
+    let prevPuck = { ...motion.puck.pos };
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const later = (ms: number, fn: () => void) => {
+      const t = setTimeout(() => {
+        timers.delete(t);
+        fn();
+      }, ms);
+      timers.add(t);
+    };
+    const chip = (text: string, team: 0 | 1 | null, tone: Chip['tone'], ms = 1600) => {
+      const c = { id: ++seq.current, text, team, tone };
+      setChips((prev) => [...prev.slice(-2), c]);
+      later(ms, () => setChips((prev) => prev.filter((x) => x.id !== c.id)));
+    };
     const onKey = (k: Key) => {
-      if (k.flash) setFlash(k.flash);
-      if (k.goalLight !== null) setLight(k.goalLight);
-      if (k.mark) setShots((prev) => [...prev, k.mark!]);
       setPeriod((p) => (p !== k.period ? k.period : p));
+      if (k.goalLight !== null) {
+        setLight(k.goalLight);
+        later(3200, () => setLight(null));
+      }
+      if (k.mark) {
+        const m = k.mark;
+        setShots((prev) => [...prev, m]);
+        const tr = { id: ++seq.current, from: { x: m.x, y: m.y }, to: { ...k.puck }, kind: m.kind, team: m.team };
+        setTrajs((prev) => [...prev.slice(-5), tr]);
+        later(1900, () => setTrajs((prev) => prev.filter((x) => x.id !== tr.id)));
+      }
+      const e = k.event;
+      if (!e) return;
+      const actors = [e.p1, e.p2].filter((x): x is number => x !== undefined);
+      if (actors.length && e.type !== 'lineChange') {
+        setActive(actors);
+        later(1400, () => setActive((prev) => (prev === actors ? [] : prev)));
+      }
+      switch (e.type) {
+        case 'goal':
+          setGoal({ id: ++seq.current, event: e });
+          break;
+        case 'save':
+          if (e.p1 !== undefined) setSavePulse({ id: e.p1, n: ++seq.current });
+          if (e.data?.big) chip('BIG SAVE', e.team, 'save');
+          break;
+        case 'penalty':
+        case 'fight':
+          chip(e.type === 'fight' ? 'FIGHTING MAJORS' : `PENALTY · ${(e.team === 0 ? home : away).abbr}`, e.team, 'penalty', 2200);
+          if (e.p1 !== undefined) setPenalized((prev) => [...prev, e.p1!, ...(e.type === 'fight' && e.p2 !== undefined ? [e.p2] : [])]);
+          break;
+        case 'injury':
+          if (e.p1 !== undefined) {
+            const id = e.p1;
+            setInjured((prev) => [...prev, id]);
+            later(6000, () => setInjured((prev) => prev.filter((x) => x !== id)));
+          }
+          break;
+        case 'icing':
+          chip('ICING', null, 'info');
+          break;
+        case 'offside':
+          chip('OFFSIDE', null, 'info');
+          break;
+        case 'entry':
+          if (e.data?.oddMan) chip('ODD-MAN RUSH', e.team, 'info', 1300);
+          break;
+        case 'lineChange':
+          chip(`${(e.team === 0 ? home : away).abbr} LINE CHANGE`, e.team, 'info', 1200);
+          break;
+        case 'goaliePulled':
+          chip(`${(e.team === 0 ? home : away).abbr} EMPTY NET`, e.team, 'penalty', 2400);
+          break;
+        case 'periodStart':
+          setShots([]);
+          chip(e.period > 3 ? 'OVERTIME' : `${periodLabel(e.period, playoff).toUpperCase()} PERIOD`, null, 'info', 1800);
+          break;
+        case 'periodEnd':
+          chip('END OF PERIOD', null, 'info', 2400);
+          break;
+      }
     };
     const frame = (now: number) => {
       const eng = engine.current!;
-      // Schedule any new events.
       if (feed.items.length > eng.consumed) {
         tl.add(feed.items.slice(eng.consumed));
         eng.consumed = feed.items.length;
       }
       const realDt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      // Where the game says we should be, extrapolated between playback ticks.
       const target = feed.done ? tl.end : Math.min(tl.end, feed.pres + (feed.rate ? ((now - feed.presAt) / 1000) * feed.rate : 0));
       const lag = target - motion.P;
+      const P0 = motion.P;
       if (lag > Math.max(8, feed.rate * 0.75) || (feed.done && lag > 0.5)) {
         motion.snapTo(target - (feed.done ? 0 : 0.5), onKey);
+        trail.length = 0;
       } else if (feed.rate > 0 || lag > 0) {
-        // Run at playback speed, easing to catch up (or slow down) so we stay in sync.
         const catchUp = lag > 0.6 ? 1 + Math.min(1.5, (lag - 0.6) / 2) : lag < -0.2 ? 0.6 : 1;
         let adv = Math.max(0, Math.min(realDt * Math.max(feed.rate, 1) * catchUp, lag + 0.05));
         if (feed.rate === 0) adv = Math.min(adv, lag);
@@ -83,153 +229,320 @@ export function LiveRink({ feed, snap, home, away, players }: LiveRinkProps) {
           adv -= d;
         }
       }
-      // Paint.
+      // Paint players: position, plus a heading chevron when skating.
       for (const [id, b] of motion.bodies) {
         const el = els.current.get(id);
         if (el) el.setAttribute('transform', `translate(${b.pos.x.toFixed(2)} ${b.pos.y.toFixed(2)})`);
+        const hd = heads.current.get(id);
+        if (hd) {
+          const sp = Math.hypot(b.vel.x, b.vel.y);
+          if (sp > 5 && !b.goalie) {
+            hd.setAttribute('transform', `rotate(${((Math.atan2(b.vel.y, b.vel.x) * 180) / Math.PI).toFixed(1)})`);
+            hd.style.opacity = String(Math.min(1, (sp - 5) / 12));
+          } else hd.style.opacity = '0';
+        }
       }
-      if (puckEl.current) puckEl.current.setAttribute('transform', `translate(${motion.puck.pos.x.toFixed(2)} ${motion.puck.pos.y.toFixed(2)})`);
+      // Puck, with a faint trail when it is really moving.
+      const pk = motion.puck.pos;
+      const dP = motion.P - P0;
+      const speed = dP > 0 ? Math.hypot(pk.x - prevPuck.x, pk.y - prevPuck.y) / dP : 0;
+      prevPuck = { ...pk };
+      if (puckEl.current) puckEl.current.setAttribute('transform', `translate(${pk.x.toFixed(2)} ${pk.y.toFixed(2)})`);
+      if (speed > 38 && motion.puck.mode.kind !== 'carried') trail.push({ ...pk });
+      else trail.splice(0, Math.max(1, Math.ceil(trail.length / 3)));
+      if (trail.length > 9) trail.splice(0, trail.length - 9);
+      if (trailEl.current) {
+        trailEl.current.setAttribute('points', trail.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
+        trailEl.current.style.opacity = trail.length > 1 ? String(Math.min(0.45, speed / 260)) : '0';
+      }
       const nextIds = [...motion.bodies.keys()].sort((a, b) => a - b);
       const key = nextIds.join(',');
       if (key !== idKey) {
         idKey = key;
         setIds(nextIds);
+        setPenalized((prev) => prev.filter((x) => motion.bodies.has(x)));
       }
       const c = motion.puck.mode.kind === 'carried' ? motion.puck.mode.carrier : null;
       if (c !== carrierNow) {
         carrierNow = c;
         setCarrier(c);
       }
+      const pt = c !== null ? (meta.get(c)?.team ?? null) : null;
+      if (pt !== null && pt !== possNow) {
+        possNow = pt;
+        setPossTeam(pt);
+      }
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
-  }, [feed]);
+    return () => {
+      cancelAnimationFrame(raf);
+      for (const t of timers) clearTimeout(t);
+    };
+  }, [feed, meta, home, away, playoff]);
 
   useEffect(() => {
-    if (!flash) return;
-    const id = setTimeout(() => setFlash(null), flash.kind === 'goal' ? 2800 : 1300);
+    if (!goal) return;
+    const id = setTimeout(() => setGoal(null), 4800);
     return () => clearTimeout(id);
-  }, [flash]);
+  }, [goal]);
   useEffect(() => {
-    if (light === null) return;
-    const id = setTimeout(() => setLight(null), 3000);
+    if (!savePulse) return;
+    const id = setTimeout(() => setSavePulse(null), 900);
     return () => clearTimeout(id);
-  }, [light]);
-  useEffect(() => setShots((prev) => prev.filter((s) => s.period === period)), [period]);
+  }, [savePulse]);
 
   const homeDir = attackDir(0, period);
+  const teams = [home, away] as const;
   const colors = [home.colors, away.colors] as const;
   const lightNetX = light === null ? null : attackDir(light, period) > 0 ? RINK.goalR : RINK.goalL;
   const motion = engine.current.motion;
+  const activeSet = new Set(active);
+  const injuredSet = new Set(injured);
+  const penSet = new Set(penalized);
+  const name = (id: number | undefined) => (id === undefined ? '' : (meta.get(id)?.last ?? ''));
+  const num = (id: number | undefined) => (id === undefined ? '' : meta.get(id)?.number != null ? `#${meta.get(id)!.number} ` : '');
 
   return (
     <div className="rink-wrap">
       <div className="rink-head">
-        <span className="rink-team">
-          {homeDir < 0 && <i className="arrow">◀</i>}
-          <b style={{ color: 'var(--text)' }}>{home.abbr}</b>
-          {homeDir > 0 && <i className="arrow">▶</i>}
+        <span className="rink-dir" style={{ '--tc': teamBar(home.colors) } as React.CSSProperties}>
+          {homeDir < 0 && <i>◀</i>}
+          {home.abbr}
+          {homeDir > 0 && <i>▶</i>}
+          {possTeam === 0 && <em className="poss-dot" title="Has the puck" />}
         </span>
-        <span className="rink-key">
-          <span className="sw" style={{ background: home.colors[0], borderColor: home.colors[1] }} /> Home
-          <span className="sw" style={{ background: '#fff', borderColor: away.colors[0] }} /> Away
-          <span className="mk goal">★</span> Goal <span className="mk save">●</span> Shot <span className="mk miss">○</span> Miss/block
+        <span className="rink-tools">
+          <button className={`rink-toggle ${showMap ? 'on' : ''}`} onClick={() => setShowMap((v) => !v)} title="Show every shot this period">
+            Shot map
+          </button>
         </span>
-        <span className="rink-team">
-          {homeDir > 0 && <i className="arrow">◀</i>}
-          <b style={{ color: 'var(--text)' }}>{away.abbr}</b>
-          {homeDir < 0 && <i className="arrow">▶</i>}
+        <span className="rink-dir right" style={{ '--tc': teamBar(away.colors) } as React.CSSProperties}>
+          {possTeam === 1 && <em className="poss-dot" title="Has the puck" />}
+          {homeDir > 0 && <i>◀</i>}
+          {away.abbr}
+          {homeDir < 0 && <i>▶</i>}
         </span>
       </div>
-      <svg className="rink2" viewBox={`0 0 ${RINK.w} ${RINK.h}`} role="img" aria-label="Live rink">
-        <defs>
-          <linearGradient id="ice" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f4f8fb" />
-            <stop offset="1" stopColor="#dfe8ef" />
-          </linearGradient>
-          <clipPath id="boards">
-            <rect x="0.5" y="0.5" width="199" height="84" rx="28" />
-          </clipPath>
-        </defs>
-        <rect x="0.5" y="0.5" width="199" height="84" rx="28" fill="url(#ice)" stroke="#1d2024" strokeWidth="1.4" />
-        <g clipPath="url(#boards)">
-          {home.logo && logoOk && <image href={home.logo} x={RINK.cx - 11} y={RINK.cy - 11} width="22" height="22" opacity="0.22" onError={() => setLogoOk(false)} />}
-          <line x1="100" y1="0" x2="100" y2="85" stroke="#c8102e" strokeWidth="1" />
-          <line x1="100" y1="0" x2="100" y2="85" stroke="#fff" strokeWidth="0.25" strokeDasharray="1.2 1.2" />
-          <line x1="75" y1="0" x2="75" y2="85" stroke="#0038a8" strokeWidth="1" />
-          <line x1="125" y1="0" x2="125" y2="85" stroke="#0038a8" strokeWidth="1" />
-          <line x1="11" y1="0" x2="11" y2="85" stroke="#c8102e" strokeWidth="0.25" />
-          <line x1="189" y1="0" x2="189" y2="85" stroke="#c8102e" strokeWidth="0.25" />
-          <circle cx="100" cy="42.5" r="15" fill="none" stroke="#0038a8" strokeWidth="0.35" />
-          <circle cx="100" cy="42.5" r="0.7" fill="#0038a8" />
-          {[31, 169].map((x) =>
-            [20.5, 64.5].map((y) => (
-              <g key={`${x}-${y}`}>
-                <circle cx={x} cy={y} r="15" fill="none" stroke="#c8102e" strokeWidth="0.35" />
-                <circle cx={x} cy={y} r="1" fill="#c8102e" />
+      <div className="rink-stage">
+        <svg className="rink2" viewBox="-4 -4 208 93" role="img" aria-label="Live rink">
+          <defs>
+            <radialGradient id="ice-g" cx="50%" cy="45%" r="70%">
+              <stop offset="0" stopColor="#fbfdff" />
+              <stop offset="0.7" stopColor="#eef4f8" />
+              <stop offset="1" stopColor="#dde7ee" />
+            </radialGradient>
+            <radialGradient id="vignette" cx="50%" cy="50%" r="62%">
+              <stop offset="0.72" stopColor="#000" stopOpacity="0" />
+              <stop offset="1" stopColor="#0b1a2a" stopOpacity="0.16" />
+            </radialGradient>
+            <linearGradient id="crease-g" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#5aa3e0" stopOpacity="0.75" />
+              <stop offset="1" stopColor="#8cc3ee" stopOpacity="0.45" />
+            </linearGradient>
+            <pattern id="mesh" width="0.9" height="0.9" patternUnits="userSpaceOnUse">
+              <path d="M0 0 L0.9 0.9 M0.9 0 L0 0.9" stroke="#ffffff" strokeWidth="0.12" opacity="0.8" />
+            </pattern>
+            <clipPath id="boards">
+              <rect x="0" y="0" width="200" height="85" rx="28" />
+            </clipPath>
+          </defs>
+          {/* Boards and glass */}
+          <rect x="-3.2" y="-3.2" width="206.4" height="91.4" rx="31" fill="#2a2e34" />
+          <rect x="-1.2" y="-1.2" width="202.4" height="87.4" rx="29.2" fill="none" stroke="#e8b923" strokeWidth="0.3" opacity="0.55" />
+          <rect x="0" y="0" width="200" height="85" rx="28" fill="url(#ice-g)" />
+          <g clipPath="url(#boards)">
+            {noise && <image href={noise} x="0" y="0" width="200" height="85" preserveAspectRatio="none" opacity="0.55" />}
+            {home.logo && logoOk && <image href={home.logo} x={RINK.cx - 13} y={RINK.cy - 13} width="26" height="26" opacity="0.2" onError={() => setLogoOk(false)} />}
+            {/* Lines */}
+            <rect x="99.5" y="0" width="1" height="85" fill="#c8102e" />
+            <line x1="100" y1="0" x2="100" y2="85" stroke="#fff" strokeWidth="0.22" strokeDasharray="1.1 1.1" />
+            <rect x="74.5" y="0" width="1" height="85" fill="#0038a8" />
+            <rect x="124.5" y="0" width="1" height="85" fill="#0038a8" />
+            <line x1="11" y1="0" x2="11" y2="85" stroke="#c8102e" strokeWidth="0.17" />
+            <line x1="189" y1="0" x2="189" y2="85" stroke="#c8102e" strokeWidth="0.17" />
+            {/* Centre ice and referee crease */}
+            <circle cx="100" cy="42.5" r="15" fill="none" stroke="#0038a8" strokeWidth="0.28" />
+            <circle cx="100" cy="42.5" r="0.75" fill="#0038a8" />
+            <path d="M90 85 A10 10 0 0 1 110 85" fill="none" stroke="#c8102e" strokeWidth="0.2" />
+            {/* End-zone faceoff circles with hash marks */}
+            {[31, 169].map((x) =>
+              [20.5, 64.5].map((y) => (
+                <g key={`${x}-${y}`}>
+                  <circle cx={x} cy={y} r="15" fill="none" stroke="#c8102e" strokeWidth="0.28" />
+                  {[-1, 1].map((sx) =>
+                    [-1, 1].map((sy) => <line key={`${sx}${sy}`} x1={x + sx * 2.9} y1={y + sy * 14.7} x2={x + sx * 2.9} y2={y + sy * 16.7} stroke="#c8102e" strokeWidth="0.25" />),
+                  )}
+                  {[-1, 1].map((sx) => (
+                    <path key={sx} d={`M${x + sx * 2} ${y - 0.75} h${sx * 3} M${x + sx * 2} ${y + 0.75} h${sx * 3}`} stroke="#c8102e" strokeWidth="0.18" />
+                  ))}
+                  <circle cx={x} cy={y} r="1" fill="#c8102e" />
+                </g>
+              )),
+            )}
+            {[80, 120].map((x) => [20.5, 64.5].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1" fill="#c8102e" />))}
+            {/* Goalie trapezoids */}
+            <path d="M11 31.5 L0 28.5 M11 53.5 L0 56.5" stroke="#c8102e" strokeWidth="0.18" />
+            <path d="M189 31.5 L200 28.5 M189 53.5 L200 56.5" stroke="#c8102e" strokeWidth="0.18" />
+            {/* Creases */}
+            <path d="M11 38.5 L15.5 38.5 A6 6 0 0 1 15.5 46.5 L11 46.5 Z" fill="url(#crease-g)" stroke="#c8102e" strokeWidth="0.2" />
+            <path d="M189 38.5 L184.5 38.5 A6 6 0 0 0 184.5 46.5 L189 46.5 Z" fill="url(#crease-g)" stroke="#c8102e" strokeWidth="0.2" transform="" />
+            {/* Nets */}
+            {[
+              { x: 7.6, flip: false },
+              { x: 189, flip: true },
+            ].map((n) => (
+              <g key={n.x}>
+                <rect x={n.x + (n.flip ? 0.5 : -0.4)} y="39.9" width="3.4" height="6" rx="1.3" fill="#000" opacity="0.15" />
+                <rect x={n.x} y="39.5" width="3.4" height="6" rx="1.3" fill="url(#mesh)" stroke="#c8102e" strokeWidth="0.55" />
               </g>
-            )),
-          )}
-          {[80, 120].map((x) => [20.5, 64.5].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1" fill="#c8102e" />))}
-          <path d="M11 36.5 A6 6 0 0 1 11 48.5 Z" fill="#7cb7e8" fillOpacity="0.55" stroke="#c8102e" strokeWidth="0.3" />
-          <path d="M189 36.5 A6 6 0 0 0 189 48.5 Z" fill="#7cb7e8" fillOpacity="0.55" stroke="#c8102e" strokeWidth="0.3" />
-          <rect x="7.6" y="39.5" width="3.4" height="6" rx="1" fill="none" stroke="#c8102e" strokeWidth="0.6" />
-          <rect x="189" y="39.5" width="3.4" height="6" rx="1" fill="none" stroke="#c8102e" strokeWidth="0.6" />
-          {lightNetX !== null && <circle className="goal-light" cx={lightNetX} cy={RINK.cy} r="14" />}
-          {shots.map((s, i) =>
-            s.kind === 'goal' ? (
-              <text key={i} x={s.x} y={s.y + 1.4} className="shot-mk" textAnchor="middle" fill={colors[s.team][0]} fontSize="4.2">
-                ★
-              </text>
-            ) : (
-              <circle key={i} cx={s.x} cy={s.y} r="1.1" className="shot-mk" fill={s.kind === 'save' ? colors[s.team][0] : 'none'} stroke={colors[s.team][0]} strokeWidth="0.35" />
-            ),
-          )}
-          {ids.map((id) => {
-            const m = meta.get(id);
-            if (!m) return null;
-            const b = motion.bodies.get(id);
-            const isG = m.pos === 'G' || snap.goalies[m.team] === id;
-            const [c1, c2] = colors[m.team];
-            const fill = m.team === 0 ? c1 : '#ffffff';
-            const ring = m.team === 0 ? c2 : c1;
-            const text = m.team === 0 ? textOn(c1) : c1;
-            return (
-              <g
-                key={id}
-                className="pl"
-                ref={(el) => {
-                  if (el) els.current.set(id, el);
-                  else els.current.delete(id);
-                }}
-                transform={b ? `translate(${b.pos.x} ${b.pos.y})` : undefined}
-              >
-                {carrier === id && <circle r="4.6" className="carrier" />}
-                {isG ? <rect x="-3.2" y="-3.6" width="6.4" height="7.2" rx="1.6" fill={fill} stroke={ring} strokeWidth="0.7" /> : <circle r="3.3" fill={fill} stroke={ring} strokeWidth="0.7" />}
-                <text y="1.15" textAnchor="middle" fontSize={m.number !== null && m.number >= 10 ? 3 : 3.3} fontWeight="800" fill={text}>
-                  {m.number ?? ''}
-                </text>
+            ))}
+            <rect x="0" y="0" width="200" height="85" fill="url(#vignette)" />
+            {lightNetX !== null && <circle className="goal-light" cx={lightNetX} cy={RINK.cy} r="13" />}
+            {/* Optional shot map */}
+            {showMap &&
+              shots
+                .filter((s) => s.period === period)
+                .map((s, i) =>
+                  s.kind === 'goal' ? (
+                    <text key={i} x={s.x} y={s.y + 1.3} className="shot-mk" textAnchor="middle" fill={colors[s.team][0]} fontSize="4">
+                      ★
+                    </text>
+                  ) : (
+                    <circle key={i} cx={s.x} cy={s.y} r="1" className="shot-mk" fill={s.kind === 'save' ? colors[s.team][0] : 'none'} stroke={colors[s.team][0]} strokeWidth="0.3" />
+                  ),
+                )}
+            {/* Shot trajectories (fade out) */}
+            {trajs.map((t) => (
+              <g key={t.id} className={`traj ${t.kind}`}>
+                <line x1={t.from.x} y1={t.from.y} x2={t.to.x} y2={t.to.y} />
+                <circle cx={t.from.x} cy={t.from.y} r="0.7" />
+                {t.kind === 'block' && <path d={`M${t.to.x - 1} ${t.to.y - 1} l2 2 M${t.to.x + 1} ${t.to.y - 1} l-2 2`} className="x" />}
               </g>
-            );
-          })}
-          <g ref={puckEl} transform={`translate(${motion.puck.pos.x} ${motion.puck.pos.y})`}>
-            <circle r="1.25" fill="#0a0a0a" stroke="#fff" strokeWidth="0.3" />
+            ))}
+            {/* Players */}
+            {ids.map((id) => {
+              const m = meta.get(id);
+              if (!m) return null;
+              const b = motion.bodies.get(id);
+              const isG = m.pos === 'G' || snap.goalies[m.team] === id;
+              const [c1, c2] = colors[m.team];
+              const fill = m.team === 0 ? c1 : '#ffffff';
+              const ring = m.team === 0 ? (lum(c2) > 0.85 && lum(c1) > 0.6 ? '#111' : c2) : c1;
+              const text = m.team === 0 ? textOn(c1) : c1;
+              const isCarrier = carrier === id;
+              const isActive = activeSet.has(id);
+              return (
+                <g
+                  key={id}
+                  className={`pm${isCarrier ? ' carrying' : ''}${isActive ? ' active' : ''}`}
+                  ref={(el) => {
+                    if (el) els.current.set(id, el);
+                    else els.current.delete(id);
+                  }}
+                  transform={b ? `translate(${b.pos.x} ${b.pos.y})` : undefined}
+                >
+                  <ellipse className="shadow" cx="0.6" cy="1" rx={isG ? 3.8 : 3.3} ry={isG ? 3 : 2.6} />
+                  {!isG && (
+                    <g
+                      ref={(el) => {
+                        if (el) heads.current.set(id, el);
+                        else heads.current.delete(id);
+                      }}
+                      style={{ opacity: 0 }}
+                    >
+                      <path d="M3.4 -1.5 L5.6 0 L3.4 1.5 Z" fill={m.team === 0 ? c1 : c1} opacity="0.85" />
+                    </g>
+                  )}
+                  {isCarrier && <circle className="carrier-ring" r="4.9" style={{ stroke: m.team === 0 ? c1 : c1 }} />}
+                  {savePulse?.id === id && <circle key={savePulse.n} className="save-pulse" r="4" />}
+                  {isG ? (
+                    <g>
+                      <rect x="-3.6" y="-3.1" width="7.2" height="6.2" rx="2.2" fill={fill} stroke={ring} strokeWidth="0.7" />
+                      <rect x="-3.6" y="-0.45" width="7.2" height="0.9" fill={ring} opacity="0.55" />
+                    </g>
+                  ) : (
+                    <circle r="3.15" fill={fill} stroke={ring} strokeWidth="0.65" />
+                  )}
+                  {isActive && <circle className="active-ring" r={isG ? 4.6 : 3.95} />}
+                  <text className="num" y="1.1" textAnchor="middle" fontSize={m.number !== null && m.number >= 10 ? 2.9 : 3.2} fill={text}>
+                    {m.number ?? ''}
+                  </text>
+                  <text className="pos" y={isG ? 5.9 : 5.5} textAnchor="middle">
+                    {POS_LABEL[m.pos] ?? ''}
+                  </text>
+                  {injuredSet.has(id) && (
+                    <g transform="translate(2.8 -2.8)">
+                      <circle r="1.3" fill="#d62828" stroke="#fff" strokeWidth="0.25" />
+                      <path d="M-0.6 0 H0.6 M0 -0.6 V0.6" stroke="#fff" strokeWidth="0.35" />
+                    </g>
+                  )}
+                  {penSet.has(id) && (
+                    <g transform="translate(-3 -3.2)">
+                      <rect x="-1.9" y="-0.9" width="3.8" height="1.8" rx="0.5" fill="#f6c445" />
+                      <text y="0.55" textAnchor="middle" fontSize="1.3" fontWeight="800" fill="#111">
+                        PEN
+                      </text>
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+            {/* Puck */}
+            <polyline ref={trailEl} className="puck-trail" points="" />
+            <g ref={puckEl} transform={`translate(${motion.puck.pos.x} ${motion.puck.pos.y})`}>
+              <ellipse cx="0.35" cy="0.5" rx="1.05" ry="0.85" fill="#000" opacity="0.25" />
+              <circle r="0.95" fill="#0c0c0c" stroke="#ffffff" strokeWidth="0.28" />
+            </g>
           </g>
-        </g>
-      </svg>
-      {flash && (
-        <div key={flash.id} className={`rink-flash ${flash.kind}`} style={flash.team !== null ? { borderColor: colors[flash.team][0] } : undefined}>
-          {flash.text}
+        </svg>
+        <div className="rink-chips">
+          {chips.map((c) => (
+            <span key={c.id} className={`rink-chip ${c.tone}`} style={c.team !== null ? ({ '--tc': teamBar(colors[c.team]) } as React.CSSProperties) : undefined}>
+              {c.text}
+            </span>
+          ))}
         </div>
-      )}
+        {goal && (
+          <div key={goal.id} className="goal-card" style={{ '--tc': teamBar(colors[goal.event.team]) } as React.CSSProperties}>
+            <div className="gc-head">
+              <span className="gc-label">GOAL</span>
+              <span className="gc-team">
+                {teams[goal.event.team].city} {teams[goal.event.team].name}
+              </span>
+            </div>
+            <div className="gc-scorer">
+              {num(goal.event.p1)}
+              <b>
+                {meta.get(goal.event.p1 ?? -1)?.first ?? ''} {name(goal.event.p1)}
+              </b>
+            </div>
+            <div className="gc-assists">
+              {goal.event.p2 !== undefined
+                ? `Assists: ${[goal.event.p2, goal.event.p3]
+                    .filter((x): x is number => x !== undefined)
+                    .map((x) => `${num(x)}${name(x)}`)
+                    .join(', ')}`
+                : 'Unassisted'}
+              {goal.event.data?.strength && goal.event.data.strength !== 'EV' ? ` · ${goal.event.data.strength}` : ''}
+              {goal.event.data?.en ? ' · Empty net' : ''}
+            </div>
+            <div className="gc-time">
+              {clockLabel(goal.event.clock, goal.event.period > 3 && !playoff ? 300 : 1200)} · {goal.event.period > 3 ? 'Overtime' : `${periodLabel(goal.event.period, playoff)} Period`}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+function lum(hex: string): number {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+}
+
 /** Black or white text, whichever reads on a jersey colour. */
 function textOn(hex: string): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const l = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
-  return l > 0.62 ? '#111' : '#fff';
+  return lum(hex) > 0.62 ? '#111' : '#fff';
 }

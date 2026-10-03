@@ -117,6 +117,12 @@ export function describe(e: GameEvent, c: CommentaryContext): CommentaryLine | n
       return d.success ? { ...base, kind: 'info', text: `${tm} kill off the penalty.` } : null;
     case 'injury':
       return { ...base, kind: 'injury', text: d.success ? `${n1} is hurt and heads to the room (${d.injury}).` : `${n1} is slow to get up but stays in the game.` };
+    case 'lineChange':
+      return {
+        ...base,
+        kind: 'info',
+        text: d.unit?.startsWith('PP') ? `${tm} send out the power-play unit.` : d.unit?.startsWith('PK') ? `${tm} change penalty killers.` : `${tm} change lines.`,
+      };
     case 'goaliePulled':
       return { ...base, kind: 'big', text: `${tm} pull ${n1} for the extra attacker!` };
     case 'goalieReturn':
