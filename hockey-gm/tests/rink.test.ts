@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../src/engine/league/create';
 import { buildGameInput } from '../src/engine/league/gameInput';
 import { GameSim } from '../src/engine/sim/engine';
-import { RINK, RinkDirector, attackDir, type Frame, type RinkPlayer } from '../src/ui/rink/director';
+import { RINK, RinkDirector, attackDir, whistleHold, type Frame, type RinkPlayer } from '../src/ui/rink/director';
 
 describe('live rink director', () => {
   const league = createLeague({ seed: 'rink' });
@@ -114,5 +114,28 @@ describe('continuous rink motion', () => {
       expect(b.pos.x).toBeGreaterThanOrEqual(0);
       expect(b.pos.x).toBeLessThanOrEqual(RINK.w);
     }
+  });
+});
+
+describe('rink timeline stays in sync with the game clock', () => {
+  it('never drifts behind game time plus whistle pauses over a full game', () => {
+    const l = createLeague({ seed: 'rink-sync', rosters: false });
+    const input = buildGameInput(l, l.schedule[0].id, true);
+    const sim = new GameSim(input);
+    const players: RinkPlayer[] = ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null })));
+    const tl = new RinkTimeline(new RinkDirector(new Map(players.map((p) => [p.id, p])), ['H', 'A']));
+    let holds = 0;
+    let maxLag = 0;
+    while (!sim.finished) {
+      const evs = sim.step();
+      const snap = sim.snapshot();
+      for (const e of evs) {
+        tl.add([{ e, ice: { period: e.period, onIce: snap.onIce, goalies: snap.goalies } }]);
+        // Before the shootout/end-of-game burst the rink must sit on the game clock.
+        if (e.period <= 3) maxLag = Math.max(maxLag, tl.end - (e.t + holds));
+        holds += whistleHold(e.type);
+      }
+    }
+    expect(maxLag).toBeLessThan(6);
   });
 });

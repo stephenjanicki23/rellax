@@ -100,6 +100,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   }, [sim]);
   const ctx = useMemo(() => ({ name: (id?: number) => (id !== undefined ? names.get(id) ?? '?' : '?'), team: (s: 0 | 1) => (s === 0 ? home.name : away.name) }), [names, home, away]);
 
+  // Play-by-play lines are emitted by the rink as it shows each play, so the text never runs ahead of the ice.
   const pushEvents = (evs: GameEvent[]) => {
     const out: FeedLine[] = [];
     for (const e of evs) {
@@ -139,8 +140,8 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     const due = pb.pending.filter((e) => e.t <= t);
     if (due.length) {
       pb.pending = pb.pending.filter((e) => e.t > t);
-      pushEvents(due);
-      pb.hold += Math.max(0, ...due.map((e) => whistleHold(e.type)));
+      // The clock holds at every whistle (the rink schedules the same pauses).
+      pb.hold += due.reduce((sum, e) => sum + whistleHold(e.type), 0);
     }
     setSnap(pb.cur.snap);
     setDispT(t);
@@ -229,7 +230,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
       />
       <div className="live-main">
         <div className="live-rink">
-          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} playoff={playoff} />
+          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} playoff={playoff} onShown={pushEvents} />
           <div className="live-momentum" title="Momentum: which team is pushing the play">
             <span>{home.abbr}</span>
             <div className="momentum">

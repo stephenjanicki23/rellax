@@ -15,7 +15,8 @@
 .rink2 .pm { will-change: transform; }
 .rink2 .pm .shadow { fill: #0b1a2a; opacity: 0.16; }
 .rink2 .pm .num { font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 800; pointer-events: none; }
-.rink2 .pm .pos { font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 700; font-size: 1.75px; fill: #3f4a57; letter-spacing: 0.05em; opacity: 0.8; pointer-events: none; }
+.rink2 .pm .nm { font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 700; font-size: 2.1px; fill: #1c2633; letter-spacing: 0.03em; paint-order: stroke; stroke: rgba(255, 255, 255, 0.85); stroke-width: 0.45px; stroke-linejoin: round; pointer-events: none; }
+.rink2 .pm.carrying .nm, .rink2 .pm.active .nm { font-weight: 800; fill: #000; }
 .rink2 .pm .active-ring { fill: none; stroke: #111; stroke-width: 0.45; opacity: 0.85; }
 .rink2 .pm .carrier-ring { fill: none; stroke-width: 0.8; opacity: 0.9; animation: carrier 1.3s ease-in-out infinite; }
 .rink2 .pm .carrier-ring { filter: none; }

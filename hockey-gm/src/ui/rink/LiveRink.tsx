@@ -24,6 +24,8 @@ export interface RinkFeed {
 type RinkTeam = Pick<Team, 'abbr' | 'colors' | 'logo' | 'city' | 'name'>;
 
 export interface LiveRinkProps {
+  /** Called with the engine events the rink has just shown (drives the play-by-play). */
+  onShown?: (events: GameEvent[]) => void;
   feed: RinkFeed;
   snap: GameSnapshot;
   home: RinkTeam;
@@ -53,7 +55,11 @@ interface GoalInfo {
 }
 
 const STEP = 1 / 120;
-const POS_LABEL: Record<string, string> = { C: 'C', LW: 'LW', RW: 'RW', D: 'D', G: 'G' };
+/** Last name under each marker (shortened so neighbours stay readable). */
+const surname = (m: RinkPlayer): string => {
+  const n = (m.last ?? '').toUpperCase();
+  return n.length > 11 ? `${n.slice(0, 10)}.` : n;
+};
 
 /** Fine grain for the ice surface, generated once (static image: no per-frame filter cost). */
 let noiseUrl: string | null = null;
@@ -90,8 +96,10 @@ function iceNoise(): string | null {
   return noiseUrl;
 }
 
-export function LiveRink({ feed, snap, home, away, players, playoff = false }: LiveRinkProps) {
+export function LiveRink({ feed, snap, home, away, players, playoff = false, onShown }: LiveRinkProps) {
   const meta = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
+  const shownRef = useRef(onShown);
+  shownRef.current = onShown;
   const engine = useRef<{ tl: RinkTimeline; motion: RinkMotion; consumed: number } | null>(null);
   if (!engine.current) {
     const tl = new RinkTimeline(new RinkDirector(meta, [home.abbr, away.abbr]));
@@ -141,7 +149,9 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false }: L
       setChips((prev) => [...prev.slice(-2), c]);
       later(ms, () => setChips((prev) => prev.filter((x) => x.id !== c.id)));
     };
+    let shown: GameEvent[] = [];
     const onKey = (k: Key) => {
+      if (k.event) shown.push(k.event);
       setPeriod((p) => (p !== k.period ? k.period : p));
       if (k.goalLight !== null) {
         setLight(k.goalLight);
@@ -228,6 +238,10 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false }: L
           motion.step(d, onKey);
           adv -= d;
         }
+      }
+      if (shown.length) {
+        shownRef.current?.(shown);
+        shown = [];
       }
       // Paint players: position, plus a heading chevron when skating.
       for (const [id, b] of motion.bodies) {
@@ -468,8 +482,8 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false }: L
                   <text className="num" y="1.1" textAnchor="middle" fontSize={m.number !== null && m.number >= 10 ? 2.9 : 3.2} fill={text}>
                     {m.number ?? ''}
                   </text>
-                  <text className="pos" y={isG ? 5.9 : 5.5} textAnchor="middle">
-                    {POS_LABEL[m.pos] ?? ''}
+                  <text className="nm" y={isG ? 6.1 : 5.7} textAnchor="middle">
+                    {surname(m)}
                   </text>
                   {injuredSet.has(id) && (
                     <g transform="translate(2.8 -2.8)">
