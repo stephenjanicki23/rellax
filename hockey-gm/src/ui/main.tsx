@@ -2,13 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './styles.css';
-
-try {
-  const theme = localStorage.getItem('hgm-theme');
-  if (theme) document.documentElement.dataset.theme = theme;
-} catch {
-  /* storage unavailable */
-}
+import './theme.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { useStore, runSim, nextPhase, saveNow, toast, ask } from './store';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useStore, runSim, nextPhase, saveNow, toast, ask, quitToMenu } from './store';
 import { useRoute, href, navigate } from './router';
 import { TeamLogo } from './components/common';
 import { leagueDate, PHASE_LABEL, seasonLabel } from './format';
@@ -98,8 +98,10 @@ export function App() {
       </div>
     );
   }
+  const userTeam = league.teams[league.userTeamId];
+  const teamVars = { '--team': userTeam.colors[0], '--m-team': userTeam.colors[0], '--m-team2': userTeam.colors[1] } as CSSProperties;
   return (
-    <div className="app">
+    <div className="app" style={teamVars}>
       <TopBar />
       <Sidebar />
       <main className="main">
@@ -330,6 +332,9 @@ function TopBar() {
             )}
           </div>
         )}
+        <button className="btn ghost" title="Save and return to the main menu" onClick={quitToMenu}>
+          Main menu
+        </button>
         <button className="btn ghost" title={lastSaved ? `Last saved ${new Date(lastSaved).toLocaleTimeString()}` : 'Save'} onClick={() => void saveNow().then(() => toast('Game saved', 'good'))}>
           💾
         </button>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGame, mutate, toast, ask } from '../store';
 import { navigate } from '../router';
-import { Card, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg } from '../components/common';
+import { Card, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg, Tabs } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
 import { attr20, roleForAbility } from '../../engine/player/ability';
@@ -16,12 +16,16 @@ import { demote, promote, releasePlayer } from '../../engine/economy/roster';
 import { heightLabel, weightLabel, seasonLabel, sv } from '../format';
 import { NAME_POOLS } from '../../engine/data/names';
 import { attrLabel as label } from '../attrLabels';
+import { PlayerCardView, potentialGrade } from '../menu/PlayerCard';
+import { playerOvr } from '../menu/exhibition';
+import '../menu/menu.css';
 
 
 export function PlayerPage({ id }: { id: number }) {
   const { league } = useGame();
   const [neg, setNeg] = useState(false);
   const [statView, setStatView] = useState<'reg' | 'po'>('reg');
+  const [view, setView] = useState<'card' | 'details'>('card');
   const p = league.players[id];
   if (!p) return <div className="empty">Player not found (he may have left the league).</div>;
   const age = league.season - p.birthYear;
@@ -66,6 +70,20 @@ export function PlayerPage({ id }: { id: number }) {
           {p.status === 'fa' && <button className="btn primary" onClick={() => setNeg(true)}>Make offer</button>}
         </div>
       </div>
+      <Tabs value={view} onChange={setView} tabs={[{ id: 'card', label: 'Player card' }, { id: 'details', label: 'Stats, contract & scouting' }]} />
+      {view === 'card' ? (
+        <PlayerCardView
+          p={p}
+          team={team}
+          season={league.season}
+          rate={(k) => displayedAttr(league, p, k)}
+          ovr={e.exact || e.caLow === e.caHigh ? String(playerOvr(e.ca)) : `~${playerOvr(e.ca)}`}
+          potential={potentialGrade(e.pa, e.ca, age)}
+          personality={rep.personality}
+          traits={know >= 50 ? p.traits.map((t) => TRAITS[t].label) : null}
+          footnote={!e.exact && e.caLow !== e.caHigh ? `Scouting estimate (${Math.round(know)}% known). Ranges narrow as your scouts watch him.` : undefined}
+        />
+      ) : (
       <div className="grid g-main">
         <div className="grid">
           <div className="grid g3">
@@ -220,6 +238,7 @@ export function PlayerPage({ id }: { id: number }) {
           </Card>
         </div>
       </div>
+      )}
       {neg && (
         <NegotiationModal
           player={p}

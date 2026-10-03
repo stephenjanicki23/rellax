@@ -1,29 +1,11 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useGame, mutate, saveNow, exportGame, importGame, quitToMenu, toast } from '../store';
 import { Card } from '../components/common';
 
 export function SettingsPage() {
   const { league } = useGame();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem('hgm-theme') ?? 'system';
-    } catch {
-      return 'system';
-    }
-  });
   const s = league.settings;
-  const applyTheme = (t: string) => {
-    setTheme(t);
-    if (t === 'system') delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = t;
-    try {
-      if (t === 'system') localStorage.removeItem('hgm-theme');
-      else localStorage.setItem('hgm-theme', t);
-    } catch {
-      /* ignore */
-    }
-  };
   return (
     <>
       <div className="page-head">
@@ -50,16 +32,6 @@ export function SettingsPage() {
               <button className="btn danger" onClick={quitToMenu}>Quit to main menu</button>
             </div>
             <span className="dim" style={{ fontSize: 12 }}>League seed: <span className="mono">{league.seed}</span></span>
-          </div>
-        </Card>
-        <Card title="Display">
-          <div className="row">
-            <span className="muted">Theme</span>
-            <select value={theme} onChange={(e) => applyTheme(e.target.value)}>
-              <option value="system">Match system</option>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
           </div>
         </Card>
         <Card title="Gameplay">

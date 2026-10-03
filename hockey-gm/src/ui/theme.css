@@ -1,0 +1,122 @@
+/*
+ * Console theme: makes Franchise mode match the title menu (silver bars,
+ * dark gradient panels, condensed italic headings). Loaded after styles.css
+ * so it overrides the base tokens and component looks.
+ */
+:root {
+  --m-bg: #141619; --m-bar-top: #3a3d43; --m-bar-bot: #1d1f23; --m-hi-top: #ffffff; --m-hi-bot: #c9ced5;
+  --m-ink: #f2f4f6; --m-ink-dark: #121417; --m-dim: #9aa2ad; --m-silver: #dfe3e8; --m-team: #2b6cb0; --m-team2: #f2b632;
+  --m-display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+
+  --bg: #141619; --bg2: #1b1d21; --panel: #1a1c20; --panel2: #25282d;
+  --line: #2c2f35; --line2: #3c4048;
+  --text: #f2f4f6; --muted: #a3abb6; --dim: #747c88;
+  --accent: #8cc8ff; --accent2: #5a9fe0;
+  --good: #5fd38d; --warn: #f6c445; --bad: #e57d7d; --gold: #f6c445; --purple: #b9a2ff;
+  --radius: 3px;
+  color-scheme: dark;
+}
+
+body { font-family: Barlow, Inter, ui-sans-serif, system-ui, sans-serif; font-size: 13.5px; }
+h1, h2, .m-title, .topbar .brand {
+  font-family: var(--m-display); font-style: italic; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 800;
+}
+h1 { font-size: 30px; line-height: 1; }
+h2 { font-size: 19px; }
+h3 { font-family: var(--m-display); font-size: 15px; font-weight: 700; letter-spacing: 0.08em; color: var(--m-silver); }
+
+/* ── layout ── */
+.app {
+  background:
+    repeating-linear-gradient(-58deg, transparent 0 70px, rgba(255, 255, 255, 0.022) 70px 74px, transparent 74px 150px, rgba(255, 255, 255, 0.035) 150px 162px, transparent 162px 240px),
+    radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.07), transparent 55%),
+    linear-gradient(118deg, #2a2d33 0%, #17191c 40%, #0d0e10 100%);
+  background-attachment: fixed;
+}
+.main { background: transparent; }
+.topbar {
+  background: linear-gradient(var(--m-bar-top), var(--m-bar-bot));
+  border-bottom: 0; box-shadow: inset 0 -3px 0 var(--m-team), 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.topbar .brand { font-size: 19px; }
+.topbar .brand .muted { font-family: Barlow, sans-serif; font-style: normal; text-transform: none; letter-spacing: 0; }
+.topbar .meta { font-family: var(--m-display); text-transform: uppercase; font-weight: 600; letter-spacing: 0.06em; font-size: 14px; }
+
+.sidebar { background: linear-gradient(90deg, rgba(10, 11, 13, 0.85), rgba(20, 22, 25, 0.7)); border-right: 1px solid #000; padding: 8px 0 30px; }
+.sidebar .section {
+  margin: 16px 0 4px; padding: 0 14px; font-family: var(--m-display); font-style: italic; font-size: 13px; letter-spacing: 0.14em; color: var(--m-dim);
+}
+.sidebar a {
+  margin: 2px 8px 2px 0; padding: 6px 14px; border-radius: 0; clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  background: linear-gradient(var(--m-bar-top), var(--m-bar-bot)); color: var(--m-ink);
+  font-family: var(--m-display); font-style: italic; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.sidebar a:hover { background: linear-gradient(#4a4e55, #26292e); color: #fff; }
+.sidebar a.active {
+  background: linear-gradient(var(--m-hi-top), var(--m-hi-bot)); color: var(--m-ink-dark);
+  box-shadow: inset 0 -3px 0 var(--m-team);
+}
+.sidebar .badge-dot { background: var(--m-team2); color: #111; font-style: normal; }
+
+/* ── panels ── */
+.card, .modal, .banner {
+  background: linear-gradient(180deg, rgba(42, 45, 51, 0.92), rgba(22, 24, 27, 0.94));
+  border: 1px solid #000; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.card > h3:first-child, .card-head h3 {
+  margin: -14px -14px 10px; padding: 7px 14px; background: linear-gradient(var(--m-hi-top), var(--m-hi-bot)); color: var(--m-ink-dark);
+  font-style: italic; font-weight: 800; box-shadow: inset 0 -3px 0 var(--m-team);
+}
+.card-head:has(> h3:first-child) {
+  margin: -14px -14px 10px; padding: 0 14px 0 0; background: linear-gradient(var(--m-hi-top), var(--m-hi-bot)); color: var(--m-ink-dark);
+  box-shadow: inset 0 -3px 0 var(--m-team);
+}
+.card-head:has(> h3:first-child) h3 { margin: 0; box-shadow: none; background: none; }
+.card-head:has(> h3:first-child) .muted, .card-head:has(> h3:first-child) .dim { color: #3a3f47; }
+.card.tight > .card-head:has(> h3:first-child) { margin: 0 0 10px; padding: 0 14px 0 0; }
+.card.tight > h3:first-child { margin: 0 0 10px; }
+.banner { border-left: 4px solid var(--m-team2); }
+
+/* ── controls ── */
+.btn {
+  border-radius: 2px; border: 1px solid #000; background: linear-gradient(var(--m-bar-top), var(--m-bar-bot)); color: var(--m-ink);
+  font-family: var(--m-display); font-weight: 700; font-size: 14.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.btn:hover:not(:disabled) { background: linear-gradient(#4a4e55, #26292e); border-color: #000; }
+.btn.primary { background: linear-gradient(var(--m-hi-top), var(--m-hi-bot)); color: var(--m-ink-dark); border-color: #000; box-shadow: inset 0 -3px 0 var(--m-team); }
+.btn.primary:hover:not(:disabled) { background: linear-gradient(#fff, #e3e7ec); }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn.ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+.btn.small { font-size: 12.5px; padding: 3px 8px; }
+.btn.danger { color: var(--bad); }
+
+.tabs { border-bottom: 2px solid #000; gap: 2px; }
+.tabs button {
+  font-family: var(--m-display); font-style: italic; font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: 0.04em;
+  background: linear-gradient(var(--m-bar-top), var(--m-bar-bot)); color: var(--m-ink); border-bottom: 0; padding: 6px 14px;
+}
+.tabs button.on { background: linear-gradient(var(--m-hi-top), var(--m-hi-bot)); color: var(--m-ink-dark); box-shadow: inset 0 -3px 0 var(--m-team); }
+.seg { border-color: #000; border-radius: 2px; }
+.seg button { font-family: var(--m-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; background: linear-gradient(var(--m-bar-top), var(--m-bar-bot)); color: var(--m-ink); }
+.seg button.on { background: linear-gradient(var(--m-hi-top), var(--m-hi-bot)); color: var(--m-ink-dark); box-shadow: inset 0 -2px 0 var(--m-team); }
+
+select, input[type='text'], input[type='number'], input[type='search'], input:not([type]), textarea {
+  background: #0f1012; border: 1px solid var(--line2); border-radius: 2px; color: var(--text);
+}
+
+/* ── tables / stats ── */
+.tbl th { background: #0e0f11; color: var(--m-dim); font-family: var(--m-display); font-size: 13px; letter-spacing: 0.08em; }
+.tbl th.sorted { color: #fff; box-shadow: inset 0 -2px 0 var(--m-team); }
+.tbl tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.025); }
+.tbl tbody tr:hover { background: rgba(255, 255, 255, 0.07); }
+.tbl tr.me { background: color-mix(in srgb, var(--m-team) 26%, transparent) !important; box-shadow: inset 3px 0 0 var(--m-team2); }
+.stat .k { font-family: var(--m-display); font-size: 12.5px; letter-spacing: 0.1em; color: var(--m-dim); }
+.stat .v { font-family: var(--m-display); font-size: 24px; font-weight: 800; font-style: italic; }
+.pill { border-radius: 2px; font-family: var(--m-display); text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; background: #0f1012; }
+.bar { background: #0b0c0e; border-radius: 0; }
+.bar > i { background: linear-gradient(90deg, var(--m-team), color-mix(in srgb, var(--m-team) 50%, #fff)); border-radius: 0; }
+.modal-bg { background: rgba(0, 0, 0, 0.7); }
+
+/* player card inside franchise pages */
+.main .mm-card { font-family: var(--m-display); color: var(--m-ink); }
