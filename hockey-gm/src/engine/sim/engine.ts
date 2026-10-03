@@ -40,7 +40,7 @@ export const TUNING = {
   chemWeight: 0.1,
   coachWeight: 0.07,
   moraleWeight: 0.04,
-  finishOffset: 0.09,
+  finishOffset: 0.06,
   shooterWeight: 0.24,
   goalieWeight: 0.25,
   /** Stick/hold penalties per second of play (both teams combined). */

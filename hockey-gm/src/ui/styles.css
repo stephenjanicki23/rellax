@@ -85,6 +85,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: 
   .app { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
   .sidebar { display: flex; overflow-x: auto; padding: 6px; gap: 2px; border-right: 0; border-bottom: 1px solid var(--line); }
   .sidebar .section { display: none; }
+  .sidebar > div { display: contents; }
   .sidebar a { white-space: nowrap; }
   .g2, .g3, .g4, .g-main { grid-template-columns: minmax(0, 1fr); }
   .main { padding: 14px 12px 60px; }
