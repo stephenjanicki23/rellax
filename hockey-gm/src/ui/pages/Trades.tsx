@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useGame, mutate, toast } from '../store';
 import { Card, PlayerLink, Pos, Stars, TeamLogo } from '../components/common';
 import { playersOf } from '../../engine/league/helpers';
-import { balanceTrade, describeAsset, evaluateTrade, executeTrade, projectedPickNumber, type TradeAsset, type TradeProposal } from '../../engine/economy/trade';
+import { balanceTrade, describeAsset, evaluateTrade, executeTrade, projectedPickNumber, validateTrade, type TradeAsset, type TradeProposal } from '../../engine/economy/trade';
 import { estimate } from '../../engine/economy/scouting';
 import { fmtMoney, payroll } from '../../engine/economy/contracts';
 import { trimRoster, ensureDressable } from '../../engine/economy/roster';
@@ -76,6 +76,27 @@ export function TradesPage() {
   const partnerTeam = league.teams[partner];
   const ratio = ev ? ev.valueIn / Math.max(1, ev.valueOut * 1.08) : 0;
   const recent = league.transactions.filter((t) => t.kind === 'trade').slice(0, 12);
+  const offers = league.tradeOffers;
+  const respond = (id: number, accept: boolean) => {
+    const o = league.tradeOffers.find((x) => x.id === id);
+    if (!o) return;
+    if (accept) {
+      const p: TradeProposal = { from: o.from, to: me, give: o.give, get: o.get };
+      const errs = validateTrade(league, p);
+      if (errs.length) return toast(errs[0], 'bad');
+      mutate((l) => {
+        executeTrade(l, p);
+        for (const id2 of [me, o.from]) {
+          trimRoster(l, id2);
+          ensureDressable(l, id2);
+        }
+        l.tradeOffers = l.tradeOffers.filter((x) => x.id !== id);
+      });
+      toast('Trade completed.', 'good');
+    } else {
+      mutate((l) => (l.tradeOffers = l.tradeOffers.filter((x) => x.id !== id)));
+    }
+  };
 
   const propose = () => {
     const r = evaluateTrade(league, proposal);
@@ -100,7 +121,27 @@ export function TradesPage() {
           {league.phase === 'regular' ? (league.day <= league.tradeDeadlineDay ? `Trade deadline: ${shortDate(league.season, league.tradeDeadlineDay)}` : 'The trade deadline has passed.') : 'Offseason trading is open.'}
         </span>
       </div>
-      <div className="card row" style={{ marginBottom: 12 }}>
+      {offers.length > 0 && (
+        <Card title={`Incoming offers (${offers.length})`} className="">
+          <div className="list">
+            {offers.map((o) => (
+              <div className="item" key={o.id} style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <TeamLogo team={league.teams[o.from]} size={22} />
+                <div className="stack" style={{ gap: 2, flex: 1, minWidth: 260 }}>
+                  <span>{o.note}</span>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    They offer: <b>{o.give.map((a) => describeAsset(league, a)).join(', ')}</b> — for <b>{o.get.map((a) => describeAsset(league, a)).join(', ')}</b>
+                  </span>
+                </div>
+                <button className="btn small primary" onClick={() => respond(o.id, true)}>Accept</button>
+                <button className="btn small" onClick={() => { setPartner(o.from); setGive(o.get); setGet(o.give); }}>Counter…</button>
+                <button className="btn small danger" onClick={() => respond(o.id, false)}>Decline</button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      <div className="card row" style={{ marginBottom: 12, marginTop: offers.length ? 12 : 0 }}>
         <span className="muted">Trade partner</span>
         <select
           value={partner}

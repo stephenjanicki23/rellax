@@ -168,6 +168,7 @@ function Sidebar() {
       badges.contracts = n ? String(n) : null;
     }
     if (league.phase === 'freeAgency') badges.freeagency = `D${league.faDay + 1}`;
+    if (league.tradeOffers?.length) badges.trades = String(league.tradeOffers.length);
   }
   return (
     <nav className="sidebar">

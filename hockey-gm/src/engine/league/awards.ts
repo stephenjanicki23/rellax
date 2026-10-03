@@ -148,3 +148,44 @@ export function announceAwards(league: League, awards: SeasonAwardResult[]): voi
     }
   }
 }
+
+export interface AwardRace {
+  award: string;
+  candidates: { playerId: number; teamId: number; value: string; score: number }[];
+}
+
+/** Live award races for the current season (top five per award). */
+export function awardsRace(league: League): AwardRace[] {
+  const cands: Cand[] = [];
+  let maxGp = 1;
+  for (const [idStr, e] of Object.entries(league.seasonStats)) {
+    const p = league.players[Number(idStr)];
+    if (!p || !e.reg.gp) continue;
+    cands.push({ p, s: e.reg, teamId: e.teamId });
+    maxGp = Math.max(maxGp, e.reg.gp);
+  }
+  const minGp = Math.max(1, Math.round(maxGp * 0.45));
+  const teamPct = (id: number) => {
+    const r = league.standings[id];
+    return r && r.gp ? recPoints(r) / (r.gp * 2) : 0.5;
+  };
+  const top = (award: string, pool: Cand[], score: (c: Cand) => number, value: (c: Cand) => string): AwardRace => ({
+    award,
+    candidates: pool
+      .map((c) => ({ c, sc: score(c) }))
+      .sort((a, b) => b.sc - a.sc)
+      .slice(0, 5)
+      .map(({ c, sc }) => ({ playerId: c.p.id, teamId: c.teamId, value: value(c), score: sc })),
+  });
+  const sk = cands.filter((c) => c.p.pos !== 'G');
+  const g = cands.filter((c) => c.p.pos === 'G' && c.s.gp >= Math.max(1, Math.round(maxGp * 0.35)));
+  const pts = (c: Cand) => `${c.s.g}G ${c.s.a1 + c.s.a2}A ${points(c.s)}P`;
+  return [
+    top(AWARD_NAMES.mvp, [...sk.filter((c) => c.s.gp >= minGp), ...g], (c) => (c.p.pos === 'G' ? gsax(c.s) * 2.1 + c.s.w * 0.6 : points(c.s) + c.s.g * 0.25 + (c.p.pos === 'D' ? 8 : 0)) + (teamPct(c.teamId) - 0.5) * 45 * (maxGp / 82), (c) => (c.p.pos === 'G' ? `${savePct(c.s).toFixed(3)} SV%, ${gsax(c.s).toFixed(1)} GSAx` : pts(c))),
+    top(AWARD_NAMES.scoring, sk, (c) => points(c.s) + c.s.g * 0.01, pts),
+    top(AWARD_NAMES.goals, sk, (c) => c.s.g + points(c.s) * 0.001, (c) => `${c.s.g} goals`),
+    top(AWARD_NAMES.goalie, g, (c) => gsax(c.s) + (savePct(c.s) - 0.905) * 300 * (maxGp / 82) + c.s.w * 0.15, (c) => `${savePct(c.s).toFixed(3)} SV%, ${gsax(c.s).toFixed(1)} GSAx`),
+    top(AWARD_NAMES.defense, sk.filter((c) => c.p.pos === 'D' && c.s.gp >= minGp), (c) => points(c.s) + (corsiPct(c.s) - 0.5) * 60 + c.s.pm * 0.4 + (c.s.toi / c.s.gp / 60) * 1.2 * (maxGp / 82), (c) => `${points(c.s)} pts, ${(c.s.toi / c.s.gp / 60).toFixed(1)} min`),
+    top(AWARD_NAMES.rookie, cands.filter((c) => isRookieSeason(c.p, league.season) && c.s.gp >= Math.round(minGp * 0.6)), (c) => (c.p.pos === 'G' ? gsax(c.s) * 2.4 + c.s.w * 0.5 : points(c.s) * (c.p.pos === 'D' ? 1.3 : 1) + c.s.g * 0.2), (c) => (c.p.pos === 'G' ? `${savePct(c.s).toFixed(3)} SV%` : pts(c))),
+  ];
+}

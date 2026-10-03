@@ -69,6 +69,7 @@ export function playerTradeValue(league: League, teamId: number, p: Player): num
   }
   if (team.strategy === 'rebuild' && age >= 29) v *= 0.55;
   if (team.strategy === 'contend' && age <= 20 && p.ca < 120) v *= 0.8;
+  if (team.strategy === 'contend') v *= 1 + p.playoffRep * 0.08;
   if (p.pos === 'G') v *= 0.85;
   if (p.injury && p.injury.daysRemaining > 30) v *= team.strategy === 'contend' ? 0.4 : 0.7;
   // Positional need.
@@ -374,5 +375,58 @@ export function findAiGoalieTrade(league: League): TradeProposal | null {
     }
     const proposal: TradeProposal = { from: buyer.id, to: seller, give, get: [{ kind: 'player', id: target.id }] };
     return evaluateTrade(league, proposal).accept ? proposal : null;
+  });
+}
+
+/**
+ * A CPU team looks at the user's roster and makes an unsolicited offer for a
+ * player who would fill one of its needs. Offers are priced so the CPU team
+ * still thinks it wins slightly, and the user values the return fairly.
+ */
+export function findOfferForUser(league: League): { proposal: TradeProposal; note: string } | null {
+  return withRng(league, (rng) => {
+    const me = league.userTeamId;
+    const cpus = league.teams.filter((t) => t.id !== me && t.strategy !== 'rebuild');
+    if (!cpus.length) return null;
+    const cpu = rng.pick(cpus);
+    const roster = playersOf(league, cpu.id);
+    const grpOf = (p: Player) => (p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : 'F');
+    const bar = (g: string) => {
+      const same = roster.filter((p) => grpOf(p) === g).sort((a, b) => b.ca - a.ca);
+      return g === 'G' ? (same[0]?.ca ?? 120) : g === 'D' ? (same[3]?.ca ?? 120) : (same[5]?.ca ?? 120);
+    };
+    const targets = playersOf(league, me)
+      .filter((p) => league.season - p.birthYear >= 21 && !p.injury && p.ca >= bar(grpOf(p)) + 3 && p.contract && ntcWaived(league, p, cpu.id))
+      .sort((a, b) => b.ca - a.ca);
+    if (!targets.length) return null;
+    const target = targets[Math.min(targets.length - 1, rng.int(0, 2))];
+    const cpuValue = playerTradeValue(league, cpu.id, target);
+    const userValue = playerTradeValue(league, me, target);
+    const keep = new Set(roster.sort((a, b) => b.ca - a.ca).slice(0, 8).map((p) => p.id));
+    const pool: TradeAsset[] = [
+      ...playersOf(league, cpu.id, ['active', 'prospect']).filter((p) => !keep.has(p.id)).map((p) => ({ kind: 'player' as const, id: p.id })),
+      ...league.draftPicks.filter((p) => p.ownerId === cpu.id && p.playerId === undefined).map((p) => ({ kind: 'pick' as const, id: p.id })),
+    ];
+    const ranked = pool
+      .map((a) => ({ a, mine: assetValue(league, me, a), theirs: assetValue(league, cpu.id, a) }))
+      .filter((x) => x.mine > 2)
+      .sort((x, y) => y.mine / Math.max(1, y.theirs) - x.mine / Math.max(1, x.theirs));
+    const give: TradeAsset[] = [];
+    let mine = 0;
+    let theirs = 0;
+    for (const x of ranked) {
+      if (mine >= userValue * 0.98) break;
+      if (theirs + x.theirs > cpuValue * 1.02) continue;
+      give.push(x.a);
+      mine += x.mine;
+      theirs += x.theirs;
+      if (give.length >= 3) break;
+    }
+    if (!give.length || mine < userValue * 0.9) return null;
+    const proposal: TradeProposal = { from: cpu.id, to: me, give, get: [{ kind: 'player', id: target.id }] };
+    const errs = validateTrade(league, proposal);
+    if (errs.length) return null;
+    const need = grpOf(target) === 'G' ? 'a starting goaltender' : grpOf(target) === 'D' ? 'a top-four defenseman' : 'a top-six forward';
+    return { proposal, note: `The ${cpu.city} ${cpu.name} are looking for ${need} and have called about ${fullName(target)}.` };
   });
 }

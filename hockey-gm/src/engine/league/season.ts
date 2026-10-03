@@ -71,6 +71,8 @@ export function applyGameResult(league: League, g: ScheduledGame, r: GameResult)
   const playoff = !!g.playoff;
   if (!playoff) applyToStandings(league, g.home, g.away, r);
   const teams = [g.home, g.away];
+  const prevAway = league.schedule.find((x) => x.day === g.day - 1 && x.played && x.away === g.away);
+  const roadTrip: [boolean, boolean] = [false, !!prevAway];
   for (const [idStr, s] of Object.entries(r.players)) {
     const p = league.players[Number(idStr)];
     if (!p) continue;
@@ -81,7 +83,10 @@ export function applyGameResult(league: League, g: ScheduledGame, r: GameResult)
     // Fatigue: load from minutes, physical play; endurance and age modulate.
     const age = league.season - p.birthYear;
     const end = (p.attrs.endurance - 120) / 400;
-    const load = p.pos === 'G' ? (s.gtoi / 60) * 0.55 : (s.toi / 60) * 0.85 + s.hits * 0.3 + s.blocks * 0.5;
+    // Travel: road games add wear, more so on consecutive road nights.
+    const away = s.team === 1;
+    const travel = away ? (roadTrip[s.team] ? 3 : 1.5) : 0;
+    const load = (p.pos === 'G' ? (s.gtoi / 60) * 0.55 : (s.toi / 60) * 0.85 + s.hits * 0.3 + s.blocks * 0.5) + travel;
     p.fatigue = clamp(p.fatigue + load * (1 - end) * (age > 32 ? 1 + (age - 32) * 0.04 : 1), 0, 100);
     updateForm(p, s);
     if (!playoff) {
@@ -164,6 +169,7 @@ function dailyUpdates(league: League): void {
   }
   if (day % 7 === 6) updateMorale(league);
   if (day % 21 === 20) inSeasonDevelopment(league, 21 / 190);
+  if (day % 30 === 29) breakoutNews(league);
   aiDaily(league);
 }
 
@@ -280,4 +286,23 @@ export function describeResult(league: League, g: ScheduledGame): string {
   const r = g.result;
   const suffix = r.so ? ' (SO)' : r.ot ? ' (OT)' : '';
   return `${teamName(league, g.away)} ${r.ag} @ ${teamName(league, g.home)} ${r.hg}${suffix}`;
+}
+
+/** Young players producing far above expectations get noticed. */
+function breakoutNews(league: League): void {
+  for (const [idStr, e] of Object.entries(league.seasonStats)) {
+    const p = league.players[Number(idStr)];
+    if (!p || p.pos === 'G' || e.reg.gp < 20 || league.season - p.birthYear > 24) continue;
+    const ppg = statPoints(e.reg) / e.reg.gp;
+    const expected = p.pos === 'D' ? 0.1 + (p.caSeasonStart - 110) * 0.007 : 0.15 + (p.caSeasonStart - 110) * 0.011;
+    if (ppg < 0.75 || ppg < expected * 1.6) continue;
+    if (league.news.some((n) => n.category === 'development' && n.season === league.season && n.playerIds.includes(p.id))) continue;
+    addNews(league, {
+      category: 'development',
+      headline: `${fullName(p)} is enjoying a breakout season: ${statPoints(e.reg)} points in ${e.reg.gp} games`,
+      teamIds: p.teamId !== null ? [p.teamId] : [],
+      playerIds: [p.id],
+      importance: 3,
+    });
+  }
 }

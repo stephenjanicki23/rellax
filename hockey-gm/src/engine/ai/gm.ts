@@ -7,7 +7,7 @@ import { clamp } from '../core/math';
 import type { Coach, League, Team } from '../types';
 import { addNews, addTransaction, isCpu, playersOf, teamName, withRng, points } from '../league/helpers';
 import { enforceCap, ensureDressable, promoteReadyProspects, trimProspects, trimRoster } from '../economy/roster';
-import { executeTrade, findAiGoalieTrade, findAiTrade } from '../economy/trade';
+import { executeTrade, findAiGoalieTrade, findAiTrade, findOfferForUser, validateTrade } from '../economy/trade';
 import { weeklyScouting } from '../economy/scouting';
 import { teamStrength } from '../team/strength';
 import { coachOverall, tacticsForRoster } from '../team/coaching';
@@ -29,6 +29,7 @@ export function aiDaily(league: League): void {
     addNews(league, { category: 'league', headline: 'Trade deadline passes — rosters are set for the stretch run', teamIds: [], playerIds: [], importance: 3 });
   }
   if (league.day > 30 && league.day % 15 === 0) midseasonCoachReview(league);
+  manageUserOffers(league, daysToDeadline);
   if (league.day % 30 === 15) aiExtensions(league);
 }
 
@@ -232,4 +233,19 @@ export function aiPreseason(league: League): void {
       t.alternates = cap.filter((p) => p.id !== t.captain).slice(0, 2).map((p) => p.id);
     }
   }
+}
+
+/** CPU teams occasionally call the user with trade offers; stale offers expire. */
+function manageUserOffers(league: League, daysToDeadline: number): void {
+  league.tradeOffers = league.tradeOffers.filter(
+    (o) => o.season === league.season && league.day - o.day <= 6 && validateTrade(league, { from: o.from, to: league.userTeamId, give: o.give, get: o.get }).length === 0,
+  );
+  if (daysToDeadline < 0 || league.settings.autoManageUser || league.tradeOffers.length >= 3) return;
+  const p = daysToDeadline <= 14 ? 0.18 : 0.06;
+  if (!withRng(league, (rng) => rng.chance(p))) return;
+  const found = findOfferForUser(league);
+  if (!found) return;
+  const id = league.nextId.tx++;
+  league.tradeOffers.push({ id, from: found.proposal.from, give: found.proposal.give, get: found.proposal.get, day: league.day, season: league.season, note: found.note });
+  addNews(league, { category: 'rumor', headline: found.note, teamIds: [found.proposal.from, league.userTeamId], playerIds: found.proposal.get.map((a) => a.id), importance: 3 });
 }

@@ -5,6 +5,7 @@ import type { Player, StatLine, Team } from '../../engine/types';
 import { points, savePct, gaa, gsax, hdSavePct, faceoffPct, fmtToi, corsiPct, xgPct, shootingPct, reboundRate } from '../../engine/core/statline';
 import { pct, sv, num, seasonLabel } from '../format';
 import { ppPct, pkPct } from '../../engine/league/standings';
+import { awardsRace } from '../../engine/league/awards';
 
 interface Row {
   p: Player;
@@ -14,7 +15,7 @@ interface Row {
 
 export function StatsPage() {
   const { league, version } = useGame();
-  const [tab, setTab] = useState<'skaters' | 'goalies' | 'teams'>('skaters');
+  const [tab, setTab] = useState<'skaters' | 'goalies' | 'teams' | 'awards'>('skaters');
   const [po, setPo] = useState(false);
   const seasons = [league.season, ...league.history.map((h) => h.season).filter((s) => s !== league.season).reverse()];
   const [season, setSeason] = useState(league.season);
@@ -99,8 +100,9 @@ export function StatsPage() {
           <label className="row muted">Min GP <input type="number" value={minGp} min={0} onChange={(e) => setMinGp(Number(e.target.value))} style={{ width: 56 }} /></label>
         </div>
       </div>
-      <Seg value={tab} onChange={setTab} options={[{ id: 'skaters', label: `Skaters (${skaters.length})` }, { id: 'goalies', label: `Goalies (${goalies.length})` }, { id: 'teams', label: 'Teams' }]} />
+      <Seg value={tab} onChange={setTab} options={[{ id: 'skaters', label: `Skaters (${skaters.length})` }, { id: 'goalies', label: `Goalies (${goalies.length})` }, { id: 'teams', label: 'Teams' }, { id: 'awards', label: 'Awards race' }]} />
       <div style={{ height: 10 }} />
+      {tab === 'awards' && <AwardsRace />}
       {tab === 'skaters' && <Card tight><Table rows={skaters} columns={skCols} rowKey={(r) => `${r.p.id}-${r.teamId}`} initialSort={{ key: 'p' }} limit={250} /></Card>}
       {tab === 'goalies' && <Card tight><Table rows={goalies} columns={gCols} rowKey={(r) => `${r.p.id}-${r.teamId}`} initialSort={{ key: 'w' }} /></Card>}
       {tab === 'teams' && (
@@ -132,5 +134,30 @@ export function StatsPage() {
         </Card>
       )}
     </>
+  );
+}
+
+function AwardsRace() {
+  const { league, version } = useGame();
+  const races = useMemo(() => awardsRace(league), [league, version]);
+  if (!Object.values(league.seasonStats).some((e) => e.reg.gp)) return <div className="card empty">Award races take shape once the season starts.</div>;
+  return (
+    <div className="grid g3">
+      {races.map((r) => (
+        <Card key={r.award} title={r.award} tight>
+          <table className="tbl">
+            <tbody>
+              {r.candidates.map((c, i) => (
+                <tr key={c.playerId} className={league.players[c.playerId]?.teamId === league.userTeamId ? 'me' : ''}>
+                  <td className="rank">{i + 1}</td>
+                  <td><PlayerLink p={league.players[c.playerId]} /> <span className="dim">{league.teams[c.teamId]?.abbr}</span></td>
+                  <td className="num muted">{c.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      ))}
+    </div>
   );
 }

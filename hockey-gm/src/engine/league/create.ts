@@ -256,6 +256,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     nextId: ids,
     projections: {},
     ratingBaseline: 120,
+    tradeOffers: [],
     aiMemory: Object.fromEntries(teams.map((t) => [t.id, { lastTradeDay: -100, coachHotSeat: 0 }])),
   };
   for (const p of Object.values(players)) p.caSeasonStart = p.ca;

@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from '../src/engine/league/create';
 import { simTo, advanceDay } from '../src/engine/league/season';
 import { standingRows, conferenceSeeds } from '../src/engine/league/standings';
+import { awardsRace } from '../src/engine/league/awards';
 import { pairCounts, generateSchedule } from '../src/engine/league/schedule';
 import { DEFAULT_CONFIG } from '../src/engine/data/leagueConfig';
 import { Rng } from '../src/engine/core/rng';
@@ -67,6 +68,14 @@ describe('full season', () => {
     const so = games.filter((g) => g.result!.so).length;
     const teamGoals = games.reduce((s, g) => s + g.result!.hg + g.result!.ag, 0);
     expect(playerGoals).toBe(teamGoals - so);
+  });
+
+  it('tracks award races with ranked candidates', () => {
+    const races = awardsRace(league);
+    expect(races.length).toBe(6);
+    for (const r of races) expect(r.candidates.length).toBeGreaterThan(2);
+    const scoring = races.find((r) => r.award.includes('Art Ross'))!;
+    expect(scoring.candidates[0].score).toBeGreaterThanOrEqual(scoring.candidates[1].score);
   });
 
   it('seeds 16 playoff teams, 8 per conference', () => {

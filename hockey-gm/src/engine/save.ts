@@ -50,6 +50,7 @@ function migrate(league: League): League {
   league.aiMemory ??= {};
   for (const t of league.teams) league.aiMemory[t.id] ??= { lastTradeDay: -100, coachHotSeat: 0 };
   for (const p of Object.values(league.players)) p.caHistory ??= [];
+  league.tradeOffers ??= [];
   league.version = SAVE_VERSION;
   return league;
 }

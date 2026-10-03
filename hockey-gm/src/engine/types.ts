@@ -583,4 +583,6 @@ export interface League {
   projections: Record<number, number>;
   /** Per-team in-season performance memory used by AI GMs. */
   aiMemory: Record<number, { lastTradeDay: number; coachHotSeat: number }>;
+  /** Trade proposals CPU teams have made to the user (from = CPU team). */
+  tradeOffers: { id: number; from: number; give: { kind: 'player' | 'pick'; id: number }[]; get: { kind: 'player' | 'pick'; id: number }[]; day: number; season: number; note: string }[];
 }

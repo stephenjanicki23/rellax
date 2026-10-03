@@ -3,7 +3,7 @@ import { createLeague } from '../src/engine/league/create';
 import { simTo } from '../src/engine/league/season';
 import { advanceOffseason, simOffseason } from '../src/engine/league/offseason';
 import { payroll, marketValue, rosterOf, capSpace } from '../src/engine/economy/contracts';
-import { evaluateTrade, executeTrade, playerTradeValue, type TradeProposal } from '../src/engine/economy/trade';
+import { evaluateTrade, executeTrade, playerTradeValue, findOfferForUser, validateTrade, type TradeProposal } from '../src/engine/economy/trade';
 import { currentPick, makeDraftPick, suggestPick } from '../src/engine/economy/draft';
 import { estimate } from '../src/engine/economy/scouting';
 import { makeOffer, faPool, demandFor } from '../src/engine/economy/freeAgency';
@@ -43,6 +43,19 @@ describe('trades', () => {
     const young = Object.values(league.players).filter((p) => p.status === 'prospect' && p.pa > 150)[0];
     expect(playerTradeValue(league, 5, young)).toBeGreaterThan(playerTradeValue(league, 6, young));
   });
+  it('CPU teams make valid unsolicited offers to the user', () => {
+    let found = null;
+    for (let i = 0; i < 30 && !found; i++) found = findOfferForUser(league);
+    expect(found).not.toBeNull();
+    const p = found!.proposal;
+    expect(p.to).toBe(league.userTeamId);
+    expect(validateTrade(league, p)).toEqual([]);
+    const target = league.players[p.get[0].id];
+    expect(target.teamId).toBe(league.userTeamId);
+    executeTrade(league, p);
+    expect(target.teamId).toBe(p.from);
+  });
+
   it('executes trades by moving assets', () => {
     const a = rosterOf(league, 1)[0];
     const pick = league.draftPicks.find((p) => p.ownerId === 2)!;
