@@ -51,10 +51,10 @@ describe('real rosters', () => {
     const top = sorted.slice(0, 30).reduce((s, p) => s + p.ca, 0) / 30;
     const bottom = sorted.slice(-30).reduce((s, p) => s + p.ca, 0) / 30;
     expect(top).toBeGreaterThan(bottom + 30);
-    expect(Math.max(...fwd.map((p) => p.ca))).toBeGreaterThan(175);
+    expect(Math.max(...fwd.map((p) => p.ca))).toBeGreaterThan(170);
   });
   it('keeps the calibrated ability curve', () => {
-    expect(caForPercentile('F', 0)).toBe(188);
+    expect(caForPercentile('F', 0)).toBe(181);
     expect(caForPercentile('F', 0.5)).toBe(130);
     expect(caForPercentile('G', 1)).toBe(108);
   });

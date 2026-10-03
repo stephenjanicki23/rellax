@@ -14,6 +14,7 @@ import type { Rng } from '../../core/rng';
 import { clamp } from '../../core/math';
 import type { ArchetypeId, AttrKey, Player, Position } from '../../types';
 import { generatePlayer } from '../../player/generate';
+import { abilityWeights, computeCA } from '../../player/ability';
 import { NAME_POOLS } from '../names';
 import type { NhlPlayerRecord, NhlSnapshot } from './types';
 
@@ -104,9 +105,9 @@ const PRIOR_GAMES = 25;
 export function valueScore(rec: NhlPlayerRecord, group: Group): number {
   if (group === 'G') {
     const g = goalieProfile(rec);
-    const PRIOR_SHOTS = 900;
+    const PRIOR_SHOTS = 1600;
     const sv = (g.sv * g.shotsFaced + 0.893 * PRIOR_SHOTS) / (g.shotsFaced + PRIOR_SHOTS);
-    return sv * 1000 + Math.min(g.starts, 55) * 0.08;
+    return sv * 1000 + Math.min(g.starts, 60) * 0.12;
   }
   const s = skaterProfile(rec);
   const rep = REPLACEMENT[group];
@@ -120,9 +121,9 @@ export function valueScore(rec: NhlPlayerRecord, group: Group): number {
 
 /** Ability by league percentile (0 = best), per position group. Mirrors the generator's roster slots. */
 const CA_CURVES: Record<Group, [number, number][]> = {
-  F: [[0, 188], [0.01, 176], [0.05, 162], [0.12, 153], [0.25, 143], [0.5, 130], [0.75, 118], [0.9, 110], [1, 98]],
-  D: [[0, 182], [0.02, 166], [0.08, 154], [0.2, 143], [0.4, 135], [0.6, 127], [0.8, 117], [1, 104]],
-  G: [[0, 178], [0.05, 165], [0.15, 155], [0.33, 146], [0.5, 136], [0.7, 126], [0.85, 119], [1, 108]],
+  F: [[0, 181], [0.01, 171], [0.05, 160], [0.12, 152], [0.25, 143], [0.5, 130], [0.75, 118], [0.9, 110], [1, 98]],
+  D: [[0, 175], [0.02, 163], [0.08, 153], [0.2, 143], [0.4, 135], [0.6, 127], [0.8, 117], [1, 104]],
+  G: [[0, 172], [0.05, 162], [0.15, 155], [0.33, 148], [0.5, 140], [0.7, 126], [0.85, 119], [1, 108]],
 };
 
 export function caForPercentile(group: Group, p: number): number {
@@ -146,7 +147,7 @@ export function archetypeFor(rec: NhlPlayerRecord, pos: Position): ArchetypeId {
   const s = skaterProfile(rec);
   const heavy = rec.weightKg >= 97;
   if (pos === 'D') {
-    if (s.ppg >= 0.6) return 'offensiveDefenseman';
+    if (s.ppg >= 0.68) return 'offensiveDefenseman';
     if (heavy && s.pimPg >= 0.6) return 'physicalDefenseman';
     if (s.ppg >= 0.4) return 'puckMovingDefenseman';
     if (s.ppg < 0.2 && s.n > 0) return 'stayAtHome';
@@ -196,7 +197,6 @@ export function statBias(rec: NhlPlayerRecord, pos: Position): Partial<Record<At
     add('creativity', (s.apg - 0.3) * 35);
     add('defAwareness', s.pmPg * 60);
     add('backchecking', s.pmPg * 40);
-    if (s.fo !== null) add('faceoffs', (s.fo - 0.5) * 320);
   }
   return b;
 }
@@ -252,6 +252,9 @@ export function buildRealPlayers(rng: Rng, snap: NhlSnapshot, abbrs: string[], s
     p.heightCm = rec.heightCm;
     p.weightKg = rec.weightKg;
     if (rec.number) p.number = rec.number;
+    // Faceoffs come straight from real faceoff %, not from overall ability.
+    const fo = pos === 'C' ? skaterProfile(rec).fo : null;
+    if (fo !== null) setAttrKeepingCA(p, 'faceoffs', clamp(118 + (fo - 0.5) * 700, 45, 195));
     if (!pool) p.junior = 'Europe';
     const nhlSeasons = (rec.skater ?? rec.goalie ?? []).filter((l) => l.gp > 0).length;
     p.proSeasons = Math.max(nhlSeasons, Math.max(0, age - 21));
@@ -259,4 +262,19 @@ export function buildRealPlayers(rng: Rng, snap: NhlSnapshot, abbrs: string[], s
   }
   for (const list of out.values()) list.sort((a, b) => b.ca - a.ca);
   return out;
+}
+
+/** Set one attribute, then shift the other ability attributes so overall ability is unchanged. */
+function setAttrKeepingCA(p: Player, key: AttrKey, value: number): void {
+  const target = p.ca;
+  p.attrs[key] = Math.round(value);
+  const w = abilityWeights(p.pos);
+  for (let iter = 0; iter < 6; iter++) {
+    const diff = target - computeCA(p.attrs, p.pos);
+    if (Math.abs(diff) < 0.5) break;
+    for (const k of Object.keys(w) as AttrKey[]) if (k !== key && (w[k] ?? 0) > 0) p.attrs[k] = Math.round(clamp(p.attrs[k] + diff * 1.05, 1, 200));
+  }
+  p.ca = computeCA(p.attrs, p.pos);
+  p.pa = Math.max(p.pa, p.ca);
+  p.caSeasonStart = p.ca;
 }

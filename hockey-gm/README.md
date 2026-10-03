@@ -195,6 +195,10 @@ npm run fetch:nhl -- --season 2026
 
 If the snapshot is missing a team, the game falls back to generated players.
 
+Two offseason AI rules keep real rosters stable over many seasons:
+- When free agency ends, CPU teams well under the cap floor take on salaried veterans from capped-out CPU teams for a late pick, like real cap-clearing trades.
+- A team short of a goalie or skater recalls from its system only if no clearly better free agent is affordable. AI teams without a real starting goalie make signing one their priority.
+
 ## Testing
 
 - `tests/rng.test.ts`: determinism, serialisable state, distribution sanity
