@@ -20,3 +20,8 @@ export function teamAccentVars(colors: [string, string]): CSSProperties {
   const text = luminance(a) >= luminance(b) ? a : b;
   return { '--m-team': bar, '--m-team2': luminance(text) < 0.05 ? '#dfe3e8' : text } as CSSProperties;
 }
+
+/** A team colour that stays visible as a bar/accent on the dark UI (avoids near-black primaries). */
+export function teamBar(colors: [string, string]): string {
+  return (teamAccentVars(colors) as Record<string, string>)['--m-team'];
+}

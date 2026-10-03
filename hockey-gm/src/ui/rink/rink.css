@@ -1,27 +1,74 @@
 .rink-wrap { position: relative; }
-.rink-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-family: var(--m-display, inherit); text-transform: uppercase; letter-spacing: 0.06em; font-size: 13px; color: var(--muted); }
-.rink-team { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; font-style: italic; }
-.rink-team .arrow { font-style: normal; color: var(--m-team2, var(--accent)); font-size: 12px; }
-.rink-key { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; font-size: 11.5px; }
-.rink-key .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid; margin-left: 6px; }
-.rink-key .mk { margin-left: 6px; color: var(--text); }
-.rink-key .mk.miss { color: var(--muted); }
-.rink2 { width: 100%; height: auto; display: block; border-radius: 22px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
-.rink2 g { will-change: transform; }
-.rink2 .pl text { pointer-events: none; font-family: 'Barlow Condensed', system-ui, sans-serif; }
-.rink2 .carrier { fill: none; stroke: #ffd400; stroke-width: 0.8; opacity: 0.95; }
+.rink-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-family: var(--m-display, inherit); text-transform: uppercase; }
+.rink-dir { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; font-style: italic; letter-spacing: 0.04em; color: var(--text); padding-left: 8px; border-left: 3px solid var(--tc); }
+.rink-dir.right { padding-left: 0; padding-right: 8px; border-left: 0; border-right: 3px solid var(--tc); }
+.rink-dir i { font-style: normal; font-size: 11px; color: var(--muted); }
+.poss-dot { display: inline-flex; align-items: center; gap: 4px; font-style: normal; margin: 0 4px; }
+.poss-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #0c0c0c; box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px var(--tc); }
+.poss-dot::after { content: 'PUCK'; font-size: 10px; letter-spacing: 0.12em; color: var(--muted); }
+.rink-tools { display: inline-flex; gap: 6px; }
+.rink-toggle { font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 10px; border-radius: 2px; border: 1px solid #000; background: linear-gradient(var(--m-bar-top, #3a3d43), var(--m-bar-bot, #1d1f23)); color: var(--m-dim, #9aa2ad); cursor: pointer; }
+.rink-toggle.on { background: linear-gradient(var(--m-hi-top, #fff), var(--m-hi-bot, #c9ced5)); color: #111; }
+
+.rink-stage { position: relative; }
+.rink2 { width: 100%; height: auto; display: block; filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.55)); }
+.rink2 .pm { will-change: transform; }
+.rink2 .pm .shadow { fill: #0b1a2a; opacity: 0.16; }
+.rink2 .pm .num { font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 800; pointer-events: none; }
+.rink2 .pm .pos { font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 700; font-size: 1.75px; fill: #3f4a57; letter-spacing: 0.05em; opacity: 0.8; pointer-events: none; }
+.rink2 .pm .active-ring { fill: none; stroke: #111; stroke-width: 0.45; opacity: 0.85; }
+.rink2 .pm .carrier-ring { fill: none; stroke-width: 0.8; opacity: 0.9; animation: carrier 1.3s ease-in-out infinite; }
+.rink2 .pm .carrier-ring { filter: none; }
+@keyframes carrier { 0%, 100% { stroke-opacity: 0.95; } 50% { stroke-opacity: 0.45; } }
+.rink2 .pm.carrying .shadow { opacity: 0.24; }
+.rink2 .save-pulse { fill: none; stroke: #2b8cff; stroke-width: 0.8; animation: save-pulse 0.9s ease-out forwards; }
+@keyframes save-pulse { from { r: 3.6; stroke-opacity: 1; } to { r: 8.5; stroke-opacity: 0; } }
+.rink2 .puck-trail { fill: none; stroke: #1a1a1a; stroke-width: 0.7; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
 .rink2 .shot-mk { opacity: 0.55; }
-.rink2 .goal-light { fill: #ff2a2a; opacity: 0.35; animation: goal-light 0.5s ease-in-out infinite alternate; }
-@keyframes goal-light { to { opacity: 0.75; } }
-.rink-flash {
-  position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
-  font-family: var(--m-display, inherit); font-style: italic; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
-  font-size: clamp(16px, 3vw, 30px); padding: 4px 18px; color: #111; background: linear-gradient(#fff, #c9ced5);
-  border-bottom: 4px solid var(--m-team, #2b6cb0); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); pointer-events: none;
-  animation: rink-flash 1.3s ease-out forwards;
+.rink2 .goal-light { fill: #ff2a2a; opacity: 0.3; animation: goal-light 0.45s ease-in-out infinite alternate; }
+@keyframes goal-light { to { opacity: 0.65; } }
+
+/* Shot trajectories: draw in, then fade. */
+.rink2 .traj line { stroke-width: 0.45; stroke-linecap: round; stroke-dasharray: 2.2 1.1; animation: traj 1.8s ease-out forwards; }
+.rink2 .traj circle { animation: traj 1.8s ease-out forwards; }
+.rink2 .traj.goal line { stroke: #d61f2c; stroke-width: 0.7; stroke-dasharray: none; }
+.rink2 .traj.goal circle { fill: #d61f2c; }
+.rink2 .traj.save line { stroke: #1d6fd6; }
+.rink2 .traj.save circle { fill: #1d6fd6; }
+.rink2 .traj.miss line { stroke: #6b7684; }
+.rink2 .traj.miss circle { fill: #6b7684; }
+.rink2 .traj.block line { stroke: #b07a12; }
+.rink2 .traj.block circle { fill: #b07a12; }
+.rink2 .traj .x { stroke: #b07a12; stroke-width: 0.5; animation: traj 1.8s ease-out forwards; }
+@keyframes traj { 0% { opacity: 0; } 8% { opacity: 0.95; } 60% { opacity: 0.8; } 100% { opacity: 0; } }
+
+/* Small event chips over the ice (top-centre). */
+.rink-chips { position: absolute; top: 7%; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; pointer-events: none; }
+.rink-chip {
+  font-family: var(--m-display, inherit); font-weight: 800; font-style: italic; letter-spacing: 0.06em; font-size: clamp(11px, 1vw, 14px);
+  padding: 3px 10px; color: #f2f4f6; background: rgba(18, 20, 23, 0.86); border-left: 3px solid var(--tc, #8cc8ff); border-radius: 2px;
+  animation: chip-in 0.25s ease-out; white-space: nowrap;
 }
-.rink-flash.goal { font-size: clamp(22px, 5vw, 48px); background: linear-gradient(#ffe36b, #f2b632); animation-duration: 2.6s; }
-.rink-flash.penalty { background: linear-gradient(#ffd0d0, #e9a0a0); }
-.rink-flash.info { font-size: clamp(12px, 2vw, 18px); padding: 2px 12px; opacity: 0.92; }
-@keyframes rink-flash { 0% { opacity: 0; transform: translate(-50%, -40%) scale(0.9); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
-@media (max-width: 760px) { .rink-key { display: none; } }
+.rink-chip.penalty { border-left-color: #f6c445; }
+.rink-chip.save { border-left-color: var(--tc, #2b8cff); }
+@keyframes chip-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Goal card (lower third). */
+.goal-card {
+  position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); min-width: min(440px, 80%);
+  background: linear-gradient(180deg, rgba(20, 22, 25, 0.96), rgba(12, 13, 15, 0.96)); color: #f2f4f6; border-top: 4px solid var(--tc); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+  padding: 10px 18px 12px; font-family: var(--m-display, inherit); animation: goal-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2), goal-out 0.4s ease-in 4.4s forwards; pointer-events: none;
+}
+.gc-head { display: flex; align-items: baseline; gap: 10px; text-transform: uppercase; font-style: italic; }
+.gc-label { font-size: clamp(24px, 2.6vw, 38px); font-weight: 800; letter-spacing: 0.04em; color: #fff; background: var(--tc); padding: 0 10px; transform: skewX(-8deg); }
+.gc-team { font-size: clamp(14px, 1.3vw, 18px); font-weight: 700; letter-spacing: 0.05em; color: #c9ced5; }
+.gc-scorer { margin-top: 6px; font-size: clamp(18px, 1.8vw, 26px); text-transform: uppercase; letter-spacing: 0.03em; color: #9aa2ad; }
+.gc-scorer b { color: #fff; font-weight: 800; }
+.gc-assists { font-family: Barlow, system-ui, sans-serif; font-size: 13.5px; color: #c9ced5; margin-top: 2px; }
+.gc-time { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #9aa2ad; margin-top: 4px; }
+@keyframes goal-in { from { opacity: 0; transform: translate(-50%, 16px) scale(0.96); } to { opacity: 1; transform: translateX(-50%); } }
+@keyframes goal-out { to { opacity: 0; transform: translate(-50%, 8px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rink2 .pm .carrier-ring, .rink2 .goal-light, .goal-card, .rink-chip { animation: none; }
+}

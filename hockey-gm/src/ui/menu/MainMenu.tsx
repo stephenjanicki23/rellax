@@ -105,7 +105,7 @@ export function MainMenu() {
       {screen === 'franchiseNew' && <FranchiseNew onBack={() => setScreen('title')} />}
       {screen === 'franchiseLoad' && <FranchiseLoad saves={saves} refresh={refreshSaves} onBack={() => setScreen('title')} />}
       {screen === 'rosters' && (league ? <Rosters league={league} onBack={() => setScreen('title')} /> : <div className="mm-loading">Loading rosters…</div>)}
-      <Footer emblem={screen === 'title'} />
+      {screen !== 'live' && <Footer emblem={screen === 'title'} />}
     </div>
   );
 }
