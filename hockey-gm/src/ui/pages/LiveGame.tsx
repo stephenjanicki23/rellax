@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useGame, runSim, mutate, toast } from '../store';
 import { navigate } from '../router';
 import { Card, TeamLogo, Seg } from '../components/common';
@@ -6,8 +6,8 @@ import { GameSim } from '../../engine/sim/engine';
 import { buildGameInput } from '../../engine/league/gameInput';
 import { prepareUserGame } from '../../engine/league/season';
 import { describe, periodLabel, clockLabel, type CommentaryLine } from '../../engine/sim/commentary';
-import type { GameEvent, GameSnapshot } from '../../engine/sim/gameTypes';
-import type { ScheduledGame } from '../../engine/types';
+import type { GameEvent, GameInput, GameResult, GameSnapshot } from '../../engine/sim/gameTypes';
+import type { ScheduledGame, Team } from '../../engine/types';
 import { recordString } from '../../engine/league/standings';
 import { playoffRoundName } from '../../engine/league/playoffs';
 
@@ -24,8 +24,10 @@ export function LiveGame() {
     setGame(g);
     setReady(true);
   }, []);
+  // Build the game input once; LiveView keeps the simulation in a ref.
+  const input = useMemo(() => (game && game.id >= 0 ? buildGameInput(league, game.id, true) : null), [game]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ready) return null;
-  if (!game || game.id < 0) {
+  if (!game || game.id < 0 || !input) {
     return (
       <div className="empty">
         <p>Your team doesn't play today.</p>
@@ -35,20 +37,51 @@ export function LiveGame() {
       </div>
     );
   }
-  return <LiveView key={game.id} game={game} seasonLeague={league} />;
+  const home = league.teams[game.home];
+  const away = league.teams[game.away];
+  const rec = (id: number) => (league.standings[id] ? recordString(league.standings[id]) : '');
+  return (
+    <LiveView
+      key={game.id}
+      input={input}
+      home={home}
+      away={away}
+      playoff={!!game.playoff}
+      info={game.playoff ? `${playoffRoundName(league, game.playoff.round)} · G${game.playoff.game}` : home.arena}
+      records={[rec(home.id), rec(away.id)]}
+      finishLabel="Record result & continue →"
+      onFinish={async (result) => {
+        await runSim('day', new Map([[game.id, result]]));
+        toast('Result recorded. The rest of the league played tonight too.', 'good');
+        navigate(`game/${game.id}`);
+      }}
+    />
+  );
 }
 
-function LiveView({ game, seasonLeague: league }: { game: ScheduledGame; seasonLeague: ReturnType<typeof useGame>['league'] }) {
+export interface LiveViewProps {
+  input: GameInput;
+  home: Team;
+  away: Team;
+  playoff: boolean;
+  info: string;
+  records?: [string, string];
+  finishLabel: string;
+  onFinish: (result: GameResult) => void | Promise<void>;
+  /** Extra buttons shown once the game is over (e.g. Rematch). */
+  extraActions?: ReactNode;
+}
+
+/** Live game presentation. Works for franchise games and standalone exhibitions. */
+export function LiveView({ input, home, away, playoff, info, records, finishLabel, onFinish, extraActions }: LiveViewProps) {
   const simRef = useRef<GameSim | null>(null);
-  if (!simRef.current) simRef.current = new GameSim(buildGameInput(league, game.id, true));
+  if (!simRef.current) simRef.current = new GameSim(input);
   const sim = simRef.current;
   const [speed, setSpeed] = useState<Speed>('pause');
   const [lines, setLines] = useState<CommentaryLine[]>([]);
   const [snap, setSnap] = useState<GameSnapshot>(() => sim.snapshot());
   const [finished, setFinished] = useState(false);
   const [applying, setApplying] = useState(false);
-  const home = league.teams[game.home];
-  const away = league.teams[game.away];
   const names = useMemo(() => {
     const m = new Map<number, string>();
     for (const t of sim.teams) for (const p of t.players) m.set(p.id, p.name);
@@ -95,18 +128,14 @@ function LiveView({ game, seasonLeague: league }: { game: ScheduledGame; seasonL
 
   const finalize = async () => {
     setApplying(true);
-    const result = sim.result();
-    await runSim('day', new Map([[game.id, result]]));
-    toast('Result recorded. The rest of the league played tonight too.', 'good');
-    navigate(`game/${game.id}`);
+    await onFinish(sim.result());
+    setApplying(false);
   };
 
   const s = snap;
   const ppSide = s.ppTimeLeft[0] > 0 ? 0 : s.ppTimeLeft[1] > 0 ? 1 : -1;
   const goals = lines.filter((l) => l.kind === 'goal' && l.text.startsWith('GOAL')).reverse();
   const pens = lines.filter((l) => l.kind === 'penalty').reverse();
-  const hRec = league.standings[home.id];
-  const aRec = league.standings[away.id];
   const possShare = s.possTime[0] + s.possTime[1] > 0 ? s.possTime[0] / (s.possTime[0] + s.possTime[1]) : 0.5;
 
   const onIce = (side: 0 | 1) =>
@@ -127,21 +156,21 @@ function LiveView({ game, seasonLeague: league }: { game: ScheduledGame; seasonL
             <TeamLogo team={home} size={56} />
             <div className="stack" style={{ gap: 0 }}>
               <b style={{ fontSize: 16 }}>{home.city} {home.name}</b>
-              <span className="muted">{hRec ? recordString(hRec) : ''} · SOG {s.shots[0]}</span>
+              <span className="muted">{records?.[0] ? `${records[0]} · ` : ''}SOG {s.shots[0]}</span>
               {ppSide === 0 && <span className="pill good">POWER PLAY {Math.ceil(s.ppTimeLeft[0])}s</span>}
             </div>
             <span className="score" style={{ marginLeft: 'auto' }}>{s.score[0]}</span>
           </div>
           <div className="clock">
-            <div className="big">{s.inShootout ? 'SO' : periodLabel(s.period, !!game.playoff)}</div>
+            <div className="big">{s.inShootout ? 'SO' : periodLabel(s.period, playoff)}</div>
             <div className="mono" style={{ fontSize: 18 }}>{clockLabel(s.clock, s.periodLength)}</div>
-            <div className="muted" style={{ fontSize: 11 }}>{game.playoff ? `${playoffRoundName(league, game.playoff.round)} · G${game.playoff.game}` : home.arena}</div>
+            <div className="muted" style={{ fontSize: 11 }}>{info}</div>
           </div>
           <div className="team away">
             <TeamLogo team={away} size={56} />
             <div className="stack" style={{ gap: 0 }}>
               <b style={{ fontSize: 16 }}>{away.city} {away.name}</b>
-              <span className="muted">{aRec ? recordString(aRec) : ''} · SOG {s.shots[1]}</span>
+              <span className="muted">{records?.[1] ? `${records[1]} · ` : ''}SOG {s.shots[1]}</span>
               {ppSide === 1 && <span className="pill good">POWER PLAY {Math.ceil(s.ppTimeLeft[1])}s</span>}
             </div>
             <span className="score" style={{ marginRight: 'auto' }}>{s.score[1]}</span>
@@ -157,8 +186,9 @@ function LiveView({ game, seasonLeague: league }: { game: ScheduledGame; seasonL
             <>
               <b className="good">Final{snap.inShootout ? ' (SO)' : snap.period > 3 ? ' (OT)' : ''}</b>
               <button className="btn primary" disabled={applying} onClick={() => void finalize()}>
-                Record result & continue →
+                {finishLabel}
               </button>
+              {extraActions}
             </>
           )}
         </div>
@@ -170,7 +200,7 @@ function LiveView({ game, seasonLeague: league }: { game: ScheduledGame; seasonL
               {lines.length === 0 && <div className="empty">Press play to drop the puck.</div>}
               {lines.map((l, i) => (
                 <div key={`${l.t}-${i}`} className={`ln ${l.kind}`}>
-                  <span className="t">{periodLabel(l.period, !!game.playoff)} {clockLabel(l.clock, l.period > 3 && !game.playoff ? 300 : 1200)}</span>
+                  <span className="t">{periodLabel(l.period, playoff)} {clockLabel(l.clock, l.period > 3 && !playoff ? 300 : 1200)}</span>
                   <span>{l.text}</span>
                 </div>
               ))}

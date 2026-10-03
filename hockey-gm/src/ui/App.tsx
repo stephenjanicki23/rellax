@@ -9,7 +9,7 @@ import { currentPick } from '../engine/economy/draft';
 import { expiringPlayers, FA_DAYS } from '../engine/economy/freeAgency';
 import { capSpace } from '../engine/economy/contracts';
 import { rosterSize } from '../engine/economy/roster';
-import { NewGame } from './pages/NewGame';
+import { MainMenu } from './menu/MainMenu';
 import { Dashboard } from './pages/Dashboard';
 import { RosterPage } from './pages/Roster';
 import { LinesPage } from './pages/Lines';
@@ -91,11 +91,11 @@ export function App() {
   );
   if (!league) {
     return (
-      <>
-        <NewGame />
+      <div className="force-dark">
+        <MainMenu />
         {dialog}
         <Toasts toasts={toasts} />
-      </>
+      </div>
     );
   }
   return (
