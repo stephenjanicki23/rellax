@@ -26,14 +26,20 @@ const wanted = Array.from({ length: HISTORY }, (_, i) => season - 1 - i); // com
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function get(path) {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; ; attempt++) {
     try {
       const res = await fetch(API + path, { headers: { accept: 'application/json' } });
       if (res.status === 404) return null;
+      if (res.status === 429 && attempt < 12) {
+        // Rate limited: honour Retry-After, otherwise back off.
+        const wait = Number(res.headers.get('retry-after')) * 1000 || 2000 * 2 ** Math.min(attempt, 4);
+        await sleep(wait);
+        continue;
+      }
       if (!res.ok) throw new Error(`${res.status} ${path}`);
       return await res.json();
     } catch (e) {
-      if (attempt === 4) throw e;
+      if (attempt >= 5) throw e;
       await sleep(500 * 2 ** attempt);
     }
   }
@@ -101,9 +107,10 @@ for (const abbr of TEAMS) {
   const roster = await get(`/roster/${abbr}/current`);
   if (!roster) throw new Error(`No roster for ${abbr}`);
   const people = [...(roster.forwards ?? []), ...(roster.defensemen ?? []), ...(roster.goalies ?? [])];
-  teams[abbr] = await pool(people, 6, async (p) => {
+  teams[abbr] = await pool(people, 2, async (p) => {
     const goalie = p.positionCode === 'G';
     const landing = await get(`/player/${p.id}/landing`);
+    await sleep(150);
     const rec = {
       nhlId: p.id,
       first: text(p.firstName),
