@@ -260,6 +260,17 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
           )}
         </div>
       </div>
+      <Card title="Play-by-play" tight className="pbp-compact">
+        <div className="feed">
+          {lines.length === 0 && <div className="empty">Press play to drop the puck.</div>}
+          {lines.map((l, i) => (
+            <div key={`${l.t}-${i}`} className={`ln ${l.kind}`}>
+              <span className="t">{periodLabel(l.period, playoff)} {clockLabel(l.clock, l.period > 3 && !playoff ? 300 : 1200)}</span>
+              <span>{l.text}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
       <Card className="rink-card">
         <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} />
         <div className="row muted" style={{ justifyContent: 'space-between', fontSize: 12, marginTop: 8 }}>
@@ -271,21 +282,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
           <i style={{ left: s.momentum >= 0 ? '50%' : `${50 + s.momentum * 50}%`, width: `${Math.abs(s.momentum) * 50}%`, background: s.momentum >= 0 ? home.colors[0] : away.colors[0] }} />
         </div>
       </Card>
-      <div className="grid g-main" style={{ marginTop: 14 }}>
-        <div className="grid">
-          <Card title="Play-by-play" tight>
-            <div className="feed">
-              {lines.length === 0 && <div className="empty">Press play to drop the puck.</div>}
-              {lines.map((l, i) => (
-                <div key={`${l.t}-${i}`} className={`ln ${l.kind}`}>
-                  <span className="t">{periodLabel(l.period, playoff)} {clockLabel(l.clock, l.period > 3 && !playoff ? 300 : 1200)}</span>
-                  <span>{l.text}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-        <div className="grid" style={{ alignContent: 'start' }}>
+      <div className="grid live-lower" style={{ marginTop: 14 }}>
           <Card title="Game stats">
             <table className="tbl">
               <tbody>
@@ -324,7 +321,6 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
           <Card title="Penalties">
             {pens.length ? pens.map((g, i) => <div key={i} style={{ fontSize: 12, padding: '3px 0' }}><span className="dim">{periodLabel(g.period)} {clockLabel(g.clock, 1200)}</span> {g.text.replace(/^PENALTY: /, '')}</div>) : <span className="muted">None.</span>}
           </Card>
-        </div>
       </div>
     </>
   );
