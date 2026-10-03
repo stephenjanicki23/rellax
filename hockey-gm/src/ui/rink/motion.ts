@@ -2,9 +2,9 @@
  * Continuous rink motion.
  *
  * RinkTimeline schedules the director's frames as keyframes on a
- * presentation clock: each event lands at its game time, whistles add the
- * same pause the live view holds the game clock for, and long gaps get
- * waypoints so the puck carrier keeps skating.
+ * presentation clock: each event lands at its game time plus the whistle
+ * pauses so far (the same pauses the live view holds the game clock for), and
+ * long gaps get waypoints so the puck carrier keeps skating.
  *
  * RinkMotion advances skaters and the puck in small time steps. Skaters
  * steer toward the next keyframe with speed and acceleration limits, so they
@@ -47,11 +47,11 @@ const WAYPOINT_EVERY = 1.6;
 
 export class RinkTimeline {
   keys: Key[] = [];
-  private lastT = 0;
   private lastS = 0;
-  /** Pause owed before the next faceoff (set by a whistle). */
-  private pendingHold = 0;
-  private whistleS = 0;
+  /** Whistle pauses so far: presentation time = game time + holds (the live view's clock does the same). */
+  private holdSum = 0;
+  /** In a stoppage (between a whistle and the next faceoff). */
+  private stopped = false;
   private lastIce: IceState | null = null;
 
   constructor(private director: RinkDirector) {}
@@ -63,12 +63,12 @@ export class RinkTimeline {
 
   add(items: TimelineItem[]): void {
     for (const { e, ice } of items) {
-      let gap = GAP[e.type] ?? 0.35;
-      const resumes = e.type === 'faceoff' || e.type === 'periodStart';
-      if (resumes && this.pendingHold > 0) gap = Math.max(gap, this.pendingHold - (this.lastS - this.whistleS));
-      const s = this.lastS + Math.max(e.t - this.lastT, gap);
+      const gap = GAP[e.type] ?? 0.35;
+      // Anchored to game time: events sharing a timestamp are spread out by small gaps,
+      // but the schedule catches back up instead of drifting behind the game clock.
+      const s = Math.max(this.lastS + gap, e.t + this.holdSum);
       // Waypoints so long possessions keep moving (not during stoppages).
-      if (this.lastIce && this.pendingHold === 0 && s - this.lastS > WAYPOINT_EVERY * 1.5) {
+      if (this.lastIce && !this.stopped && s - this.lastS > WAYPOINT_EVERY * 1.5) {
         const n = Math.floor((s - this.lastS) / WAYPOINT_EVERY);
         for (let i = 1; i < n; i++) this.push(this.director.idle(this.lastIce), this.lastS + ((s - this.lastS) * i) / n, this.lastIce.period);
       }
@@ -77,14 +77,13 @@ export class RinkTimeline {
         const back = (frames.length - 1 - i) * 0.32;
         this.push(f, Math.max(this.lastS + 0.05, s - back), e.period);
       });
-      this.lastT = Math.max(this.lastT, e.t);
       this.lastS = s;
       this.lastIce = ice;
-      if (resumes) this.pendingHold = 0;
+      if (e.type === 'faceoff' || e.type === 'periodStart') this.stopped = false;
       const hold = whistleHold(e.type);
       if (hold > 0) {
-        this.pendingHold = Math.max(this.pendingHold, hold);
-        this.whistleS = s;
+        this.holdSum += hold;
+        this.stopped = true;
       }
     }
   }
