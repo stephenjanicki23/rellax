@@ -7,7 +7,7 @@
 .rink-key .mk { margin-left: 6px; color: var(--text); }
 .rink-key .mk.miss { color: var(--muted); }
 .rink2 { width: 100%; height: auto; display: block; border-radius: 22px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
-.rink2 .pl, .rink2 .pk { transition-property: transform; transition-timing-function: cubic-bezier(0.33, 0.1, 0.25, 1); will-change: transform; }
+.rink2 g { will-change: transform; }
 .rink2 .pl text { pointer-events: none; font-family: 'Barlow Condensed', system-ui, sans-serif; }
 .rink2 .carrier { fill: none; stroke: #ffd400; stroke-width: 0.8; opacity: 0.95; }
 .rink2 .shot-mk { opacity: 0.55; }

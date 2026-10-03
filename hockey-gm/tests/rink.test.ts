@@ -51,3 +51,68 @@ describe('live rink director', () => {
     expect(Object.keys(f.players).length).toBeGreaterThanOrEqual(10);
   });
 });
+
+import { RinkMotion, RinkTimeline, type TimelineItem } from '../src/ui/rink/motion';
+
+describe('continuous rink motion', () => {
+  const league = createLeague({ seed: 'rink-motion' });
+  const input = buildGameInput(league, league.schedule[3].id, true);
+  const sim = new GameSim(input);
+  const players: RinkPlayer[] = ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null })));
+  const meta = new Map(players.map((p) => [p.id, p]));
+  const tl = new RinkTimeline(new RinkDirector(meta, ['H', 'A']));
+  while (!sim.finished) {
+    const evs = sim.step();
+    const s = sim.snapshot();
+    tl.add(evs.map((e): TimelineItem => ({ e, ice: { period: s.inShootout ? 5 : e.period, onIce: s.onIce, goalies: s.goalies } })));
+  }
+  const motion = new RinkMotion(tl, meta);
+  const dt = 1 / 60;
+  let maxSkaterSpeed = 0;
+  let maxPuckJump = 0;
+  let nan = false;
+  const goalPucks: number[] = [];
+  let prev = { ...motion.puck.pos };
+  const until = Math.min(tl.end, 1500);
+  let jumps = 0;
+  while (motion.P < until) {
+    let reset = false;
+    motion.step(dt, (k) => {
+      if (k.goalLight !== null && k.period <= 3) goalPucks.push(k.puck.x);
+      if (k.motion === 'still') reset = true;
+    });
+    for (const b of motion.bodies.values()) {
+      const sp = Math.hypot(b.vel.x, b.vel.y);
+      if (!b.goalie) maxSkaterSpeed = Math.max(maxSkaterSpeed, sp);
+      if (!Number.isFinite(b.pos.x + b.pos.y)) nan = true;
+    }
+    const p = motion.puck.pos;
+    const jump = Math.hypot(p.x - prev.x, p.y - prev.y);
+    if (!reset && motion.puck.mode.kind !== 'flying') {
+      maxPuckJump = Math.max(maxPuckJump, jump);
+      if (jump > 4) jumps++;
+    }
+    prev = { ...p };
+  }
+
+  it('schedules keyframes in order', () => {
+    for (let i = 1; i < tl.keys.length; i++) expect(tl.keys[i].s).toBeGreaterThanOrEqual(tl.keys[i - 1].s);
+    expect(tl.keys.length).toBeGreaterThan(400);
+  });
+  it('moves skaters within realistic speed limits with no NaNs', () => {
+    expect(nan).toBe(false);
+    expect(maxSkaterSpeed).toBeLessThanOrEqual(29.5);
+    expect(maxSkaterSpeed).toBeGreaterThan(10);
+  });
+  it('moves a carried or loose puck smoothly (no teleports outside stoppages)', () => {
+    // 60 fps: a carried or sliding puck moves well under a foot per frame; only faceoff resets snap.
+    expect(jumps).toBe(0);
+    expect(maxPuckJump).toBeLessThan(4);
+  });
+  it('keeps everyone on the ice', () => {
+    for (const b of motion.bodies.values()) {
+      expect(b.pos.x).toBeGreaterThanOrEqual(0);
+      expect(b.pos.x).toBeLessThanOrEqual(RINK.w);
+    }
+  });
+});

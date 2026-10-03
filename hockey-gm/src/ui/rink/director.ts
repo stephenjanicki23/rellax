@@ -48,6 +48,8 @@ export interface Frame {
   flash: Flash | null;
   /** Team whose goal light is on (it scored), if any. */
   goalLight: 0 | 1 | null;
+  /** Shot to add to the shot map when this frame is reached. */
+  mark?: ShotMark;
 }
 
 export interface IceState {
@@ -160,6 +162,7 @@ export class RinkDirector {
   shots: ShotMark[] = [];
   private beat = 0;
   private flashId = 0;
+  private pendingMark: ShotMark | undefined;
 
   constructor(
     private meta: Map<number, RinkPlayer>,
@@ -170,7 +173,9 @@ export class RinkDirector {
     this.beat++;
     this.puck = clampPt(this.puck, 2);
     this.players = formation(ice, this.meta, this.puck, this.carrier, this.poss, this.beat);
-    return { puck: { ...this.puck }, motion, carrier: this.carrier, players: this.players, flash, goalLight };
+    const mark = this.pendingMark;
+    this.pendingMark = undefined;
+    return { puck: { ...this.puck }, motion, carrier: this.carrier, players: this.players, flash, goalLight, mark };
   }
 
   private flash(text: string, kind: Flash['kind'], team: 0 | 1 | null = null): Flash {
@@ -254,7 +259,7 @@ export class RinkDirector {
         // Saving team is e.team; the shot came at its own net.
         const net = ownNetX(t, p);
         const dd = attackDir(t, p);
-        this.shots.push({ ...this.puck, team: (1 - t) as 0 | 1, kind: 'save', period: p });
+        this.addShot({ ...this.puck, team: (1 - t) as 0 | 1, kind: 'save', period: p });
         this.puck = { x: net + dd * 4, y: RINK.cy + (hash(seed, 8) - 0.5) * 5 };
         this.carrier = null;
         return [this.frame(ice, 'shot', e.data?.big ? this.flash('BIG SAVE!', 'save', t) : this.flash('SAVE', 'save', t))];
@@ -262,7 +267,7 @@ export class RinkDirector {
       case 'goal': {
         const net = attackNetX(t, p);
         if (this.carrier === null || this.carrier !== e.p1) this.puck = this.shooterSpot(t, p, e.data?.dist ?? 18, seed);
-        this.shots.push({ ...this.puck, team: t, kind: 'goal', period: p });
+        this.addShot({ ...this.puck, team: t, kind: 'goal', period: p });
         this.puck = { x: net + d * 2.2, y: RINK.cy + (hash(seed, 9) - 0.5) * 3 };
         this.carrier = null;
         return [this.frame(ice, 'shot', this.flash(`${this.abbr[t]} GOAL!`, 'goal', t), t)];
@@ -272,7 +277,7 @@ export class RinkDirector {
         const dist = e.data?.dist ?? 35;
         this.puck = this.shooterSpot(t, p, dist, seed);
         const wind = this.frame(ice, 'carry');
-        this.shots.push({ ...this.puck, team: t, kind: 'miss', period: p });
+        this.addShot({ ...this.puck, team: t, kind: 'miss', period: p });
         this.puck = { x: attackNetX(t, p) + d * 5, y: RINK.cy + side * (7 + hash(seed, 10) * 8) };
         this.carrier = null;
         return [wind, this.frame(ice, 'shot')];
@@ -284,7 +289,7 @@ export class RinkDirector {
         this.carrier = e.p2 ?? null;
         this.poss = st;
         const wind = this.frame(ice, 'carry');
-        this.shots.push({ ...this.puck, team: st, kind: 'block', period: p });
+        this.addShot({ ...this.puck, team: st, kind: 'block', period: p });
         const net = attackNetX(st, p);
         this.puck = { x: lerp(this.puck.x, net, 0.18), y: lerp(this.puck.y, RINK.cy, 0.18) };
         this.carrier = null;
@@ -336,6 +341,11 @@ export class RinkDirector {
     }
   }
 
+  private addShot(m: ShotMark): void {
+    this.shots.push(m);
+    this.pendingMark = m;
+  }
+
   /** Small movement between events so the play never looks frozen. */
   idle(ice: IceState): Frame {
     const d = attackDir(this.poss, ice.period);
@@ -350,5 +360,30 @@ export class RinkDirector {
       this.puck.x = RINK.cx + uc * d;
     }
     return this.frame(ice, 'carry');
+  }
+}
+
+/**
+ * How long (game seconds) play stops at a whistle before the next faceoff.
+ * The live view holds the game clock this long and the rink uses the same
+ * pause to show the reset, so the two stay in sync.
+ */
+export function whistleHold(type: GameEvent['type']): number {
+  switch (type) {
+    case 'goal':
+      return 3.2;
+    case 'periodEnd':
+      return 2.5;
+    case 'penalty':
+    case 'fight':
+      return 2;
+    case 'freeze':
+    case 'icing':
+    case 'offside':
+    case 'goalieChange':
+    case 'injury':
+      return 1.5;
+    default:
+      return 0;
   }
 }

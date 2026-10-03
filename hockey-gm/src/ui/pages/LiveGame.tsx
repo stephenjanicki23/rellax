@@ -11,7 +11,8 @@ import type { ScheduledGame, Team } from '../../engine/types';
 import { recordString } from '../../engine/league/standings';
 import { playoffRoundName } from '../../engine/league/playoffs';
 import { LiveRink } from '../rink/LiveRink';
-import type { RinkPlayer } from '../rink/director';
+import { whistleHold, type RinkPlayer } from '../rink/director';
+import type { RinkFeed } from '../rink/LiveRink';
 
 type Speed = 'pause' | '1' | '2' | '5' | '10' | '30' | '60';
 const SPEEDS: { id: Speed; label: string }[] = [
@@ -114,12 +115,15 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   };
 
   // Playback runs on game time: at N× the clock advances N game seconds per
-  // real second. The engine advances a whole possession per step, so it runs
-  // one step ahead and the display catches up smoothly; whistles cost no time.
-  const playRef = useRef<{ t: number; cur: Frame; queue: Frame[]; pending: GameEvent[] } | null>(null);
-  if (!playRef.current) playRef.current = { t: 0, cur: { elapsed: 0, snap: sim.snapshot() }, queue: [], pending: [] };
+  // real second while the puck is in play. At a whistle the clock stops for a
+  // moment (as on TV) so the rink can show the reset. The engine advances a
+  // whole possession per step, so it runs one step ahead and the display
+  // catches up smoothly.
+  const playRef = useRef<{ t: number; cur: Frame; queue: Frame[]; pending: GameEvent[]; hold: number; pres: number } | null>(null);
+  if (!playRef.current) playRef.current = { t: 0, cur: { elapsed: 0, snap: sim.snapshot() }, queue: [], pending: [], hold: 0, pres: 0 };
   const [dispT, setDispT] = useState(0);
-  const [shown, setShown] = useState<GameEvent[]>([]);
+  // Shared with the rink without re-rendering: events (tagged with who was on the ice) and the presentation clock.
+  const feed = useRef<RinkFeed>({ items: [], pres: 0, presAt: 0, rate: 0, done: false }).current;
   const rinkPlayers = useMemo<RinkPlayer[]>(
     () => ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null }))),
     [input],
@@ -130,15 +134,18 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     pb.t = t;
     let guard = 0;
     while (!sim.finished && sim.elapsed <= t && guard++ < 20000) {
-      pb.pending.push(...sim.step());
-      pb.queue.push({ elapsed: sim.elapsed, snap: sim.snapshot() });
+      const evs = sim.step();
+      const snapNow = sim.snapshot();
+      pb.pending.push(...evs);
+      pb.queue.push({ elapsed: sim.elapsed, snap: snapNow });
+      for (const e of evs) feed.items.push({ e, ice: { period: snapNow.inShootout ? 5 : e.period, onIce: snapNow.onIce, goalies: snapNow.goalies } });
     }
     while (pb.queue.length && pb.queue[0].elapsed <= t) pb.cur = pb.queue.shift()!;
     const due = pb.pending.filter((e) => e.t <= t);
     if (due.length) {
       pb.pending = pb.pending.filter((e) => e.t > t);
       pushEvents(due);
-      setShown((prev) => [...prev, ...due]);
+      pb.hold += Math.max(0, ...due.map((e) => whistleHold(e.type)));
     }
     setSnap(pb.cur.snap);
     setDispT(t);
@@ -152,18 +159,32 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     if (speed === 'pause' || finished) return;
     const rate = Number(speed);
     let last = performance.now();
+    feed.rate = rate;
     const id = setInterval(() => {
+      const pb = playRef.current!;
       const now = performance.now();
       const dt = (now - last) / 1000;
       last = now;
-      advanceTo(playRef.current!.t + dt * rate);
+      let adv = dt * rate;
+      pb.pres += adv;
+      feed.pres = pb.pres;
+      feed.presAt = now;
+      if (pb.hold > 0) {
+        const use = Math.min(pb.hold, adv);
+        pb.hold -= use;
+        adv -= use;
+      }
+      advanceTo(pb.t + adv);
     }, 50);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      feed.rate = 0;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speed, finished]);
 
   const instant = () => {
-    while (!sim.finished) sim.step();
+    feed.done = true;
     advanceTo(Infinity);
   };
 
@@ -240,7 +261,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
         </div>
       </div>
       <Card className="rink-card">
-        <LiveRink events={shown} snap={s} home={home} away={away} players={rinkPlayers} rate={speed === 'pause' || finished ? 0 : Number(speed)} />
+        <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} />
         <div className="row muted" style={{ justifyContent: 'space-between', fontSize: 12, marginTop: 8 }}>
           <span>{home.abbr} {s.strength[0]} skaters{s.goalies[0] === null ? ' + EN' : ''}</span>
           <span>Momentum</span>
