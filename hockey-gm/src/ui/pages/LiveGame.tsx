@@ -10,6 +10,8 @@ import type { GameEvent, GameInput, GameResult, GameSnapshot } from '../../engin
 import type { ScheduledGame, Team } from '../../engine/types';
 import { recordString } from '../../engine/league/standings';
 import { playoffRoundName } from '../../engine/league/playoffs';
+import { LiveRink } from '../rink/LiveRink';
+import type { RinkPlayer } from '../rink/director';
 
 type Speed = 'pause' | '1' | '2' | '5' | '10' | '30' | '60';
 const SPEEDS: { id: Speed; label: string }[] = [
@@ -117,6 +119,11 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   const playRef = useRef<{ t: number; cur: Frame; queue: Frame[]; pending: GameEvent[] } | null>(null);
   if (!playRef.current) playRef.current = { t: 0, cur: { elapsed: 0, snap: sim.snapshot() }, queue: [], pending: [] };
   const [dispT, setDispT] = useState(0);
+  const [shown, setShown] = useState<GameEvent[]>([]);
+  const rinkPlayers = useMemo<RinkPlayer[]>(
+    () => ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null }))),
+    [input],
+  );
 
   const advanceTo = (t: number) => {
     const pb = playRef.current!;
@@ -131,6 +138,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     if (due.length) {
       pb.pending = pb.pending.filter((e) => e.t > t);
       pushEvents(due);
+      setShown((prev) => [...prev, ...due]);
     }
     setSnap(pb.cur.snap);
     setDispT(t);
@@ -231,7 +239,18 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
           )}
         </div>
       </div>
-      <div className="grid g-main">
+      <Card className="rink-card">
+        <LiveRink events={shown} snap={s} home={home} away={away} players={rinkPlayers} rate={speed === 'pause' || finished ? 0 : Number(speed)} />
+        <div className="row muted" style={{ justifyContent: 'space-between', fontSize: 12, marginTop: 8 }}>
+          <span>{home.abbr} {s.strength[0]} skaters{s.goalies[0] === null ? ' + EN' : ''}</span>
+          <span>Momentum</span>
+          <span>{away.abbr} {s.strength[1]} skaters{s.goalies[1] === null ? ' + EN' : ''}</span>
+        </div>
+        <div className="momentum" style={{ marginTop: 4 }}>
+          <i style={{ left: s.momentum >= 0 ? '50%' : `${50 + s.momentum * 50}%`, width: `${Math.abs(s.momentum) * 50}%`, background: s.momentum >= 0 ? home.colors[0] : away.colors[0] }} />
+        </div>
+      </Card>
+      <div className="grid g-main" style={{ marginTop: 14 }}>
         <div className="grid">
           <Card title="Play-by-play" tight>
             <div className="feed">
@@ -246,17 +265,6 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
           </Card>
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
-          <Card title="Ice">
-            <Rink snap={s} homeColor={home.colors[0]} awayColor={away.colors[0]} />
-            <div className="row muted" style={{ justifyContent: 'space-between', fontSize: 12, marginTop: 6 }}>
-              <span>{home.abbr} {s.strength[0]} skaters{s.goalies[0] === null ? ' + EN' : ''}</span>
-              <span>Momentum</span>
-              <span>{away.abbr} {s.strength[1]} skaters{s.goalies[1] === null ? ' + EN' : ''}</span>
-            </div>
-            <div className="momentum" style={{ marginTop: 4 }}>
-              <i style={{ left: s.momentum >= 0 ? '50%' : `${50 + s.momentum * 50}%`, width: `${Math.abs(s.momentum) * 50}%`, background: s.momentum >= 0 ? home.colors[0] : away.colors[0] }} />
-            </div>
-          </Card>
           <Card title="Game stats">
             <table className="tbl">
               <tbody>
@@ -301,36 +309,3 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   );
 }
 
-function Rink({ snap, homeColor, awayColor }: { snap: GameSnapshot; homeColor: string; awayColor: string }) {
-  // Home attacks to the right.
-  const z = snap.zone;
-  const home = snap.possession === 0;
-  const ownEnd = home ? 40 : 160;
-  const oppEnd = home ? 160 : 40;
-  const x = z === 'D' ? ownEnd : z === 'O' ? oppEnd : 100;
-  const wobble = ((Math.floor(snap.clock * 7) % 9) - 4) * 3;
-  const y = 42 + wobble;
-  return (
-    <svg className="rink" viewBox="0 0 200 85">
-      <rect x="2" y="2" width="196" height="81" rx="24" fill="var(--bg2)" stroke="var(--line2)" strokeWidth="1.5" />
-      <line x1="100" y1="2" x2="100" y2="83" stroke="#ef4444" strokeWidth="1.5" opacity="0.7" />
-      <line x1="72" y1="2" x2="72" y2="83" stroke="#3b82f6" strokeWidth="2" opacity="0.7" />
-      <line x1="128" y1="2" x2="128" y2="83" stroke="#3b82f6" strokeWidth="2" opacity="0.7" />
-      <line x1="14" y1="6" x2="14" y2="79" stroke="#ef4444" strokeWidth="0.8" opacity="0.6" />
-      <line x1="186" y1="6" x2="186" y2="79" stroke="#ef4444" strokeWidth="0.8" opacity="0.6" />
-      <circle cx="100" cy="42.5" r="10" fill="none" stroke="#3b82f6" strokeWidth="0.8" opacity="0.6" />
-      <path d="M14 37 a6 6 0 0 1 0 11" fill="#60a5fa33" stroke="#ef4444" strokeWidth="0.6" />
-      <path d="M186 37 a6 6 0 0 0 0 11" fill="#60a5fa33" stroke="#ef4444" strokeWidth="0.6" />
-      <circle cx="40" cy="24" r="7" fill="none" stroke="#ef4444" strokeWidth="0.6" opacity="0.5" />
-      <circle cx="40" cy="61" r="7" fill="none" stroke="#ef4444" strokeWidth="0.6" opacity="0.5" />
-      <circle cx="160" cy="24" r="7" fill="none" stroke="#ef4444" strokeWidth="0.6" opacity="0.5" />
-      <circle cx="160" cy="61" r="7" fill="none" stroke="#ef4444" strokeWidth="0.6" opacity="0.5" />
-      <rect x="2" y="2" width="40" height="81" rx="24" fill={homeColor} opacity="0.06" />
-      <rect x="158" y="2" width="40" height="81" rx="24" fill={awayColor} opacity="0.06" />
-      <circle cx={x} cy={y} r="3.5" fill="#f8fafc" stroke={home ? homeColor : awayColor} strokeWidth="2" style={{ transition: 'cx 0.4s, cy 0.4s' }} />
-      <text x="100" y="80" textAnchor="middle" fontSize="6" fill="var(--dim)">
-        {home ? '→' : '←'} {z === 'O' ? 'attacking zone' : z === 'D' ? 'own zone' : 'neutral zone'}
-      </text>
-    </svg>
-  );
-}

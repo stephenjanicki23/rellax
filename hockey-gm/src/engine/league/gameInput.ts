@@ -14,6 +14,7 @@ export function toGamePlayer(p: Player, season: number): GamePlayerInput {
     id: p.id,
     first: p.first,
     last: p.last,
+    number: p.number,
     pos: p.pos,
     archetype: p.archetype,
     attrs: p.attrs,
