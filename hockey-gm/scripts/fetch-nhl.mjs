@@ -4,11 +4,13 @@
  * from the NHL's public stats feed and writes the snapshot the game bundles:
  *   src/engine/data/nhl/rosters.json
  *
- * Usage: npm run fetch:nhl [-- --season 2026]
+ * Usage: npm run fetch:nhl [-- --season 2026] [--staff-only]
+ * (--staff-only refreshes head coaches in the existing snapshot without
+ * re-pulling rosters.)
  * (season = start year of the season the rosters are for; defaults to the
  * current hockey season.)
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -101,6 +103,40 @@ function seasonLines(landing, goalie) {
   return lines;
 }
 
+/** Current head coach, read from the team's most recent completed game. */
+async function headCoach(abbr) {
+  for (const y of [season, season - 1]) {
+    const sched = await get(`/club-schedule-season/${abbr}/${y}${y + 1}`);
+    const done = (sched?.games ?? []).filter((g) => g.gameState === 'OFF' || g.gameState === 'FINAL');
+    const last = done.at(-1);
+    if (!last) continue;
+    const rail = await get(`/gamecenter/${last.id}/right-rail`);
+    const side = last.homeTeam?.abbrev === abbr ? 'homeTeam' : 'awayTeam';
+    const name = text(rail?.gameInfo?.[side]?.headCoach);
+    if (name) return name;
+  }
+  return null;
+}
+
+async function fetchStaff() {
+  const staff = {};
+  for (const abbr of TEAMS) {
+    staff[abbr] = { headCoach: await headCoach(abbr) };
+    console.log(`${abbr}: ${staff[abbr].headCoach ?? '?'}`);
+  }
+  return staff;
+}
+
+const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'engine', 'data', 'nhl', 'rosters.json');
+
+if (process.argv.includes('--staff-only')) {
+  const snap = JSON.parse(readFileSync(file, 'utf8'));
+  snap.staff = await fetchStaff();
+  writeFileSync(file, JSON.stringify(snap) + '\n');
+  console.log(`Updated head coaches in ${file}`);
+  process.exit(0);
+}
+
 const teams = {};
 let count = 0;
 for (const abbr of TEAMS) {
@@ -130,7 +166,6 @@ for (const abbr of TEAMS) {
   console.log(`${abbr}: ${teams[abbr].length} players`);
 }
 
-const out = { season, fetchedAt: now.toISOString(), source: 'api-web.nhle.com', teams };
-const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'engine', 'data', 'nhl', 'rosters.json');
+const out = { season, fetchedAt: now.toISOString(), source: 'api-web.nhle.com', teams, staff: await fetchStaff() };
 writeFileSync(file, JSON.stringify(out) + '\n');
 console.log(`Wrote ${count} players for ${season}-${String(season + 1).slice(2)} to ${file}`);

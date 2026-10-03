@@ -261,17 +261,29 @@ export function absorbCapDumps(league: League): void {
     for (let moves = 0; moves < 3; moves++) {
       const shortfall = league.cap.floor - payroll(league, team.id);
       if (shortfall < league.cap.minSalary * 2) break;
+      const myG = playersOf(league, team.id, ['active']).filter((p) => p.pos === 'G');
+      const bestG = Math.max(0, ...myG.map((p) => p.ca));
       let best: Player | null = null;
+      let bestScore = -Infinity;
       for (const giver of cpu) {
-        if (giver.id === team.id || payroll(league, giver.id) < league.cap.upper * 0.9) continue;
+        if (giver.id === team.id) continue;
+        const pressed = payroll(league, giver.id) >= league.cap.upper * 0.85;
         const active = playersOf(league, giver.id, ['active']);
         const c = rosterCounts(active);
+        const theirG = active.filter((p) => p.pos === 'G').sort((a, b) => b.ca - a.ca);
         for (const p of active) {
           const sal = p.contract?.salary ?? 0;
           if (sal < league.cap.minSalary * 2 || sal > shortfall + league.cap.minSalary * 3) continue;
           if (league.season - p.birthYear < 26 || p.id === giver.captain || p.contract?.ntc) continue;
           if (c[group(p)] <= MIN[group(p)]) continue;
-          if (!best || p.ca > best.ca) best = p;
+          // Teams with a spare goalie move him to a floor team that badly needs one.
+          const spareGoalie = p.pos === 'G' && theirG[0]?.id !== p.id && bestG < 130 && p.ca > bestG + 6;
+          if (!pressed && !spareGoalie) continue;
+          const score = p.ca + (spareGoalie ? 25 : 0);
+          if (score > bestScore) {
+            best = p;
+            bestScore = score;
+          }
         }
       }
       if (!best) break;

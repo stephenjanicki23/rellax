@@ -14,6 +14,7 @@ import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
 import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
 import type { NhlSnapshot } from '../data/nhl/types';
+import { COACH_QUALITY, NHL_GMS, splitName } from '../data/nhl/staff';
 import NHL_SNAPSHOT from '../data/nhl/rosters.json';
 
 export interface CreateLeagueOptions {
@@ -221,8 +222,13 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   for (let i = 0; i < draftClassSize; i++) addPlayer(generateProspect(rng, ids.player++, season));
 
   // ── Coaches
+  const realStaff = !!snap && snapshotHasRosters(snap, abbrs);
   for (const t of teams) {
-    const head = generateCoach(rng, ids.coach++, season, clamp(rng.normal(108, 18), 60, 170), 'head');
+    const realCoach = realStaff ? snap.staff?.[t.abbr]?.headCoach : null;
+    const quality = realCoach && COACH_QUALITY[realCoach] ? COACH_QUALITY[realCoach] : clamp(rng.normal(108, 18), 60, 170);
+    const head = generateCoach(rng, ids.coach++, season, quality, 'head');
+    if (realCoach) Object.assign(head, splitName(realCoach));
+    if (realStaff && NHL_GMS[t.abbr]) t.gm.name = NHL_GMS[t.abbr];
     const asst = generateCoach(rng, ids.coach++, season, clamp(rng.normal(95, 15), 50, 150), 'assistant');
     const gk = generateCoach(rng, ids.coach++, season, clamp(rng.normal(100, 18), 50, 160), 'goalie');
     for (const c of [head, asst, gk]) {
