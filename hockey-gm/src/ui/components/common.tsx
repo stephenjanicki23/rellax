@@ -3,8 +3,29 @@ import type { League, Player, Position, Team } from '../../engine/types';
 import { href } from '../router';
 import { stars as starValue } from '../../engine/player/ability';
 
-export function TeamLogo({ team, size = 28 }: { team: Pick<Team, 'abbr' | 'colors'>; size?: number }) {
+/** Image URLs that failed to load this session (offline, blocked CDN), so we stop retrying them. */
+const brokenImages = new Set<string>();
+
+export function TeamLogo({ team, size = 28 }: { team: Pick<Team, 'abbr' | 'colors'> & { logo?: string }; size?: number }) {
+  const [, setBroken] = useState(0);
   const [a, b] = team.colors;
+  if (team.logo && !brokenImages.has(team.logo)) {
+    const src = team.logo;
+    return (
+      <img
+        src={src}
+        width={size}
+        height={size}
+        alt={team.abbr}
+        loading="lazy"
+        style={{ flex: 'none', objectFit: 'contain' }}
+        onError={() => {
+          brokenImages.add(src);
+          setBroken((n) => n + 1);
+        }}
+      />
+    );
+  }
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-label={team.abbr} style={{ flex: 'none' }}>
       <path d="M20 2 L36 8 L34 26 Q30 34 20 38 Q10 34 6 26 L4 8 Z" fill={a} stroke={b} strokeWidth="2.5" />
@@ -12,6 +33,28 @@ export function TeamLogo({ team, size = 28 }: { team: Pick<Team, 'abbr' | 'color
         {team.abbr}
       </text>
     </svg>
+  );
+}
+
+/** Player headshot in a team-coloured circle; renders `fallback` when there is no photo or it fails to load. */
+export function Headshot({ p, size = 48, color, fallback = null }: { p: Pick<Player, 'headshot' | 'first' | 'last'>; size?: number; color?: string; fallback?: ReactNode }) {
+  const [, setBroken] = useState(0);
+  if (!p.headshot || brokenImages.has(p.headshot)) return <>{fallback}</>;
+  const src = p.headshot;
+  return (
+    <img
+      className="headshot"
+      src={src}
+      width={size}
+      height={size}
+      alt={`${p.first} ${p.last}`}
+      loading="lazy"
+      style={{ background: `radial-gradient(circle at 50% 35%, ${color ?? '#3a3d43'}, #101113 75%)` }}
+      onError={() => {
+        brokenImages.add(src);
+        setBroken((n) => n + 1);
+      }}
+    />
   );
 }
 

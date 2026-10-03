@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEFAULT_CONFIG } from '../../engine/data/leagueConfig';
 import type { League, Player } from '../../engine/types';
 import type { SaveMeta } from '../../engine/save';
 import { newGame, loadGame, importGame, toast, ask } from '../store';
 import { listSaves, deleteSave } from '../db';
-import { TeamLogo } from '../components/common';
+import { Headshot, TeamLogo } from '../components/common';
+import { teamAccentVars } from '../teamColors';
 import { LiveView } from '../pages/LiveGame';
 import { PHASE_LABEL, seasonLabel } from '../format';
 import { ARCHETYPES } from '../../engine/player/archetypes';
@@ -71,7 +72,7 @@ export function MainMenu() {
 
   const shownTeam = screen === 'playnow' ? match.home : heroTeam;
   const t = TEAMS[shownTeam];
-  const style = { '--m-team': t.colors[0], '--m-team2': t.colors[1] } as CSSProperties;
+  const style = teamAccentVars(t.colors);
   const showHero = screen === 'title';
 
   return (
@@ -660,7 +661,10 @@ function Rosters({ league, onBack }: { league: League; onBack: () => void }) {
                 </td>
                 <td>
                   <button className="mm-name" onClick={(e) => { e.stopPropagation(); setOpen(i); }}>
-                    {p.first} <b>{p.last}</b>
+                    <Headshot p={p} size={30} color={t.colors[0]} />
+                    <span>
+                      {p.first} <b>{p.last}</b>
+                    </span>
                   </button>
                 </td>
                 <td>{p.pos}</td>

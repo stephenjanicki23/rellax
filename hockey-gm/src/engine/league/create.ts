@@ -79,6 +79,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       conferenceId: conferenceOfDivision(cfg, seedT.divisionId),
       divisionId: seedT.divisionId,
       colors: seedT.colors,
+      logo: seedT.logo,
       marketSize: seedT.marketSize,
       appeal: seedT.appeal,
       budget: 0,

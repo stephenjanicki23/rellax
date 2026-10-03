@@ -9,10 +9,11 @@ import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, GOALIE_ATTRS, MENTAL_ATTRS } from '../
 import { ARCHETYPES } from '../../engine/player/archetypes';
 import { PERSONALITIES, TRAITS } from '../../engine/player/personality';
 import { countryLabel } from '../../engine/data/names';
-import { TeamLogo } from '../components/common';
+import { Headshot, TeamLogo } from '../components/common';
 import { attrLabel } from '../attrLabels';
 import { heightLabel, weightLabel } from '../format';
 import { Jersey } from './Jersey';
+import { teamAccentVars } from '../teamColors';
 import { playerOvr } from './exhibition';
 
 export const ratingTier = (v: number): string => (v >= 85 ? 'elite' : v >= 75 ? 'good' : v >= 62 ? 'avg' : 'low');
@@ -52,11 +53,18 @@ export function PlayerCardView({ p, team, season, rate, ovr, potential, personal
   const pers = personality === undefined ? PERSONALITIES[p.personality].label : personality;
   const tr = traits === undefined ? p.traits.map((x) => TRAITS[x].label) : traits;
   return (
-    <div className="mm-card">
+    <div className="mm-card" style={teamAccentVars(t.colors)}>
       <div className="mm-box mm-card-id">
-        <div className="mm-card-jersey">
-          <Jersey primary={t.colors[0]} secondary={t.colors[1]} number={String(p.number)} abbr={t.abbr} />
-        </div>
+        <Headshot
+          p={p}
+          size={220}
+          color={t.colors[0]}
+          fallback={
+            <div className="mm-card-jersey">
+              <Jersey primary={t.colors[0]} secondary={t.colors[1]} number={String(p.number)} abbr={t.abbr} />
+            </div>
+          }
+        />
         <div className="mm-card-name">
           <span className="num">#{p.number}</span>
           <span className="first">{p.first}</span>

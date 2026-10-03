@@ -220,6 +220,6 @@ Two offseason AI rules keep real rosters stable over many seasons:
 
 - Box scores store a game summary (goals, shots, xG, stars, goalies). Full per-player game logs are not kept, to keep saves small.
 - No waivers, offer sheets, dead cap from buyouts, or minor-league standings. Prospects simply develop "in the system".
-- Team logos are generated placeholders, not official NHL marks. Coaches, GMs, prospects, free agents and future draft classes are generated.
+- Team logos and player headshots load from the NHL's asset CDN (assets.nhle.com) in the browser. If they can't load, the game falls back to generated crests and jerseys. Assistant coaches, scouts, prospects, extra free agents and future draft classes are generated.
 - Ratings are estimates from production stats. Defensive play and goaltending without large samples are the least certain.
 - Simulation runs on the main thread in daily chunks, which keeps the UI responsive. A full season takes about 7–10 s in a browser. A Web Worker would make it fully non-blocking.

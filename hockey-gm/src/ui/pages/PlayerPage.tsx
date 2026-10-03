@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGame, mutate, toast, ask } from '../store';
 import { navigate } from '../router';
-import { Card, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg, Tabs } from '../components/common';
+import { Card, Headshot, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg, Tabs } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
 import { attr20, roleForAbility } from '../../engine/player/ability';
@@ -47,6 +47,7 @@ export function PlayerPage({ id }: { id: number }) {
   return (
     <>
       <div className="page-head">
+        <Headshot p={p} size={72} color={team?.colors[0]} />
         {team && <TeamLogo team={team} size={52} />}
         <div>
           <h1>
