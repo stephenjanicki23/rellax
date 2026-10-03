@@ -10,6 +10,11 @@ import { PHASE_LABEL, seasonLabel } from '../format';
 import { ARCHETYPES } from '../../engine/player/archetypes';
 import { isForward } from '../../engine/player/ability';
 import { playersOf } from '../../engine/league/helpers';
+import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, GOALIE_ATTRS, MENTAL_ATTRS } from '../../engine/types';
+import { PERSONALITIES, TRAITS } from '../../engine/player/personality';
+import { NAME_POOLS } from '../../engine/data/names';
+import { attrLabel } from '../attrLabels';
+import { heightLabel, weightLabel } from '../format';
 import { Jersey, Emblem } from './Jersey';
 import { EXHIBITION_SEED, exhibitionInput, exhibitionLeague, heroNumber, playerOvr, teamRatings } from './exhibition';
 import './menu.css';
@@ -103,7 +108,7 @@ export function MainMenu() {
       {screen === 'franchiseNew' && <FranchiseNew onBack={() => setScreen('title')} />}
       {screen === 'franchiseLoad' && <FranchiseLoad saves={saves} refresh={refreshSaves} onBack={() => setScreen('title')} />}
       {screen === 'rosters' && (league ? <Rosters league={league} onBack={() => setScreen('title')} /> : <div className="mm-loading">Loading rosters…</div>)}
-      <Footer />
+      <Footer emblem={screen === 'title'} />
     </div>
   );
 }
@@ -248,7 +253,7 @@ function Title({ saves, go }: { saves: SaveMeta[]; go: (s: Screen) => void }) {
 
 // ───────────────────────────── shell pieces ─────────────────────────────
 
-function Footer() {
+function Footer({ emblem }: { emblem: boolean }) {
   const items = useMemo(() => {
     const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)];
     const a = pick(TEAMS);
@@ -286,14 +291,16 @@ function Footer() {
           <kbd>↑↓</kbd>Select<kbd>Enter</kbd>Confirm<kbd>Esc</kbd>Back
         </span>
       </footer>
-      <div className="mm-foot-emblem">
-        <Emblem size={84} />
-      </div>
+      {emblem && (
+        <div className="mm-foot-emblem">
+          <Emblem size={84} />
+        </div>
+      )}
     </>
   );
 }
 
-function ScreenHead({ title, sub, onBack, right }: { title: string; sub?: string; onBack: () => void; right?: ReactNode }) {
+function ScreenHead({ title, sub, onBack, right }: { title: ReactNode; sub?: string; onBack: () => void; right?: ReactNode }) {
   useKeys((e) => {
     if (e.key === 'Escape' || e.key === 'Backspace') {
       e.preventDefault();
@@ -544,6 +551,7 @@ const r99 = (v: number) => playerOvr(v);
 function Rosters({ league, onBack }: { league: League; onBack: () => void }) {
   const [team, setTeam] = useState(0);
   const [tab, setTab] = useState<'F' | 'D' | 'G'>('F');
+  const [open, setOpen] = useState<number | null>(null);
   const t = league.teams[team];
   const players = useMemo(
     () =>
@@ -553,10 +561,16 @@ function Rosters({ league, onBack }: { league: League; onBack: () => void }) {
     [league, team, tab],
   );
   const r = teamRatings(team);
-  useKeys((e) => {
-    if (e.key === 'ArrowLeft') setTeam((x) => wrap(x - 1));
-    else if (e.key === 'ArrowRight') setTeam((x) => wrap(x + 1));
-  });
+  useKeys(
+    (e) => {
+      if (e.key === 'ArrowLeft') setTeam((x) => wrap(x - 1));
+      else if (e.key === 'ArrowRight') setTeam((x) => wrap(x + 1));
+    },
+    open === null,
+  );
+  if (open !== null && players[open]) {
+    return <PlayerCard league={league} players={players} index={open} setIndex={setOpen} onBack={() => setOpen(null)} />;
+  }
   const cols: { k: string; f: (p: Player) => number }[] =
     tab === 'G'
       ? [
@@ -579,7 +593,7 @@ function Rosters({ league, onBack }: { league: League; onBack: () => void }) {
         ];
   return (
     <div className="mm-screen">
-      <ScreenHead title="Rosters" sub="Default league. ← → to change team." onBack={onBack} />
+      <ScreenHead title="Rosters" sub="Default league. ← → to change team · click a player for his full ratings." onBack={onBack} />
       <div className="mm-box" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <button className="mm-arrow" aria-label="Previous team" onClick={() => setTeam((x) => wrap(x - 1))}>
           ◀
@@ -643,13 +657,15 @@ function Rosters({ league, onBack }: { league: League; onBack: () => void }) {
             </tr>
           </thead>
           <tbody>
-            {players.map((p) => (
-              <tr key={p.id}>
+            {players.map((p, i) => (
+              <tr key={p.id} className="mm-row-link" onClick={() => setOpen(i)}>
                 <td className="n" style={{ color: 'var(--m-dim)' }}>
                   {p.number}
                 </td>
                 <td>
-                  {p.first} <b>{p.last}</b>
+                  <button className="mm-name" onClick={(e) => { e.stopPropagation(); setOpen(i); }}>
+                    {p.first} <b>{p.last}</b>
+                  </button>
                 </td>
                 <td>{p.pos}</td>
                 <td className="n">{league.season - p.birthYear}</td>
@@ -666,6 +682,103 @@ function Rosters({ league, onBack }: { league: League; onBack: () => void }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── player card ─────────────────────────────
+
+const tier = (v: number) => (v >= 85 ? 'elite' : v >= 75 ? 'good' : v >= 62 ? 'avg' : 'low');
+
+function potentialGrade(p: Player, season: number): { grade: string; note: string } {
+  const age = season - p.birthYear;
+  const v = playerOvr(p.pa);
+  const grade = v >= 92 ? 'A+' : v >= 88 ? 'A' : v >= 84 ? 'A-' : v >= 80 ? 'B+' : v >= 76 ? 'B' : v >= 72 ? 'C+' : 'C';
+  const note = age >= 28 ? 'At or near his peak' : p.pa - p.ca >= 20 ? 'Lots of room to grow' : p.pa - p.ca >= 8 ? 'Still improving' : 'Close to his ceiling';
+  return { grade, note };
+}
+
+function PlayerCard({ league, players, index, setIndex, onBack }: { league: League; players: Player[]; index: number; setIndex: (i: number) => void; onBack: () => void }) {
+  const p = players[index];
+  const team = league.teams[p.teamId ?? 0];
+  const age = league.season - p.birthYear;
+  const isG = p.pos === 'G';
+  const groups = isG ? GOALIE_ATTR_GROUPS : ATTR_GROUPS;
+  const ovr = playerOvr(p.ca);
+  const pot = potentialGrade(p, league.season);
+  const arch = ARCHETYPES[p.archetype];
+  const pers = PERSONALITIES[p.personality];
+  const nat = NAME_POOLS.find((n) => n.code === p.nat)?.label ?? p.nat;
+  const relevant = groups.flatMap((g) => g.keys).filter((k) => isG || !GOALIE_ATTRS.includes(k as (typeof GOALIE_ATTRS)[number]));
+  const ranked = [...relevant].filter((k) => !MENTAL_ATTRS.includes(k as (typeof MENTAL_ATTRS)[number])).sort((a, b) => p.attrs[b] - p.attrs[a]);
+  const step = (d: number) => setIndex((index + d + players.length) % players.length);
+  useKeys((e) => {
+    if (e.key === 'ArrowLeft') step(-1);
+    else if (e.key === 'ArrowRight') step(1);
+  });
+  return (
+    <div className="mm-screen">
+      <ScreenHead
+        title="Player Card"
+        sub={`${team.city} ${team.name} · ${index + 1} of ${players.length} · ← → previous / next player`}
+        onBack={onBack}
+        right={
+          <>
+            <button className="mm-arrow" aria-label="Previous player" onClick={() => step(-1)}>◀</button>
+            <button className="mm-arrow" aria-label="Next player" onClick={() => step(1)}>▶</button>
+          </>
+        }
+      />
+      <div className="mm-card">
+        <div className="mm-box mm-card-id">
+          <div className="mm-card-jersey">
+            <Jersey primary={team.colors[0]} secondary={team.colors[1]} number={String(p.number)} abbr={team.abbr} />
+          </div>
+          <div className="mm-card-name">
+            <span className="num">#{p.number}</span>
+            <span className="first">{p.first}</span>
+            <span className="last">{p.last}</span>
+            <span className="meta">{p.pos} · {arch.label.replace('Goaltender ', 'Goalie ')}</span>
+          </div>
+          <div className="mm-card-badges">
+            <div><span>Overall</span><b className="mm-ovr big">{ovr}</b></div>
+            <div><span>Potential</span><b className="mm-ovr big ghost">{pot.grade}</b></div>
+          </div>
+          <div className="mm-card-note">{pot.note}</div>
+          <dl className="mm-kv">
+            <dt>Team</dt><dd><TeamLogo team={team} size={18} /> {team.abbr}</dd>
+            <dt>Age</dt><dd>{age}</dd>
+            <dt>Height</dt><dd>{heightLabel(p.heightCm)}</dd>
+            <dt>Weight</dt><dd>{weightLabel(p.weightKg)}</dd>
+            <dt>{isG ? 'Catches' : 'Shoots'}</dt><dd>{p.shoots === 'L' ? 'Left' : 'Right'}</dd>
+            <dt>Born</dt><dd>{nat}</dd>
+            <dt>Personality</dt><dd title={pers.description}>{pers.label}</dd>
+            {p.traits.length > 0 && (<><dt>Traits</dt><dd>{p.traits.map((t) => TRAITS[t].label).join(', ')}</dd></>)}
+          </dl>
+          <p className="mm-card-desc">{arch.description}</p>
+          <div className="mm-card-tags">
+            <div><span>Strengths</span>{ranked.slice(0, 3).map((k) => <em key={k}>{attrLabel(k)}</em>)}</div>
+            <div><span>Weaknesses</span>{ranked.slice(-2).map((k) => <em key={k} className="weak">{attrLabel(k)}</em>)}</div>
+          </div>
+        </div>
+        <div className="mm-card-attrs">
+          {groups.map((g) => (
+            <div key={g.label} className="mm-box mm-attr-group">
+              <h3>{g.label}</h3>
+              {g.keys.map((k) => {
+                const v = playerOvr(p.attrs[k]);
+                return (
+                  <div key={k} className={`mm-attr ${tier(v)}`}>
+                    <span className="n">{attrLabel(k)}</span>
+                    <span className="bar"><i style={{ width: `${v}%` }} /></span>
+                    <b>{v}</b>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

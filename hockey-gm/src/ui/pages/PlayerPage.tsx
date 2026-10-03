@@ -3,7 +3,7 @@ import { useGame, mutate, toast, ask } from '../store';
 import { navigate } from '../router';
 import { Card, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
-import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type AttrKey, type StatLine } from '../../engine/types';
+import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
 import { attr20, roleForAbility } from '../../engine/player/ability';
 import { ARCHETYPES } from '../../engine/player/archetypes';
 import { PERSONALITIES, TRAITS } from '../../engine/player/personality';
@@ -15,15 +15,8 @@ import { offerContract, makeOffer } from '../../engine/economy/freeAgency';
 import { demote, promote, releasePlayer } from '../../engine/economy/roster';
 import { heightLabel, weightLabel, seasonLabel, sv } from '../format';
 import { NAME_POOLS } from '../../engine/data/names';
+import { attrLabel as label } from '../attrLabels';
 
-const LABELS: Partial<Record<AttrKey, string>> = {
-  wristPower: 'Wrist Shot Power', wristAccuracy: 'Wrist Shot Accuracy', slapPower: 'Slap Shot Power', slapAccuracy: 'Slap Shot Accuracy',
-  oneTimer: 'One-Timer', offAwareness: 'Offensive Awareness', defAwareness: 'Defensive Awareness', decisionMaking: 'Decision Making',
-  hockeySense: 'Hockey Sense', bodyChecking: 'Body Checking', stickChecking: 'Stick Checking', shotBlocking: 'Shot Blocking',
-  defPositioning: 'Defensive Positioning', gPositioning: 'Positioning', reboundControl: 'Rebound Control', puckHandling: 'Puck Handling',
-  highDanger: 'High-Danger Saves', lateral: 'Lateral Movement', puckControl: 'Puck Control', shotSelection: 'Shot Selection', clutch: 'Clutch',
-};
-const label = (k: AttrKey) => LABELS[k] ?? k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
 export function PlayerPage({ id }: { id: number }) {
   const { league } = useGame();
