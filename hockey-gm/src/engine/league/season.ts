@@ -10,10 +10,13 @@ import type { GameResult } from '../sim/gameTypes';
 import { simulateGame } from '../sim/engine';
 import { buildGameInput } from './gameInput';
 import { applyToStandings } from './standings';
-import { addNews, playersOf, teamName } from './helpers';
+import { addNews, isCpu, playersOf, teamName } from './helpers';
 import { makeInjury, injuryLabel } from '../player/injuries';
 import { developPlayer } from '../player/development';
 import { newsFromGame } from './news';
+import { processWaivers } from '../cba/waivers';
+import { dailyLtir } from '../cba/capActions';
+import { enforceCap, trimRoster } from '../economy/roster';
 import { startPlayoffs, playoffGamesForToday, applyPlayoffResult } from './playoffs';
 import { aiDaily } from '../ai/gm';
 import { checkLiveRecords } from './records';
@@ -166,6 +169,12 @@ function dailyUpdates(league: League): void {
       if (p.injury.daysRemaining <= 0) p.injury = null;
     }
     p.fatigue = clamp(p.fatigue * 0.58 - 0.5, 0, 100);
+  }
+  processWaivers(league);
+  for (const p of dailyLtir(league)) {
+    if (p.teamId === null || !isCpu(league, p.teamId)) continue;
+    trimRoster(league, p.teamId);
+    enforceCap(league, p.teamId);
   }
   if (day % 7 === 6) updateMorale(league);
   if (day % 21 === 20) inSeasonDevelopment(league, 21 / 190);

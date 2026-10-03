@@ -48,7 +48,7 @@ export function ContractsPage() {
             </button>
           )}
           {resign && (
-            <button className="btn small danger" onClick={() => mutate((l) => releasePlayer(l, p, 'decline to re-sign'))}>
+            <button className="btn small danger" onClick={() => { const r = mutate((l) => releasePlayer(l, p, 'decline to re-sign')); if (!r.ok) toast(r.message, 'bad'); }}>
               Let go
             </button>
           )}

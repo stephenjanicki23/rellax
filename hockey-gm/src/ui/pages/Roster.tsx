@@ -38,7 +38,7 @@ export function RosterPage() {
               const grp = p.pos === 'G' ? counts.G : p.pos === 'D' ? counts.D : counts.F;
               const min = p.pos === 'G' ? 2 : p.pos === 'D' ? 6 : 12;
               if (grp <= min && !p.injury) return toast(`You need at least ${min} healthy ${p.pos === 'G' ? 'goalies' : p.pos === 'D' ? 'defensemen' : 'forwards'}.`, 'bad');
-              mutate((l) => demote(l, p));
+              { const r = mutate((l) => demote(l, p)); toast(r.message, r.ok ? 'info' : 'bad'); }
               toast(`${p.last} assigned to the minors.`);
             }}
           >
@@ -61,7 +61,7 @@ export function RosterPage() {
           className="btn small danger"
           onClick={async () => {
             if (!(await ask(`Release ${p.first} ${p.last}? He becomes a free agent and your team takes no further salary responsibility.`, 'Release'))) return;
-            mutate((l) => releasePlayer(l, p, 'release'));
+            { const r = mutate((l) => releasePlayer(l, p, 'release')); toast(r.message, r.ok ? 'info' : 'bad'); }
           }}
         >
           Release

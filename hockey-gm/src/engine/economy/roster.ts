@@ -3,6 +3,11 @@ import { addNews, addTransaction, playersOf, teamName, withRng } from '../league
 import { generatePlayer } from '../player/generate';
 import { capSpace, marketValue } from './contracts';
 import { signFromOffer, type SignResult } from '../cba/contractService';
+import { capSeason, contractFor, teamCapSheet } from '../cba/capManager';
+import { endOf } from '../cba/contract';
+import { rulesFor } from '../cba/rules';
+import { buyoutPlayer, canPlaceOnLTIR, inBuyoutWindow, placeOnLTIR } from '../cba/capActions';
+import { needsWaivers, onWaivers, placeOnWaivers, waiverConsentBlock, waiverPeriod, waiverRisk } from '../cba/waivers';
 import { fullName, isForward } from '../player/ability';
 import { emptyStatLine } from '../core/statline';
 
@@ -11,8 +16,10 @@ const healthy = (p: Player) => !p.injury || p.injury.daysRemaining <= 0;
 /** Players on injured reserve (out more than a week) do not count against the roster limit. */
 export const onIR = (p: Player): boolean => !!p.injury && p.injury.daysRemaining > 7;
 
+const onWaiversNow = (league: League, p: Player): boolean => !!onWaivers(league, p.id);
+
 export function rosterSize(league: League, teamId: number): number {
-  return playersOf(league, teamId, ['active']).filter((p) => !onIR(p)).length;
+  return playersOf(league, teamId, ['active']).filter((p) => !onIR(p) && !p.ltir).length;
 }
 
 export function rosterCounts(players: Player[]): { F: number; D: number; G: number; total: number } {
@@ -31,31 +38,65 @@ function ensureStats(league: League, p: Player): void {
 }
 
 export function promote(league: League, p: Player, announce = true): void {
-  if (p.status !== 'prospect') return;
+  if (p.status !== 'prospect' || onWaiversNow(league, p)) return;
   p.status = 'active';
   ensureStats(league, p);
   if (announce && p.teamId !== null) addTransaction(league, { kind: 'callup', teamIds: [p.teamId], playerIds: [p.id], description: `${teamName(league, p.teamId)} recall ${fullName(p)} (${p.pos})` });
 }
 
-export function demote(league: League, p: Player, announce = true): void {
-  if (p.status !== 'active') return;
-  p.status = 'prospect';
-  const age = league.season - p.birthYear;
-  if (age >= 25) p.morale = Math.max(0, p.morale - 20);
-  if (announce && p.teamId !== null) addTransaction(league, { kind: 'senddown', teamIds: [p.teamId], playerIds: [p.id], description: `${teamName(league, p.teamId)} assign ${fullName(p)} to the minors` });
+export interface MoveResult {
+  ok: boolean;
+  message: string;
 }
 
-export function releasePlayer(league: League, p: Player, reason = 'released'): void {
+/**
+ * Assign a player to the minors. Non-exempt players go through waivers
+ * during the waiver period; NMC players refuse (CBA 11.8, 13).
+ */
+export function demote(league: League, p: Player, announce = true): MoveResult {
+  if (p.status !== 'active') return { ok: false, message: `${fullName(p)} is not on the NHL roster.` };
+  const block = waiverConsentBlock(league, p);
+  if (block) return { ok: false, message: block };
+  const age = league.season - p.birthYear;
+  if (age >= 25) p.morale = Math.max(0, p.morale - 20);
+  if (needsWaivers(league, p).required) return placeOnWaivers(league, p, 'assignment');
+  p.status = 'prospect';
+  const msg = `${teamName(league, p.teamId)} assign ${fullName(p)} to the minors`;
+  if (announce && p.teamId !== null) addTransaction(league, { kind: 'senddown', teamIds: [p.teamId], playerIds: [p.id], description: msg });
+  return { ok: true, message: msg };
+}
+
+/**
+ * Release a player. Unsigned players and expired contracts go immediately.
+ * Signed players: a buyout in the offseason window; otherwise only two-way
+ * or expiring deals can be terminated (unconditional waivers + mutual
+ * termination). One-way multi-year contracts cannot be dropped mid-season.
+ */
+export function releasePlayer(league: League, p: Player, reason = 'released'): MoveResult {
   const tid = p.teamId;
+  const c = p.contract ? contractFor(p, capSeason(league)) : null;
+  if (c && tid !== null && (p.status === 'active' || p.status === 'prospect')) {
+    if (inBuyoutWindow(league) && contractFor(p, league.season + 1)) {
+      const r = buyoutPlayer(league, p);
+      return { ok: r.ok, message: r.ok ? `${fullName(p)} bought out.` : r.errors.join(' ') };
+    }
+    const expiring = endOf(c) <= capSeason(league);
+    if (!expiring && !c.twoWay)
+      return { ok: false, message: `Release rejected: ${fullName(p)} has a one-way contract through ${endOf(c)}-${(endOf(c) + 1) % 100}. Trade him, place him on waivers for assignment, or buy him out in the offseason buyout window.` };
+    if (waiverPeriod(league) && needsWaivers(league, p).required) return placeOnWaivers(league, p, 'release');
+  }
   p.teamId = null;
   p.status = 'fa';
   p.contract = null;
   p.rightsTeamId = null;
+  p.ltir = false;
+  const msg = `${teamName(league, tid)} ${reason} ${fullName(p)}`;
   if (tid !== null) {
     const t = league.teams[tid];
     t.lines = { ...t.lines };
-    addTransaction(league, { kind: 'release', teamIds: [tid], playerIds: [p.id], description: `${teamName(league, tid)} ${reason} ${fullName(p)}` });
+    addTransaction(league, { kind: c ? 'termination' : 'release', teamIds: [tid], playerIds: [p.id], description: msg });
   }
+  return { ok: true, message: msg };
 }
 
 /**
@@ -88,7 +129,7 @@ export function ensureDressable(league: League, teamId: number): void {
     const pos = missing[0];
     const match = (p: Player) => (pos === 'G' ? p.pos === 'G' : pos === 'D' ? p.pos === 'D' : isForward(p.pos));
     const prospect = playersOf(league, teamId, ['prospect'])
-      .filter((p) => match(p) && healthy(p))
+      .filter((p) => match(p) && healthy(p) && !onWaiversNow(league, p))
       .sort((a, b) => b.ca - a.ca)[0];
     const fa = Object.values(league.players)
       .filter((p) => p.status === 'fa' && match(p) && healthy(p))
@@ -117,11 +158,19 @@ export function ensureDressable(league: League, teamId: number): void {
   }
 }
 
-/** Trim an over-full active roster: send down young players first, then release the weakest veteran. */
+/** Cost of sending a player down: waiver risk for non-exempt players, nothing for exempt ones. */
+function sendDownCost(league: League, p: Player): number {
+  if (waiverConsentBlock(league, p)) return Infinity;
+  if (!needsWaivers(league, p).required) return 0;
+  // AI GMs know who would be claimed: risk × how much the player matters.
+  return waiverRisk(league, p) * (10 + Math.max(0, p.ca - 110));
+}
+
+/** Trim an over-full active roster: send down waiver-exempt players first, then whoever is least likely to be claimed. */
 export function trimRoster(league: League, teamId: number): void {
   const max = league.config.economics.rosterMax;
-  for (let guard = 0; guard < 10; guard++) {
-    const active = playersOf(league, teamId, ['active']).filter((p) => !onIR(p));
+  for (let guard = 0; guard < 12; guard++) {
+    const active = playersOf(league, teamId, ['active']).filter((p) => !onIR(p) && !p.ltir);
     if (active.length <= max) return;
     const c = rosterCounts(active);
     const canLose = (p: Player) => {
@@ -129,18 +178,24 @@ export function trimRoster(league: League, teamId: number): void {
       if (p.pos === 'D') return c.D > 7;
       return c.F > 13;
     };
-    const young = active.filter((p) => league.season - p.birthYear <= 23 && canLose(p)).sort((a, b) => a.ca - b.ca)[0];
-    const worst = active.filter(canLose).sort((a, b) => a.ca - b.ca)[0];
-    const target = young && (!worst || young.ca <= worst.ca + 6) ? young : worst;
+    const ranked = active
+      .filter(canLose)
+      .map((p) => ({ p, cost: sendDownCost(league, p) + p.ca * 0.15 }))
+      .filter((x) => Number.isFinite(x.cost))
+      .sort((a, b) => a.cost - b.cost);
+    const target = ranked[0]?.p;
     if (!target) return;
-    if (league.season - target.birthYear <= 23) demote(league, target, teamId === league.userTeamId);
-    else releasePlayer(league, target, 'place on waivers and release');
+    const r = demote(league, target, teamId === league.userTeamId);
+    if (!r.ok) {
+      const rel = releasePlayer(league, target, 'release');
+      if (!rel.ok) return;
+    }
   }
 }
 
 /** Promote prospects who are clearly better than the weakest regulars (CPU teams). */
 export function promoteReadyProspects(league: League, teamId: number): void {
-  const prospects = playersOf(league, teamId, ['prospect']).filter((p) => healthy(p) && league.season - p.birthYear >= 19);
+  const prospects = playersOf(league, teamId, ['prospect']).filter((p) => healthy(p) && league.season - p.birthYear >= 19 && p.contract && !onWaiversNow(league, p));
   for (const pr of prospects.sort((a, b) => b.ca - a.ca)) {
     const active = playersOf(league, teamId, ['active']);
     const same = active.filter((p) => (pr.pos === 'G' ? p.pos === 'G' : pr.pos === 'D' ? p.pos === 'D' : isForward(p.pos) && p.pos !== 'G'));
@@ -148,10 +203,9 @@ export function promoteReadyProspects(league: League, teamId: number): void {
     const max = league.config.economics.rosterMax;
     if (active.length < max && pr.ca >= 120 && (!weakest || pr.ca > weakest.ca + 3)) {
       promote(league, pr, false);
-    } else if (weakest && pr.ca > weakest.ca + 6 && pr.ca >= 122) {
+    } else if (weakest && pr.ca > weakest.ca + 6 && pr.ca >= 122 && sendDownCost(league, weakest) < 12) {
       promote(league, pr, false);
-      if (league.season - weakest.birthYear <= 23) demote(league, weakest, false);
-      else releasePlayer(league, weakest, 'release');
+      if (!demote(league, weakest, false).ok) releasePlayer(league, weakest, 'release');
     }
   }
 }
@@ -160,24 +214,38 @@ export function noteRosterMove(league: League, teamId: number, text: string, pla
   addNews(league, { category: 'league', headline: text, teamIds: [teamId], playerIds, importance: 1 });
 }
 
-/** Get under the salary cap: send down cap-carrying youngsters, then release the worst value contracts. */
+/**
+ * Get cap compliant (CPU): LTIR for long-term injuries, send down waiver-exempt
+ * cap carriers, waive low-risk contracts to the minors (buried relief), and in
+ * the buyout window buy out the worst-value contract.
+ */
 export function enforceCap(league: League, teamId: number): void {
-  for (let guard = 0; guard < 12; guard++) {
-    const over = -capSpace(league, teamId);
+  for (let guard = 0; guard < 14; guard++) {
+    const sheet = teamCapSheet(league, teamId);
+    const over = sheet.total - sheet.effectiveLimit;
     if (over <= 0) return;
     const active = playersOf(league, teamId, ['active']);
+    // 1. Long-term injuries go on LTIR.
+    const ltirCand = active.filter((p) => !p.ltir && canPlaceOnLTIR(league, p).ok).sort((a, b) => (b.contract?.salary ?? 0) - (a.contract?.salary ?? 0))[0];
+    if (ltirCand && placeOnLTIR(league, ltirCand).ok) continue;
     const c = rosterCounts(active);
     const canLose = (p: Player) => (p.pos === 'G' ? c.G > 2 : p.pos === 'D' ? c.D > 6 : c.F > 12);
-    const young = active.filter((p) => league.season - p.birthYear <= 23 && canLose(p) && (p.contract?.salary ?? 0) > league.cap.minSalary).sort((a, b) => a.ca - b.ca)[0];
-    if (young && young.ca < 145) {
-      demote(league, young, teamId === league.userTeamId);
-      continue;
+    const buriedRelief = (p: Player) => Math.min(p.contract?.salary ?? 0, league.cap.minSalary + rulesFor(capSeason(league)).buriedAllowance);
+    // 2./3. Send down whoever frees cap at the lowest risk.
+    const send = active
+      .filter((p) => canLose(p) && p.contract && !p.contract.thirtyFivePlus && (p.contract.salary ?? 0) > league.cap.minSalary + 100)
+      .map((p) => ({ p, cost: sendDownCost(league, p) + Math.max(0, p.ca - 120) * 0.4 - buriedRelief(p) / 400 }))
+      .filter((x) => Number.isFinite(x.cost))
+      .sort((a, b) => a.cost - b.cost)[0];
+    if (send && demote(league, send.p, teamId === league.userTeamId).ok) continue;
+    // 4. Buyout window: worst value per dollar.
+    if (inBuyoutWindow(league)) {
+      const cands = [...active, ...playersOf(league, teamId, ['prospect'])]
+        .filter((p) => p.contract && contractFor(p, league.season + 1) && (p.status === 'prospect' || canLose(p)))
+        .sort((a, b) => (marketValue(a, league) - a.contract!.salary) - (marketValue(b, league) - b.contract!.salary));
+      if (cands[0] && buyoutPlayer(league, cands[0]).ok) continue;
     }
-    // Worst value per dollar among players we can spare.
-    const cands = active.filter(canLose).filter((p) => p.contract).sort((a, b) => (marketValue(a, league) - a.contract!.salary) - (marketValue(b, league) - b.contract!.salary));
-    const target = cands[0];
-    if (!target) return;
-    releasePlayer(league, target, 'buy out');
+    return;
   }
 }
 

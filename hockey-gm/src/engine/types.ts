@@ -638,6 +638,8 @@ export interface WaiverEntry {
   /** Teams that put in a claim. */
   claims: number[];
   reason: 'assignment' | 'release' | 'other';
+  status?: 'pending' | 'claimed' | 'cleared';
+  claimedBy?: number | null;
 }
 
 export interface QualifyingOfferRecord {

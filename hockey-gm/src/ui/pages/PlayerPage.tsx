@@ -58,7 +58,7 @@ export function PlayerPage({ id }: { id: number }) {
           </div>
         </div>
         <div className="actions">
-          {mine && p.status === 'active' && <button className="btn" onClick={() => mutate((l) => demote(l, p))}>Send to minors</button>}
+          {mine && p.status === 'active' && <button className="btn" onClick={() => { const r = mutate((l) => demote(l, p)); toast(r.message, r.ok ? 'info' : 'bad'); }}>Send to minors</button>}
           {mine && p.status === 'prospect' && <button className="btn" onClick={() => mutate((l) => promote(l, p))}>Call up</button>}
           {mine && p.contract && p.contract.years <= 1 && !p.contract.next && <button className="btn primary" onClick={() => setNeg(true)}>{p.contract.years <= 0 ? 'Re-sign' : 'Extend'}</button>}
           {mine && (
@@ -66,7 +66,7 @@ export function PlayerPage({ id }: { id: number }) {
               Name captain
             </button>
           )}
-          {mine && <button className="btn danger" onClick={async () => { if (await ask(`Release ${p.first} ${p.last}? He becomes a free agent.`, 'Release')) mutate((l) => releasePlayer(l, p, 'release')); }}>Release</button>}
+          {mine && <button className="btn danger" onClick={async () => { if (await ask(`Release ${p.first} ${p.last}? He becomes a free agent.`, 'Release')) { const r = mutate((l) => releasePlayer(l, p, 'release')); toast(r.message, r.ok ? 'info' : 'bad'); } }}>Release</button>}
           {!mine && team && <button className="btn" onClick={() => navigate('trades')}>Trade for…</button>}
           {p.status === 'fa' && <button className="btn primary" onClick={() => setNeg(true)}>Make offer</button>}
         </div>
