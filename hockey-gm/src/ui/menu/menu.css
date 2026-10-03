@@ -193,7 +193,48 @@
 .mm-live { position: absolute; inset: 0 0 40px 0; overflow-y: auto; padding: 16px clamp(12px, 3vw, 28px) 30px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 .mm-loading { position: absolute; inset: 0; display: grid; place-items: center; font: 700 italic 28px var(--m-display); text-transform: uppercase; letter-spacing: 0.06em; color: var(--m-dim); }
 
+/* roster links + player card */
+.mm-row-link { cursor: pointer; }
+.mm-name { all: unset; cursor: pointer; }
+.mm-name:hover b, .mm-name:focus-visible b { text-decoration: underline; text-underline-offset: 3px; }
+.mm-name:focus-visible { outline: 2px solid var(--m-team2); outline-offset: 2px; }
+.mm-card { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.mm-card-id { display: flex; flex-direction: column; gap: 12px; }
+.mm-card-jersey { width: 72%; margin: 0 auto; filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.6)); }
+.mm-card-jersey svg { width: 100%; height: auto; display: block; }
+.mm-card-name { display: flex; flex-direction: column; line-height: 0.95; }
+.mm-card-name .num { color: var(--m-team2); font-weight: 800; font-size: 20px; }
+.mm-card-name .first { font-size: 22px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--m-dim); }
+.mm-card-name .last { font-size: clamp(34px, 4vw, 46px); font-weight: 800; font-style: italic; text-transform: uppercase; }
+.mm-card-name .meta { margin-top: 6px; font-size: 16px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--m-dim); }
+.mm-card-badges { display: flex; gap: 18px; }
+.mm-card-badges div { display: flex; flex-direction: column; gap: 4px; font: 700 13px/1 var(--m-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--m-dim); }
+.mm-ovr.big { font-size: 34px; min-width: 64px; padding: 6px 8px; }
+.mm-ovr.ghost { background: transparent; color: var(--m-ink); border: 2px solid var(--m-silver); }
+.mm-card-note { font: 500 15px/1.3 var(--m-display); color: var(--m-dim); letter-spacing: 0.02em; }
+.mm-kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font: 600 16px/1.2 var(--m-display); }
+.mm-kv dt { color: var(--m-dim); text-transform: uppercase; letter-spacing: 0.08em; font-size: 13px; align-self: center; }
+.mm-kv dd { margin: 0; display: flex; align-items: center; gap: 6px; }
+.mm-card-desc { margin: 0; font: 500 16px/1.35 var(--m-display); color: #c9ced5; letter-spacing: 0.01em; }
+.mm-card-tags { display: flex; flex-direction: column; gap: 8px; }
+.mm-card-tags div { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mm-card-tags span { font: 700 12px/1 var(--m-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--m-dim); width: 100%; }
+.mm-card-tags em { font: 600 14px/1 var(--m-display); font-style: normal; text-transform: uppercase; letter-spacing: 0.04em; padding: 5px 8px; border-radius: 2px; background: linear-gradient(var(--m-hi-top), var(--m-hi-bot)); color: var(--m-ink-dark); }
+.mm-card-tags em.weak { background: rgba(255, 255, 255, 0.08); color: #c9ced5; }
+.mm-card-attrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.mm-attr-group h3 { margin: 0 0 8px; font: 800 italic 20px/1 var(--m-display); text-transform: uppercase; letter-spacing: 0.02em; color: var(--m-ink); }
+.mm-attr { display: grid; grid-template-columns: minmax(0, 1fr) 70px 30px; gap: 10px; align-items: center; padding: 4px 0; font: 600 15px/1.15 var(--m-display); letter-spacing: 0.02em; }
+.mm-attr .n { color: #c9ced5; }
+.mm-attr .bar { height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 1px; overflow: hidden; }
+.mm-attr .bar i { display: block; height: 100%; background: var(--m-silver); }
+.mm-attr b { text-align: right; font-size: 17px; font-variant-numeric: tabular-nums; }
+.mm-attr.elite b { color: #f6c445; } .mm-attr.elite .bar i { background: #f6c445; }
+.mm-attr.good b { color: #ffffff; } .mm-attr.good .bar i { background: #ffffff; }
+.mm-attr.avg b { color: #b9c0c9; } .mm-attr.avg .bar i { background: #8b939d; }
+.mm-attr.low b { color: #e57d7d; } .mm-attr.low .bar i { background: #b85a5a; }
+
 @media (max-width: 760px) {
+  .mm-card { grid-template-columns: minmax(0, 1fr); }
   .mm-panel { width: 100%; opacity: 0.25; }
   .mm-hero { width: 80vw; right: -14vw; bottom: 12%; opacity: 0.35; }
   .mm-menu { top: 26%; }
