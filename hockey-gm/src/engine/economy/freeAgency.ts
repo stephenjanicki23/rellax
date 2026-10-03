@@ -1,0 +1,307 @@
+/**
+ * Re-signing, arbitration, extensions and free agency.
+ *
+ * Free agents weigh money against team quality, expected role, location,
+ * loyalty and career stage. Offers accumulate over several "free agency
+ * days" and players decide when an offer is good enough (or time runs out).
+ */
+import { clamp } from '../core/math';
+import { seedFrom, Rng } from '../core/rng';
+import type { FreeAgentOffer, League, Player } from '../types';
+import { addNews, addTransaction, isCpu, playersOf, teamName, withRng } from '../league/helpers';
+import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, makeContract, payroll } from './contracts';
+import { signPlayer, releasePlayer, rosterSize } from './roster';
+import { fullName, isForward } from '../player/ability';
+import { teamStrength } from '../team/strength';
+import { PERSONALITIES } from '../player/personality';
+
+export const FA_DAYS = 12;
+
+export function expiringPlayers(league: League, teamId: number): Player[] {
+  return playersOf(league, teamId, ['active', 'prospect']).filter((p) => p.contract && p.contract.years <= 0 && !p.contract.next);
+}
+
+/** Players in the final year of their deal (extension-eligible during the season). */
+export function extensionEligible(league: League, teamId: number): Player[] {
+  return playersOf(league, teamId, ['active', 'prospect']).filter((p) => !!p.contract && p.contract.years === 1 && !p.contract.next);
+}
+
+export function resignAsk(league: League, p: Player): { salary: number; years: number } {
+  const years = typicalTerm(p, league.season);
+  return { salary: askingSalary(p, league, p.teamId, years), years };
+}
+
+/** 0..1 willingness to re-sign with the current team at a fair price. */
+export function willingness(league: League, p: Player): number {
+  if (p.teamId === null) return 0;
+  const pers = PERSONALITIES[p.personality];
+  const rec = league.standings[p.teamId];
+  const pct = rec && rec.gp ? (rec.w * 2 + rec.otl) / (rec.gp * 2) : 0.5;
+  let w = 0.55 + (p.morale - 55) / 100 + (p.prefs.loyalty - 1) * 0.25 + (pct - 0.5) * pers.winning * 0.6;
+  if (isRFA(p, league.season)) w += 0.25;
+  return clamp(w, 0.05, 0.98);
+}
+
+export interface NegotiationResult {
+  ok: boolean;
+  message: string;
+}
+
+/** Offer a contract to one of your own players (re-sign or extension). */
+export function offerContract(league: League, p: Player, salary: number, years: number): NegotiationResult {
+  if (p.teamId === null || !p.contract) return { ok: false, message: 'Not under contract with a team.' };
+  const ask = askingSalary(p, league, p.teamId, years);
+  const will = willingness(league, p);
+  if (salary < ask * 0.93) return { ok: false, message: `${fullName(p)}'s agent rejects it — he is looking for about $${(ask / 1000).toFixed(2)}M per year over ${years} years.` };
+  const roll = (seedFrom(league.seed, 'resign', league.season, p.id, years) % 1000) / 1000;
+  if (roll > will + (salary / ask - 1) * 2) return { ok: false, message: `${fullName(p)} wants to test the market rather than commit right now.` };
+  const extension = p.contract.years >= 1;
+  if (extension) {
+    p.contract.next = { salary, years, ntc: false };
+  } else {
+    const ntc = years >= 4 && league.season - p.birthYear >= 26 && p.ca >= 150;
+    p.contract = makeContract(salary, years, league.season, ntc);
+  }
+  p.morale = clamp(p.morale + 6, 0, 100);
+  addTransaction(league, { kind: 'extension', teamIds: [p.teamId], playerIds: [p.id], description: `${teamName(league, p.teamId)} ${extension ? 'extend' : 're-sign'} ${fullName(p)}: ${years} yr / $${(salary / 1000).toFixed(2)}M AAV` });
+  if (p.reputation >= 50) addNews(league, { category: 'signing', headline: `${fullName(p)} ${extension ? 'signs a' : 'agrees to a'} ${years}-year, $${((salary * years) / 1000).toFixed(1)}M ${extension ? 'extension' : 'deal'} with ${teamName(league, p.teamId)}`, teamIds: [p.teamId], playerIds: [p.id], importance: 3 });
+  return { ok: true, message: `${fullName(p)} signs: ${years} years at $${(salary / 1000).toFixed(2)}M per season.` };
+}
+
+/** Arbitration-style resolution for restricted free agents: the arbitrator splits the difference. */
+export function arbitrate(league: League, p: Player): NegotiationResult {
+  if (!p.contract || p.teamId === null) return { ok: false, message: 'No rights held.' };
+  if (!isRFA(p, league.season)) return { ok: false, message: 'Only restricted free agents are arbitration-eligible.' };
+  const ask = askingSalary(p, league, p.teamId, 2);
+  const teamOffer = Math.round(marketValue(p, league) * 0.82);
+  const award = Math.round(((ask + teamOffer) / 2) / 5) * 5;
+  const years = league.season - p.birthYear >= 24 ? 2 : 1;
+  p.contract = makeContract(Math.max(league.cap.minSalary, award), years, league.season, false);
+  p.morale = clamp(p.morale - 6, 0, 100);
+  addTransaction(league, { kind: 'extension', teamIds: [p.teamId], playerIds: [p.id], description: `Arbitrator awards ${fullName(p)} ${years} yr / $${(award / 1000).toFixed(2)}M with ${teamName(league, p.teamId)}` });
+  return { ok: true, message: `Arbitrator awards ${years} year(s) at $${(award / 1000).toFixed(2)}M.` };
+}
+
+/** CPU teams decide who to keep among their expiring contracts. */
+export function aiResign(league: League, teamId: number): void {
+  const team = league.teams[teamId];
+  const exp = expiringPlayers(league, teamId).sort((a, b) => b.ca - a.ca);
+  for (const p of exp) {
+    const age = league.season - p.birthYear;
+    const rfa = isRFA(p, league.season);
+    const ask = resignAsk(league, p);
+    const room = league.cap.upper * 1.02 - payroll(league, teamId);
+    const sameGroup = playersOf(league, teamId, ['active']).filter((x) => (p.pos === 'G' ? x.pos === 'G' : p.pos === 'D' ? x.pos === 'D' : isForward(x.pos)));
+    const rank = sameGroup.filter((x) => x.ca > p.ca).length;
+    const needed = p.pos === 'G' ? rank < 2 : p.pos === 'D' ? rank < 6 : rank < 11;
+    let want = (needed || p.status === 'prospect') && ask.salary <= room + (p.contract?.salary ?? 0);
+    if (team.strategy === 'rebuild' && age >= 31) want = want && p.ca >= 150;
+    if (age >= 36 && p.ca < 145) want = false;
+    if (p.status === 'prospect') want = p.pa >= 125 || p.ca >= 110;
+    if (!want) continue;
+    if (rfa) {
+      p.contract = makeContract(ask.salary, ask.years, league.season, false, p.status === 'prospect' && age <= 21 ? 'ELC' : 'standard');
+      continue;
+    }
+    const roll = (seedFrom(league.seed, 'airesign', league.season, p.id) % 1000) / 1000;
+    if (roll < willingness(league, p)) {
+      const ntc = ask.years >= 4 && age >= 26 && p.ca >= 150;
+      p.contract = makeContract(ask.salary, ask.years, league.season, ntc);
+    }
+  }
+}
+
+/** Unsigned expiring players become free agents. */
+export function releaseExpired(league: League): void {
+  for (const p of Object.values(league.players)) {
+    if ((p.status === 'active' || p.status === 'prospect') && p.contract && p.contract.years <= 0) {
+      const tid = p.teamId;
+      releasePlayer(league, p, 'decline to re-sign');
+      if (tid !== null && p.reputation >= 50) addNews(league, { category: 'signing', headline: `${fullName(p)} hits the open market after leaving ${teamName(league, tid)}`, teamIds: [tid], playerIds: [p.id], importance: 2 });
+    }
+  }
+}
+
+function roleScore(league: League, p: Player, teamId: number): number {
+  const group = playersOf(league, teamId, ['active']).filter((x) => (p.pos === 'G' ? x.pos === 'G' : p.pos === 'D' ? x.pos === 'D' : isForward(x.pos)));
+  const better = group.filter((x) => x.ca > p.ca).length;
+  const slots = p.pos === 'G' ? 2 : p.pos === 'D' ? 6 : 12;
+  return clamp(1 - better / slots, 0, 1);
+}
+
+/** How attractive an offer is to the player. ~1.0 = a fair, neutral offer. */
+export function offerUtility(league: League, p: Player, o: Pick<FreeAgentOffer, 'teamId' | 'salary' | 'years'>): number {
+  const age = league.season - p.birthYear;
+  const ask = askingSalary(p, league, null, o.years);
+  const money = o.salary / Math.max(1, ask);
+  const strengths = league.teams.map((t) => teamStrength(league, t.id).overall).sort((a, b) => a - b);
+  const mine = teamStrength(league, o.teamId).overall;
+  const winning = strengths.findIndex((s) => s >= mine) / Math.max(1, strengths.length - 1);
+  const role = roleScore(league, p, o.teamId);
+  const team = league.teams[o.teamId];
+  const lastTeam = [...p.career].reverse().find((c) => !c.playoffs)?.teamId;
+  const loyalty = lastTeam === o.teamId ? (p.prefs.loyalty - 0.8) * 0.2 : 0;
+  const stage = age >= 31 ? 1.4 : 0.8;
+  const yearsPref = age >= 30 ? (o.years - 2) * 0.03 : 0;
+  return money * p.prefs.money + (winning - 0.5) * 0.35 * p.prefs.winning * stage + (role - 0.5) * 0.25 * p.prefs.role + (team.appeal - 0.55) * 0.3 * p.prefs.location + loyalty + yearsPref - (p.prefs.money - 1);
+}
+
+export function startFreeAgency(league: League): void {
+  releaseExpired(league);
+  league.faOffers = [];
+  league.faDay = 0;
+  league.phase = 'freeAgency';
+}
+
+/** User makes (or updates) an offer to a free agent. */
+export function makeOffer(league: League, teamId: number, p: Player, salary: number, years: number): NegotiationResult {
+  if (p.status !== 'fa') return { ok: false, message: 'Player is not a free agent.' };
+  if (salary < league.cap.minSalary) return { ok: false, message: `Minimum salary is $${league.cap.minSalary}K.` };
+  if (salary > league.cap.upper * 0.2) return { ok: false, message: 'Exceeds the maximum contract.' };
+  const committed = league.faOffers.filter((o) => o.teamId === teamId && o.playerId !== p.id).reduce((s, o) => s + o.salary, 0);
+  if (salary + committed > capSpace(league, teamId) + 1) return { ok: false, message: 'Not enough cap space (including your other pending offers).' };
+  if (rosterSize(league, teamId) >= league.config.economics.rosterMax) return { ok: false, message: 'Your roster is full.' };
+  league.faOffers = league.faOffers.filter((o) => !(o.teamId === teamId && o.playerId === p.id));
+  const offer: FreeAgentOffer = { playerId: p.id, teamId, salary, years, day: league.faDay, ntc: false };
+  // Outside the free-agency period (in-season), players decide immediately.
+  if (league.phase !== 'freeAgency') {
+    const u = offerUtility(league, p, offer);
+    if (u >= 0.97) {
+      completeSigning(league, offer);
+      return { ok: true, message: `${fullName(p)} accepts your offer!` };
+    }
+    return { ok: false, message: `${fullName(p)} declines. He wants roughly $${(askingSalary(p, league, null, years) / 1000).toFixed(2)}M.` };
+  }
+  league.faOffers.push(offer);
+  const u = offerUtility(league, p, offer);
+  return { ok: true, message: u >= 1.05 ? `${fullName(p)}'s camp is very interested.` : u >= 0.95 ? `${fullName(p)} is considering your offer.` : `${fullName(p)}'s agent says the offer is below what other teams are discussing.` };
+}
+
+function completeSigning(league: League, o: FreeAgentOffer): void {
+  const p = league.players[o.playerId];
+  signPlayer(league, p, o.teamId, o.salary, o.years, o.ntc);
+  league.faOffers = league.faOffers.filter((x) => x.playerId !== o.playerId);
+  addTransaction(league, { kind: 'signing', teamIds: [o.teamId], playerIds: [p.id], description: `${teamName(league, o.teamId)} sign ${fullName(p)} (${p.pos}): ${o.years} yr / $${(o.salary / 1000).toFixed(2)}M AAV` });
+  if (p.reputation >= 45 || o.teamId === league.userTeamId) {
+    addNews(league, { category: 'signing', headline: `${fullName(p)} signs ${o.years}-year, $${((o.salary * o.years) / 1000).toFixed(1)}M contract with ${teamName(league, o.teamId)}`, teamIds: [o.teamId], playerIds: [p.id], importance: p.reputation >= 60 ? 4 : 2 });
+  }
+}
+
+/** CPU teams place offers on free agents that fit their needs and budget. */
+export function aiOffers(league: League, rng: Rng): void {
+  const fas = Object.values(league.players).filter((p) => p.status === 'fa' && !(p.injury && p.injury.daysRemaining > 60));
+  const offerCount = new Map<number, number>();
+  for (const o of league.faOffers) offerCount.set(o.playerId, (offerCount.get(o.playerId) ?? 0) + 1);
+  const teams = rng.shuffle(league.teams.filter((t) => isCpu(league, t.id)));
+  for (const team of teams) {
+    const roster = playersOf(league, team.id).filter((p) => !(p.injury && p.injury.daysRemaining > 7));
+    const pay = payroll(league, team.id);
+    const mine = league.faOffers.filter((o) => o.teamId === team.id);
+    const underFloor = pay < league.cap.floor;
+    const budgetRoom = Math.min(capSpace(league, team.id), Math.max(team.budget, league.cap.floor) - pay);
+    let room = budgetRoom - mine.reduce((s, o) => s + o.salary, 0);
+    const wanted = league.config.economics.rosterMax - roster.length - mine.length;
+    let slots = Math.max(wanted, 1) + 1;
+    if (room < league.cap.minSalary) continue;
+    const groups = {
+      F: roster.filter((p) => isForward(p.pos)).sort((a, b) => a.ca - b.ca),
+      D: roster.filter((p) => p.pos === 'D').sort((a, b) => a.ca - b.ca),
+      G: roster.filter((p) => p.pos === 'G').sort((a, b) => a.ca - b.ca),
+    };
+    const counts = { F: groups.F.length, D: groups.D.length, G: groups.G.length };
+    const scored = fas
+      .filter((p) => !mine.some((o) => o.playerId === p.id))
+      .map((p) => {
+        const grp = p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : 'F';
+        const bestG = groups.G[groups.G.length - 1]?.ca ?? 0;
+        const need = grp === 'G' ? counts.G < 2 || (bestG < 138 && p.ca > bestG) : grp === 'D' ? counts.D < 7 : counts.F < 13;
+        const weakest = grp === 'G' && bestG < 138 ? bestG : (groups[grp][0]?.ca ?? 90);
+        const age = league.season - p.birthYear;
+        let score = p.ca - weakest + (need ? 12 : 0) - (offerCount.get(p.id) ?? 0) * 5 + rng.normal(0, 6);
+        if (team.strategy === 'rebuild' && age >= 31) score -= 14;
+        if (team.strategy === 'contend') score += (p.ca - 130) * 0.15;
+        return { p, grp, score, need };
+      })
+      .filter((x) => x.score > 3)
+      .sort((a, b) => b.score - a.score);
+    let made = 0;
+    for (const { p, grp } of scored) {
+      if (made >= 4 || slots <= 0) break;
+      const age = league.season - p.birthYear;
+      const years = typicalTerm(p, league.season, rng);
+      const ask = askingSalary(p, league, null, years);
+      const eager = underFloor ? 1.12 : team.strategy === 'contend' ? 1.04 : team.strategy === 'rebuild' ? 1.06 : 1;
+      const bid = Math.max(league.cap.minSalary, Math.round((ask * rng.float(0.9, 1.08) * eager) / 5) * 5);
+      if (bid > room) continue;
+      league.faOffers.push({ playerId: p.id, teamId: team.id, salary: bid, years, day: league.faDay, ntc: years >= 4 && age >= 27 && rng.chance(0.4) });
+      offerCount.set(p.id, (offerCount.get(p.id) ?? 0) + 1);
+      room -= bid;
+      slots--;
+      made++;
+      counts[grp as 'F' | 'D' | 'G']++;
+    }
+  }
+}
+
+/** Teams still under the cap floor at the end of free agency sign one-year deals to reach it. */
+export function enforceCapFloor(league: League): void {
+  for (const team of league.teams) {
+    if (!isCpu(league, team.id)) continue;
+    for (let guard = 0; guard < 6 && payroll(league, team.id) < league.cap.floor; guard++) {
+      const p = Object.values(league.players).filter((x) => x.status === 'fa').sort((a, b) => b.ca - a.ca)[0];
+      if (!p) break;
+      const ask = askingSalary(p, league, null, 1);
+      const salary = Math.max(ask, Math.min(league.cap.floor - payroll(league, team.id), ask * 1.6));
+      completeSigning(league, { playerId: p.id, teamId: team.id, salary: Math.round(salary / 5) * 5, years: 1, day: league.faDay, ntc: false });
+    }
+  }
+}
+
+/** Players review offers and sign when an offer is good enough for the day. */
+function playerDecisions(league: League, rng: Rng, final: boolean): void {
+  const byPlayer = new Map<number, FreeAgentOffer[]>();
+  for (const o of league.faOffers) byPlayer.set(o.playerId, [...(byPlayer.get(o.playerId) ?? []), o]);
+  for (const [pid, offers] of byPlayer) {
+    const p = league.players[pid];
+    if (!p || p.status !== 'fa') continue;
+    // Drop offers that no longer fit the team's cap.
+    const valid = offers.filter((o) => o.salary <= capSpace(league, o.teamId) + 1 && playersOf(league, o.teamId).length < league.config.economics.rosterMax + 4);
+    if (!valid.length) continue;
+    const scored = valid.map((o) => ({ o, u: offerUtility(league, p, o) })).sort((a, b) => b.u - a.u);
+    const best = scored[0];
+    const urgency = league.faDay / FA_DAYS;
+    const depth = p.ca < 130 ? 0.2 : 0;
+    const pSign = clamp(0.2 + depth + urgency * 0.7 + (best.u - 1) * 2.5 + (scored.length - 1) * 0.04, 0.05, 1);
+    if (final || rng.chance(pSign)) completeSigning(league, best.o);
+  }
+}
+
+/** Advance free agency by one day. Returns true when the period is over. */
+export function processFADay(league: League): boolean {
+  withRng(league, (rng) => {
+    aiOffers(league, rng);
+    playerDecisions(league, rng, league.faDay >= FA_DAYS - 1);
+  });
+  league.faDay++;
+  if (league.faDay >= FA_DAYS) enforceCapFloor(league);
+  return league.faDay >= FA_DAYS;
+}
+
+/** In-season: CPU teams pick up free agents when injuries leave holes. */
+export function aiInSeasonSignings(league: League): void {
+  // Handled by ensureDressable; kept for symmetry and future expansion.
+  void league;
+}
+
+export function faPool(league: League): Player[] {
+  return Object.values(league.players).filter((p) => p.status === 'fa').sort((a, b) => b.ca - a.ca);
+}
+
+export function pendingOffersFor(league: League, playerId: number): FreeAgentOffer[] {
+  return league.faOffers.filter((o) => o.playerId === playerId);
+}
+
+export function demandFor(league: League, p: Player): { salary: number; years: number } {
+  const years = typicalTerm(p, league.season, new Rng(seedFrom(league.seed, 'term', p.id, league.season)));
+  return { salary: askingSalary(p, league, null, years), years };
+}
