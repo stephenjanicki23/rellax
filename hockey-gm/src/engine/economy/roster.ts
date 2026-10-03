@@ -1,5 +1,6 @@
 import type { League, Player } from '../types';
-import { addNews, addTransaction, playersOf, teamName } from '../league/helpers';
+import { addNews, addTransaction, playersOf, teamName, withRng } from '../league/helpers';
+import { generatePlayer } from '../player/generate';
 import { capSpace, makeContract, marketValue } from './contracts';
 import { fullName, isForward } from '../player/ability';
 import { emptyStatLine } from '../core/statline';
@@ -97,7 +98,15 @@ export function ensureDressable(league: League, teamId: number): void {
       addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [fa.id], description: `${teamName(league, teamId)} sign ${fullName(fa)} to a one-year deal` });
       continue;
     }
-    return;
+    // Nobody left anywhere: sign a replacement-level minor-league call-up so the team can dress a lineup.
+    const callup = withRng(league, (rng) => {
+      const p = pos === 'G' ? 'G' : pos === 'D' ? 'D' : rng.pick(['C', 'LW', 'RW'] as const);
+      const target = Math.round(100 + rng.normal(0, 5));
+      return generatePlayer(rng, { id: league.nextId.player++, pos: p, targetCA: target, age: rng.int(24, 31), season: league.season });
+    });
+    league.players[callup.id] = callup;
+    signPlayer(league, callup, teamId, league.cap.minSalary, 1);
+    addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [callup.id], description: `${teamName(league, teamId)} sign minor-leaguer ${fullName(callup)} to fill an emergency need` });
   }
 }
 

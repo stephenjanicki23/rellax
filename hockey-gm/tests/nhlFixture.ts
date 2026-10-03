@@ -45,5 +45,6 @@ export function syntheticSnapshot(seed = 'nhl-fixture'): NhlSnapshot {
     for (let i = 0; i < 3; i++) add('G', Math.max(0, 1 - i / 2 + rng.normal(0, 0.08)), 30 + i);
     teams[t.abbr] = list;
   }
-  return { season: 2026, fetchedAt: null, source: 'test', teams };
+  const staff = Object.fromEntries(DEFAULT_CONFIG.teams.map((t) => [t.abbr, { headCoach: t.abbr === 'TBL' ? 'Jon Cooper' : `Coach ${t.abbr}` }]));
+  return { season: 2026, fetchedAt: null, source: 'test', teams, staff };
 }

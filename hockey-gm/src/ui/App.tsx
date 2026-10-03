@@ -10,6 +10,7 @@ import { expiringPlayers, FA_DAYS } from '../engine/economy/freeAgency';
 import { capSpace } from '../engine/economy/contracts';
 import { rosterSize } from '../engine/economy/roster';
 import { MainMenu } from './menu/MainMenu';
+import { teamAccentVars } from './teamColors';
 import { Dashboard } from './pages/Dashboard';
 import { RosterPage } from './pages/Roster';
 import { LinesPage } from './pages/Lines';
@@ -99,7 +100,7 @@ export function App() {
     );
   }
   const userTeam = league.teams[league.userTeamId];
-  const teamVars = { '--team': userTeam.colors[0], '--m-team': userTeam.colors[0], '--m-team2': userTeam.colors[1] } as CSSProperties;
+  const teamVars = { '--team': userTeam.colors[0], ...teamAccentVars(userTeam.colors) } as CSSProperties;
   return (
     <div className="app" style={teamVars}>
       <TopBar />

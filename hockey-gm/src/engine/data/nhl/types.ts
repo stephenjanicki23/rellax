@@ -57,4 +57,6 @@ export interface NhlSnapshot {
   source: string;
   /** Team abbreviation → current roster. */
   teams: Record<string, NhlPlayerRecord[]>;
+  /** Team abbreviation → current staff from the feed. */
+  staff?: Record<string, { headCoach: string | null }>;
 }

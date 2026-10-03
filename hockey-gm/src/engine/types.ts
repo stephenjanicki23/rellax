@@ -189,6 +189,8 @@ export interface Player {
   id: number;
   /** Real-world NHL player id when imported from the roster snapshot. */
   nhlId?: number;
+  /** Official headshot URL for real players. */
+  headshot?: string;
   first: string;
   last: string;
   birthYear: number;
@@ -330,6 +332,8 @@ export type GmPhilosophy = 'winNow' | 'youth' | 'analytics' | 'oldSchool' | 'bal
 export interface Team {
   id: number;
   abbr: string;
+  /** Official logo URL (real NHL teams); generated crest otherwise. */
+  logo?: string;
   city: string;
   name: string;
   arena: string;

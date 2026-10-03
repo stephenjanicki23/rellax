@@ -197,3 +197,9 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 .trade-grid { grid-template-columns: minmax(0, 1fr) 290px minmax(0, 1fr); }
 @media (max-width: 1100px) { .trade-grid { grid-template-columns: minmax(0, 1fr); } }
 .chart .gridline { stroke: var(--line); }
+
+/* ── player headshots (real players) ── */
+.headshot { flex: none; border-radius: 50%; object-fit: cover; object-position: 50% 15%; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14), 0 6px 14px rgba(0, 0, 0, 0.45); }
+.mm-card-id > .headshot { display: block; width: min(220px, 70%); height: auto; aspect-ratio: 1; margin: 4px auto 6px; }
+.mm-name { display: inline-flex; align-items: center; gap: 10px; }
+.mm-name .headshot { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18); }

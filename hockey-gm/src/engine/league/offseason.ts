@@ -297,6 +297,8 @@ export function startRegularSeason(league: League): void {
   for (const t of league.teams) {
     trimRoster(league, t.id);
     ensureDressable(league, t.id);
+    // Filling a positional hole can push the roster back over the limit.
+    trimRoster(league, t.id);
   }
   league.phase = 'regular';
 }

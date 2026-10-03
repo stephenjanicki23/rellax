@@ -15,6 +15,8 @@ export interface TeamSeed {
   marketSize: number;
   /** 0-1 desirability as a place to live/play. */
   appeal: number;
+  /** Official logo URL; teams without one get a generated crest. */
+  logo?: string;
 }
 
 export interface LeagueConfig {
@@ -135,6 +137,10 @@ export const DEFAULT_CONFIG: LeagueConfig = {
   },
   draft: { rounds: 7, lotteryTeams: 16, lotteryDraws: 2 },
 };
+
+/** Official NHL logo (dark-background variant) served by the NHL's asset CDN. */
+export const nhlLogo = (abbr: string): string => `https://assets.nhle.com/logos/nhl/svg/${abbr}_dark.svg`;
+for (const t of DEFAULT_CONFIG.teams) t.logo = nhlLogo(t.abbr);
 
 export function conferenceOfDivision(cfg: LeagueConfig, divisionId: string): string {
   const d = cfg.divisions.find((x) => x.id === divisionId);

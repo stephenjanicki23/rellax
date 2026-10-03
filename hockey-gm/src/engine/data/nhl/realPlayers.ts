@@ -244,6 +244,7 @@ export function buildRealPlayers(rng: Rng, snap: NhlSnapshot, abbrs: string[], s
       bias: statBias(rec, pos),
     });
     p.nhlId = rec.nhlId;
+    p.headshot = `https://assets.nhle.com/mugs/nhl/${snap.season}${snap.season + 1}/${e.abbr}/${rec.nhlId}.png`;
     p.first = rec.first;
     p.last = rec.last;
     p.nat = poolCode;

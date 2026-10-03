@@ -69,6 +69,15 @@ describe('real rosters', () => {
     expect(b.svPct).toBeGreaterThan(0.89);
     expect(b.svPct).toBeLessThan(0.925);
   });
+  it('uses the real head coaches and general managers', () => {
+    const tbl = league.teams.find((t) => t.abbr === 'TBL')!;
+    const coach = league.coaches[tbl.staff.headCoach!];
+    expect(`${coach.first} ${coach.last}`).toBe('Jon Cooper');
+    expect(coach.ratings.tactics).toBeGreaterThan(110);
+    expect(tbl.gm.name).toBe('Julien BriseBois');
+    const tor = league.teams.find((t) => t.abbr === 'TOR')!;
+    expect(league.coaches[tor.staff.headCoach!].last).toBe('TOR');
+  });
   it('falls back to generated rosters without a snapshot', () => {
     const gen = createLeague({ seed: 'gen', rosters: false });
     expect(Object.values(gen.players).some((p) => p.nhlId)).toBe(false);
