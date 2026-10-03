@@ -3,12 +3,12 @@ import { useGame, mutate, toast, ask } from '../store';
 import { navigate } from '../router';
 import { Card, Headshot, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg, Tabs } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
+import { ContractDetails } from '../components/ContractDetails';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
 import { attr20, roleForAbility } from '../../engine/player/ability';
 import { ARCHETYPES } from '../../engine/player/archetypes';
 import { PERSONALITIES, TRAITS } from '../../engine/player/personality';
 import { estimate, displayedAttr, scoutReport, knowledgeOf } from '../../engine/economy/scouting';
-import { fmtMoney, marketValue, isRFA } from '../../engine/economy/contracts';
 import { injuryLabel } from '../../engine/player/injuries';
 import { points, savePct, gaa, gsax, fmtToi, addStatLine, emptyStatLine } from '../../engine/core/statline';
 import { offerContract, makeOffer } from '../../engine/economy/freeAgency';
@@ -201,23 +201,7 @@ export function PlayerPage({ id }: { id: number }) {
             </div>
           </Card>
           <Card title="Contract">
-            {p.contract ? (
-              <div className="kv">
-                <span className="k">Cap hit</span>
-                <b>{fmtMoney(p.contract.salary)}</b>
-                <span className="k">Years left</span>
-                <span>{p.contract.years}</span>
-                <span className="k">Type</span>
-                <span>{p.contract.type}{p.contract.ntc ? ' · No-trade clause' : ''}</span>
-                {p.contract.next && (<><span className="k">Extension</span><span>{fmtMoney(p.contract.next.salary)} × {p.contract.next.years}</span></>)}
-                <span className="k">Expiry status</span>
-                <span>{isRFA(p, league.season + p.contract.years) ? 'RFA' : 'UFA'}</span>
-                <span className="k">Market value</span>
-                <span className="muted">{fmtMoney(marketValue(p, league))}</span>
-              </div>
-            ) : (
-              <div className="muted">Not under contract. Market value ≈ {fmtMoney(marketValue(p, league))}</div>
-            )}
+            <ContractDetails league={league} p={p} />
           </Card>
           {p.caHistory?.length > 0 && (
             <Card title="Development">

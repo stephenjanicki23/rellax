@@ -234,11 +234,12 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   // contract data is imported), then each team is fitted under its limit.
   {
     const rostered = Object.values(players).filter((p) => p.teamId !== null && p.status === 'active' && p.contract);
-    const scalable = rostered.filter((p) => p.contract!.source === 'estimated' && p.contract!.type !== 'ELC');
+    // Star deals are left alone (the market model already prices them); the gap is in the middle class.
+    const scalable = rostered.filter((p) => p.contract!.source === 'estimated' && p.contract!.type !== 'ELC' && p.contract!.salary < cap.upper * 0.07);
     const total = rostered.reduce((s, p) => s + p.contract!.salary, 0);
     const est = scalable.reduce((s, p) => s + p.contract!.salary, 0);
-    const target = cap.upper * 0.95 * teams.length;
-    const factor = clamp((target - (total - est)) / Math.max(1, est), 1, 1.2);
+    const target = cap.upper * 0.94 * teams.length;
+    const factor = clamp((target - (total - est)) / Math.max(1, est), 1, 1.3);
     if (factor > 1.001) for (const p of scalable) scaleContract(p.contract!, factor, season);
   }
   for (const t of teams) {

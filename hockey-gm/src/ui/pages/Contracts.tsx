@@ -8,6 +8,9 @@ import { fmtMoney, futureCommitments, isRFA, payroll } from '../../engine/econom
 import { releasePlayer } from '../../engine/economy/roster';
 import type { Player } from '../../engine/types';
 import { seasonLabel } from '../format';
+import { OffseasonPanel } from '../components/OffseasonPanel';
+import { href } from '../router';
+import { capSeason } from '../../engine/cba/capManager';
 
 export function ContractsPage() {
   const { league, version } = useGame();
@@ -65,6 +68,7 @@ export function ContractsPage() {
           Payroll {fmtMoney(payroll(league, teamId))} of {fmtMoney(league.cap.upper)} · floor {fmtMoney(league.cap.floor)}
         </span>
       </div>
+      <OffseasonPanel league={league} />
       <Card
         title={resign ? `Expiring contracts (${expiring.length})` : `Extension candidates — final year (${expiring.length})`}
         right={<span className="muted" style={{ fontSize: 12 }}>{resign ? 'Unsigned players become free agents when free agency opens.' : 'Extensions take effect next season.'}</span>}
@@ -88,11 +92,11 @@ export function ContractsPage() {
             ]}
           />
         </Card>
-        <Card title="Future commitments">
+        <Card title="Future commitments" right={<a href={href('cap')} className="muted" style={{ fontSize: 12 }}>Full cap sheet →</a>}>
           <div className="list">
             {commits.map((c, i) => (
               <div className="item" key={i}>
-                <span>{seasonLabel(league.season + i + (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'preseason' ? 0 : 1))}</span>
+                <span>{seasonLabel(capSeason(league) + i)}</span>
                 <b style={{ marginLeft: 'auto' }}>{fmtMoney(c)}</b>
               </div>
             ))}
