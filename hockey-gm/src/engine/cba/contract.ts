@@ -240,7 +240,7 @@ export function ageJune30(p: Pick<Player, 'birthYear'>, season: number): number 
 export function scaleContract(c: Contract, factor: number, season: number): Contract {
   for (const y of yearsOf(c)) {
     const min = rulesFor(y.season).minimumSalary;
-    const comp = Math.max(min, Math.round(((y.salary + y.signingBonus) * factor) / 5) * 5);
+    const comp = Math.min(Math.max(min, Math.round(((y.salary + y.signingBonus) * factor) / 5) * 5), Math.max(min, rulesFor(y.season).maxSalary));
     const sbShare = y.salary + y.signingBonus > 0 ? y.signingBonus / (y.salary + y.signingBonus) : 0;
     y.signingBonus = Math.round(comp * sbShare);
     y.salary = comp - y.signingBonus;

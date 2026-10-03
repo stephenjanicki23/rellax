@@ -17,7 +17,8 @@ import { respondToOffer } from '../cba/negotiation';
 import { rulesFor } from '../cba/rules';
 import { capSeason } from '../cba/capManager';
 import { signPlayer, releasePlayer, rosterSize, rosterCounts, ensureDressable, trimRoster } from './roster';
-import { executeTrade } from './trade';
+import { executeTrade, validateTrade } from './trade';
+import { fitsPlan, planContext } from '../ai/finance';
 import { fullName, isForward } from '../player/ability';
 import { PERSONALITIES } from '../player/personality';
 
@@ -84,6 +85,11 @@ export function arbitrate(league: League, p: Player): NegotiationResult {
 export function aiResign(league: League, teamId: number): void {
   const team = league.teams[teamId];
   const exp = expiringPlayers(league, teamId).sort((a, b) => b.ca - a.ca);
+  const ctx = planContext(league, teamId);
+  const booked = (a: { salary: number; years: number }) => {
+    ctx.total += a.salary;
+    if (a.years >= 2) ctx.future -= a.salary;
+  };
   for (const p of exp) {
     const age = league.season - p.birthYear;
     const rfa = isRFA(p, league.season);
@@ -96,15 +102,21 @@ export function aiResign(league: League, teamId: number): void {
     if (team.strategy === 'rebuild' && age >= 31) want = want && p.ca >= 150;
     if (age >= 36 && p.ca < 145) want = false;
     if (p.status === 'prospect') want = p.pa >= 125 || p.ca >= 110;
+    // Long-term plan: frugal GMs let pricey depth walk; everyone checks future cap space.
+    if (want && p.status !== 'prospect') {
+      const fit = fitsPlan(league, teamId, p, ask.salary, ask.years, ctx);
+      const core = p.ca >= 150 || (age <= 25 && p.pa >= 155);
+      if (!fit.ok && !core) want = false;
+    }
     if (!want) continue;
     if (rfa) {
-      signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, twoWay: p.status === 'prospect' }, { origin: 'signing', toMinors: p.status === 'prospect' });
+      if (signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, twoWay: p.status === 'prospect' }, { origin: 'signing', toMinors: p.status === 'prospect' }).ok) booked(ask);
       continue;
     }
     const roll = (seedFrom(league.seed, 'airesign', league.season, p.id) % 1000) / 1000;
     if (roll < willingness(league, p)) {
       const ntc = ask.years >= 4 && age >= 26 && p.ca >= 150;
-      signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, clauses: ntc ? 'NTC' : null }, { origin: 'signing' });
+      if (signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, clauses: ntc ? 'NTC' : null }, { origin: 'signing' }).ok) booked(ask);
     }
   }
 }
@@ -225,14 +237,23 @@ export function aiOffers(league: League, rng: Rng): void {
       .filter((x) => x.score > 3)
       .sort((a, b) => b.score - a.score);
     let made = 0;
+    const ctx = planContext(league, team.id);
+    for (const o of mine) {
+      ctx.total += o.salary;
+      if (o.years >= 2) ctx.future -= o.salary;
+    }
     for (const { p, grp } of scored) {
       if (made >= 4 || slots <= 0) break;
       const age = league.season - p.birthYear;
       const years = typicalTerm(p, league.season, rng);
       const ask = askingSalary(p, league, null, years);
-      const eager = underFloor ? 1.12 : team.strategy === 'contend' ? 1.04 : team.strategy === 'rebuild' ? 1.06 : 1;
+      // Strategy and GM style decide how hard they bid (aggressive GMs sometimes overpay).
+      const eager = (underFloor ? 1.12 : team.strategy === 'contend' ? 1.04 : team.strategy === 'rebuild' ? 1.06 : 1) * ctx.plan.overpay;
       const bid = Math.max(league.cap.minSalary, Math.round((ask * rng.float(0.9, 1.08) * eager) / 5) * 5);
       if (bid > room) continue;
+      if (!underFloor && !fitsPlan(league, team.id, p, bid, years, ctx).ok) continue;
+      ctx.total += bid;
+      if (years >= 2) ctx.future -= bid;
       league.faOffers.push({ playerId: p.id, teamId: team.id, salary: bid, years, day: league.faDay, ntc: years >= 4 && age >= 27 && rng.chance(0.4) });
       offerCount.set(p.id, (offerCount.get(p.id) ?? 0) + 1);
       room -= bid;
@@ -288,7 +309,9 @@ export function absorbCapDumps(league: League): void {
       const pick = league.draftPicks
         .filter((d) => d.ownerId === team.id && d.season > league.season && d.round >= 4)
         .sort((a, b) => b.round - a.round)[0];
-      executeTrade(league, { from: team.id, to: from, give: pick ? [{ kind: 'pick', id: pick.id }] : [], get: [{ kind: 'player', id: best.id }] });
+      const dump = { from: team.id, to: from, give: pick ? [{ kind: 'pick' as const, id: pick.id }] : [], get: [{ kind: 'player' as const, id: best.id }] };
+      if (validateTrade(league, dump).length) break;
+      executeTrade(league, dump);
       trimRoster(league, team.id);
       ensureDressable(league, from);
     }

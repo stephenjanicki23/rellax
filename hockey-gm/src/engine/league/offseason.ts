@@ -33,6 +33,7 @@ import { aiQualifyingDecisions, prepareExpiries } from '../cba/rfa';
 import { processWaivers } from '../cba/waivers';
 import { applyElcSlides, pruneLedger, settlePerformanceBonuses, thirtyFivePlusRetirement } from '../cba/capActions';
 import { rulesFor } from '../cba/rules';
+import { aiBuyouts } from '../ai/finance';
 
 export function endRegularSeasonHooks(league: League): void {
   if (!league.draftCombineDone) runCombine(league);
@@ -220,6 +221,7 @@ export function startResignPhase(league: League): void {
   league.offseasonStep = 'qualifyingOffers';
   // Classify expiring contracts and build the qualifying-offer list.
   prepareExpiries(league);
+  aiBuyouts(league);
   for (const t of league.teams) {
     if (!isCpu(league, t.id)) continue;
     aiResign(league, t.id);

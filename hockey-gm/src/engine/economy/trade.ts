@@ -10,6 +10,8 @@ import { clamp } from '../core/math';
 import { describeTradeAsset, executeMoves, tradeConsent, validateMoves, type TradeAsset, type TradeCheck, type TradeMove } from '../cba/tradeRules';
 import { fullCapHit, remainingYears } from '../cba/contract';
 import { capSeason } from '../cba/capManager';
+import { retentionErrors } from '../cba/tradeRules';
+import { financialPlan } from '../ai/finance';
 import type { DraftPick, League, Player, Team } from '../types';
 import { playersOf, withRng } from '../league/helpers';
 import { aiPerceivedPA } from './scouting';
@@ -278,12 +280,21 @@ export function findAiTrade(league: League): TradeProposal | null {
       ...league.draftPicks.filter((p) => p.ownerId === buyer.id && p.playerId === undefined && p.season <= league.season + 1).map((p) => ({ kind: 'pick' as const, id: p.id })),
     ];
     const give: TradeAsset[] = [];
+    let retain: TradeProposal['retain'];
+    let targetValue2 = targetValue;
     if (target.contract.salary > room) {
-      const filler = roster
-        .filter((p) => p.contract && p.contract.salary >= target.contract!.salary - room && p.ca < target.ca - 3 && p.id !== target.id)
-        .sort((a, b) => a.ca - b.ca)[0];
-      if (!filler) return null;
-      give.push({ kind: 'player', id: filler.id });
+      // Sellers may retain salary (up to 50%) to make the deal fit, and ask more for it.
+      const pct = Math.ceil(((target.contract.salary - room) / fullCapHit(target.contract)) * 20) / 20;
+      if (financialPlan(league, seller.id).retainToSell && pct <= 0.5 && !retentionErrors(league, target, seller.id, pct).length) {
+        retain = [{ playerId: target.id, pct }];
+        targetValue2 += retentionValue(league, { asset: { kind: 'player', id: target.id }, from: seller.id, to: buyer.id, retainPct: pct }) * 0.8;
+      } else {
+        const filler = roster
+          .filter((p) => p.contract && p.contract.salary >= target.contract!.salary - room && p.ca < target.ca - 3 && p.id !== target.id)
+          .sort((a, b) => a.ca - b.ca)[0];
+        if (!filler) return null;
+        give.push({ kind: 'player', id: filler.id });
+      }
     }
     const ranked = pool
       .map((a) => ({ a, sv: assetValue(league, seller.id, a), bv: assetValue(league, buyer.id, a) }))
@@ -291,11 +302,11 @@ export function findAiTrade(league: League): TradeProposal | null {
       .sort((x, y) => y.sv / Math.max(1, y.bv) - x.sv / Math.max(1, x.bv));
     let got = give.reduce((s, a) => s + assetValue(league, seller.id, a), 0);
     for (const x of ranked) {
-      if (got >= targetValue * 1.05 + 2) break;
+      if (got >= targetValue2 * 1.05 + 2) break;
       give.push(x.a);
       got += x.sv;
     }
-    const proposal: TradeProposal = { from: buyer.id, to: seller.id, give, get: [{ kind: 'player', id: target.id }] };
+    const proposal: TradeProposal = { from: buyer.id, to: seller.id, give, get: [{ kind: 'player', id: target.id }], retain };
     const sellerSide = evaluateTrade(league, proposal);
     if (!sellerSide.accept) return null;
     // Buyer must also believe it's worth it.

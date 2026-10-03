@@ -110,7 +110,7 @@ export function contractValue(p: Player, league: League): ValueBreakdown {
     factors.push({ label: 'Injury history', effect: `${serious} serious injur${serious > 1 ? 'ies' : 'y'} in three seasons` });
   }
   const x = clamp((ability - 105) / 85, 0, 1.2);
-  let model = r.minimumSalary + 14_500 * x * x;
+  let model = r.minimumSalary + 17_000 * x * x + 1_200 * x;
   if (p.pos === 'G') model *= 0.9;
   if (age >= 33) {
     model *= clamp(1 - 0.09 * (age - 32), 0.35, 1);

@@ -14,11 +14,13 @@ import { coachOverall, tacticsForRoster } from '../team/coaching';
 import { extensionEligible, offerContract, resignAsk, willingness } from '../economy/freeAgency';
 import { autoLines } from '../team/lines';
 import { fullName } from '../player/ability';
+import { aiCapHousekeeping } from './finance';
 
 export function aiDaily(league: League): void {
   for (const t of league.teams) ensureDressable(league, t.id);
   if (league.day % 7 === 3) weeklyScouting(league);
   if (league.phase !== 'regular') return;
+  if (league.day % 7 === 1) aiCapHousekeeping(league);
   const daysToDeadline = league.tradeDeadlineDay - league.day;
   if (daysToDeadline >= 0) {
     const pTrade = daysToDeadline <= 10 ? 0.3 : league.day < 20 ? 0.02 : 0.06;

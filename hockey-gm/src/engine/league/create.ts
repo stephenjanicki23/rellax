@@ -226,6 +226,22 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       signContract(p, t.id);
       addPlayer(p);
     }
+  }
+
+  // Calibrate estimated contracts to league payroll levels: NHL teams spend
+  // close to the upper limit, so estimated (never real) veteran deals are
+  // scaled toward an average of 95% of the cap (SIMPLIFICATION until real
+  // contract data is imported), then each team is fitted under its limit.
+  {
+    const rostered = Object.values(players).filter((p) => p.teamId !== null && p.status === 'active' && p.contract);
+    const scalable = rostered.filter((p) => p.contract!.source === 'estimated' && p.contract!.type !== 'ELC');
+    const total = rostered.reduce((s, p) => s + p.contract!.salary, 0);
+    const est = scalable.reduce((s, p) => s + p.contract!.salary, 0);
+    const target = cap.upper * 0.95 * teams.length;
+    const factor = clamp((target - (total - est)) / Math.max(1, est), 1, 1.2);
+    if (factor > 1.001) for (const p of scalable) scaleContract(p.contract!, factor, season);
+  }
+  for (const t of teams) {
     // Keep payroll under the cap (and under budget).
     const roster = Object.values(players).filter((p) => p.teamId === t.id && p.status === 'active');
     const total = roster.reduce((s, p) => s + (p.contract?.salary ?? 0), 0);
