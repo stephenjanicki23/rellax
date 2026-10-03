@@ -1,0 +1,27 @@
+.rink-wrap { position: relative; }
+.rink-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-family: var(--m-display, inherit); text-transform: uppercase; letter-spacing: 0.06em; font-size: 13px; color: var(--muted); }
+.rink-team { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; font-style: italic; }
+.rink-team .arrow { font-style: normal; color: var(--m-team2, var(--accent)); font-size: 12px; }
+.rink-key { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; font-size: 11.5px; }
+.rink-key .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid; margin-left: 6px; }
+.rink-key .mk { margin-left: 6px; color: var(--text); }
+.rink-key .mk.miss { color: var(--muted); }
+.rink2 { width: 100%; height: auto; display: block; border-radius: 22px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+.rink2 .pl, .rink2 .pk { transition-property: transform; transition-timing-function: cubic-bezier(0.33, 0.1, 0.25, 1); will-change: transform; }
+.rink2 .pl text { pointer-events: none; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.rink2 .carrier { fill: none; stroke: #ffd400; stroke-width: 0.8; opacity: 0.95; }
+.rink2 .shot-mk { opacity: 0.55; }
+.rink2 .goal-light { fill: #ff2a2a; opacity: 0.35; animation: goal-light 0.5s ease-in-out infinite alternate; }
+@keyframes goal-light { to { opacity: 0.75; } }
+.rink-flash {
+  position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
+  font-family: var(--m-display, inherit); font-style: italic; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: clamp(16px, 3vw, 30px); padding: 4px 18px; color: #111; background: linear-gradient(#fff, #c9ced5);
+  border-bottom: 4px solid var(--m-team, #2b6cb0); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); pointer-events: none;
+  animation: rink-flash 1.3s ease-out forwards;
+}
+.rink-flash.goal { font-size: clamp(22px, 5vw, 48px); background: linear-gradient(#ffe36b, #f2b632); animation-duration: 2.6s; }
+.rink-flash.penalty { background: linear-gradient(#ffd0d0, #e9a0a0); }
+.rink-flash.info { font-size: clamp(12px, 2vw, 18px); padding: 2px 12px; opacity: 0.92; }
+@keyframes rink-flash { 0% { opacity: 0; transform: translate(-50%, -40%) scale(0.9); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (max-width: 760px) { .rink-key { display: none; } }

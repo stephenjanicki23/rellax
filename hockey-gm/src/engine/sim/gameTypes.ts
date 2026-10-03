@@ -6,6 +6,8 @@ export interface GamePlayerInput {
   id: number;
   first: string;
   last: string;
+  /** Jersey number (presentation only). */
+  number?: number;
   pos: Position;
   archetype: ArchetypeId;
   attrs: Attributes;
