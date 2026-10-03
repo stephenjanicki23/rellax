@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useStore, runSim, nextPhase, saveNow, toast } from './store';
+import { useStore, runSim, nextPhase, saveNow, toast, ask } from './store';
 import { useRoute, href, navigate } from './router';
 import { TeamLogo } from './components/common';
 import { leagueDate, PHASE_LABEL, seasonLabel } from './format';
@@ -77,11 +77,23 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
 ];
 
 export function App() {
-  const { league, busy, toasts } = useStore();
+  const { league, busy, toasts, confirm: pending } = useStore();
+  const dialog = pending && (
+    <div className="modal-bg" onClick={() => pending.resolve(false)}>
+      <div className="modal stack" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <span style={{ fontSize: 14 }}>{pending.text}</span>
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn" onClick={() => pending.resolve(false)}>Cancel</button>
+          <button className="btn primary" autoFocus onClick={() => pending.resolve(true)}>{pending.ok}</button>
+        </div>
+      </div>
+    </div>
+  );
   if (!league) {
     return (
       <>
         <NewGame />
+        {dialog}
         <Toasts toasts={toasts} />
       </>
     );
@@ -111,6 +123,7 @@ export function App() {
           </div>
         </div>
       )}
+      {dialog}
       <Toasts toasts={toasts} />
     </div>
   );
@@ -234,9 +247,9 @@ function TopBar() {
     primary = (
       <button
         className="btn primary"
-        onClick={() => {
+        onClick={async () => {
           const n = expiringPlayers(league, league.userTeamId).length;
-          if (n && !confirm(`${n} of your players are unsigned and will become free agents. Continue to free agency?`)) return;
+          if (n && !(await ask(`${n} of your players are unsigned and will become free agents. Open free agency?`, 'Open free agency'))) return;
           void nextPhase();
         }}
       >

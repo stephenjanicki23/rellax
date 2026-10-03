@@ -25,9 +25,10 @@ interface State {
   busy: Busy | null;
   toasts: { id: number; text: string; kind: 'info' | 'good' | 'bad' }[];
   lastSaved: number | null;
+  confirm: { text: string; ok: string; resolve: (v: boolean) => void } | null;
 }
 
-let state: State = { league: null, version: 0, saveId: null, busy: null, toasts: [], lastSaved: null };
+let state: State = { league: null, version: 0, saveId: null, busy: null, toasts: [], lastSaved: null, confirm: null };
 const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 function set(patch: Partial<State>) {
@@ -54,6 +55,25 @@ export function useGame(): { league: League; version: number } {
 export function getLeague(): League {
   if (!state.league) throw new Error('No game loaded');
   return state.league;
+}
+
+/**
+ * In-page confirmation (the browser's confirm() is unavailable in sandboxed hosts).
+ * Resolves true when the user accepts.
+ */
+export function ask(text: string, ok = 'Continue'): Promise<boolean> {
+  return new Promise((resolve) => {
+    set({
+      confirm: {
+        text,
+        ok,
+        resolve: (v) => {
+          set({ confirm: null });
+          resolve(v);
+        },
+      },
+    });
+  });
 }
 
 let toastId = 1;

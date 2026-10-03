@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useGame, mutate, nextPhase, toast } from '../store';
+import { useGame, mutate, nextPhase, toast, ask } from '../store';
 import { Card, PlayerLink, Pos, Stars, Table, TeamLink, Bar, Tabs, type Column } from '../components/common';
 import { currentPick, draftRankings, makeDraftPick, runDraftUntilUser, suggestPick } from '../../engine/economy/draft';
 import { estimate, knowledgeOf, scoutReport } from '../../engine/economy/scouting';
@@ -61,8 +61,8 @@ export function DraftPage() {
           {league.phase === 'draft' && (
             <button
               className="btn"
-              onClick={() => {
-                if (myPicks.length && !confirm('Auto-draft your remaining picks using your scouts’ board?')) return;
+              onClick={async () => {
+                if (myPicks.length && !(await ask('Auto-draft your remaining picks using your scouts’ board?', 'Auto-draft'))) return;
                 mutate((l) => runDraftUntilUser(l, true));
                 void nextPhase();
               }}

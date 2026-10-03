@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useGame, mutate, toast } from '../store';
+import { useGame, mutate, toast, ask } from '../store';
 import { navigate } from '../router';
 import { Card, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
@@ -68,7 +68,7 @@ export function PlayerPage({ id }: { id: number }) {
               Name captain
             </button>
           )}
-          {mine && <button className="btn danger" onClick={() => { if (confirm(`Release ${p.first} ${p.last}?`)) mutate((l) => releasePlayer(l, p, 'release')); }}>Release</button>}
+          {mine && <button className="btn danger" onClick={async () => { if (await ask(`Release ${p.first} ${p.last}? He becomes a free agent.`, 'Release')) mutate((l) => releasePlayer(l, p, 'release')); }}>Release</button>}
           {!mine && team && <button className="btn" onClick={() => navigate('trades')}>Trade for…</button>}
           {p.status === 'fa' && <button className="btn primary" onClick={() => setNeg(true)}>Make offer</button>}
         </div>

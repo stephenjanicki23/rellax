@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_CONFIG } from '../../engine/data/leagueConfig';
-import { newGame, loadGame, importGame, toast } from '../store';
+import { newGame, loadGame, importGame, toast, ask } from '../store';
 import { listSaves, deleteSave } from '../db';
 import type { SaveMeta } from '../../engine/save';
 import { TeamLogo } from '../components/common';
@@ -53,8 +53,8 @@ export function NewGame() {
                   </button>
                   <button
                     className="btn danger small"
-                    onClick={() => {
-                      if (confirm(`Delete save "${s.teamName} ${seasonLabel(s.season)}"?`)) void deleteSave(s.id).then(refresh);
+                    onClick={async () => {
+                      if (await ask(`Delete the save "${s.teamName} ${seasonLabel(s.season)}"? This cannot be undone.`, 'Delete save')) void deleteSave(s.id).then(refresh);
                     }}
                   >
                     Delete

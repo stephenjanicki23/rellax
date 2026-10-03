@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useGame, mutate, toast } from '../store';
+import { useGame, mutate, toast, ask } from '../store';
 import { Card, Table, Tabs, Seg, type Column } from '../components/common';
 import { playerColumns } from '../playerCells';
 import { playersOf } from '../../engine/league/helpers';
@@ -59,8 +59,8 @@ export function RosterPage() {
         )}
         <button
           className="btn small danger"
-          onClick={() => {
-            if (!confirm(`Release ${p.first} ${p.last}? He becomes a free agent and your team takes no further salary responsibility.`)) return;
+          onClick={async () => {
+            if (!(await ask(`Release ${p.first} ${p.last}? He becomes a free agent and your team takes no further salary responsibility.`, 'Release'))) return;
             mutate((l) => releasePlayer(l, p, 'release'));
           }}
         >
