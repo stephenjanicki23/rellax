@@ -74,3 +74,15 @@ export const OWNER_NAMES = [
   'Harlan Group', 'Bellweather Holdings', 'The Kessler Family', 'Northstar Capital', 'Redline Sports & Ent.',
   'Marlowe Investments', 'Crestview Partners', 'The Aldridge Trust', 'Summit Sports Group', 'Pemberton Holdings',
 ];
+
+const EXTRA_COUNTRIES: Record<string, string> = {
+  DNK: 'Denmark', NOR: 'Norway', AUT: 'Austria', FRA: 'France', BLR: 'Belarus', SVN: 'Slovenia', KAZ: 'Kazakhstan',
+  GBR: 'Great Britain', AUS: 'Australia', UKR: 'Ukraine', NLD: 'Netherlands', POL: 'Poland', ITA: 'Italy', JPN: 'Japan',
+  KOR: 'South Korea', HUN: 'Hungary', LTU: 'Lithuania', EST: 'Estonia', BRA: 'Brazil', JAM: 'Jamaica', NGA: 'Nigeria',
+  ZAF: 'South Africa', VEN: 'Venezuela', TWN: 'Taiwan', CHN: 'China', BHS: 'Bahamas', MEX: 'Mexico', CRO: 'Croatia',
+};
+
+/** Display name for a nationality code (name-pool codes plus ISO-3 codes from real rosters). */
+export function countryLabel(code: string): string {
+  return NAME_POOLS.find((n) => n.code === code)?.label ?? EXTRA_COUNTRIES[code] ?? code;
+}

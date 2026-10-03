@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:validation": "VALIDATION=1 vitest run tests/validation",
-    "analyze": "tsx scripts/analyze.ts"
+    "analyze": "tsx scripts/analyze.ts",
+    "fetch:nhl": "node scripts/fetch-nhl.mjs"
   },
   "dependencies": {
     "react": "^19.3.0",

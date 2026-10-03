@@ -187,6 +187,8 @@ export interface PlayerAward {
 
 export interface Player {
   id: number;
+  /** Real-world NHL player id when imported from the roster snapshot. */
+  nhlId?: number;
   first: string;
   last: string;
   birthYear: number;

@@ -14,7 +14,7 @@ import { points, savePct, gaa, gsax, fmtToi, addStatLine, emptyStatLine } from '
 import { offerContract, makeOffer } from '../../engine/economy/freeAgency';
 import { demote, promote, releasePlayer } from '../../engine/economy/roster';
 import { heightLabel, weightLabel, seasonLabel, sv } from '../format';
-import { NAME_POOLS } from '../../engine/data/names';
+import { countryLabel } from '../../engine/data/names';
 import { attrLabel as label } from '../attrLabels';
 import { PlayerCardView, potentialGrade } from '../menu/PlayerCard';
 import { playerOvr } from '../menu/exhibition';
@@ -35,7 +35,7 @@ export function PlayerPage({ id }: { id: number }) {
   const rep = scoutReport(league, p);
   const mine = p.teamId === league.userTeamId;
   const groups = p.pos === 'G' ? GOALIE_ATTR_GROUPS : ATTR_GROUPS;
-  const nat = NAME_POOLS.find((n) => n.code === p.nat)?.label ?? p.nat;
+  const nat = countryLabel(p.nat);
   const cur = league.seasonStats[p.id];
   const career = p.career.filter((c) => (statView === 'po' ? c.playoffs : !c.playoffs));
   const rows: { season: string; teamId: number; s: StatLine; current?: boolean }[] = career.map((c) => ({ season: seasonLabel(c.season), teamId: c.teamId, s: c.stats }));
