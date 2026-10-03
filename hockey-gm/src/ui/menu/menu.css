@@ -3,18 +3,6 @@
    brushed panel and a hero jersey fill the right; a news ticker runs along the
    bottom. Deliberately single-theme (dark) in every viewer theme. */
 .mm {
-  --m-bg: #141619;
-  --m-bar-top: #3a3d43;
-  --m-bar-bot: #1d1f23;
-  --m-hi-top: #ffffff;
-  --m-hi-bot: #c9ced5;
-  --m-ink: #f2f4f6;
-  --m-ink-dark: #121417;
-  --m-dim: #9aa2ad;
-  --m-silver: #dfe3e8;
-  --m-team: #2b6cb0;
-  --m-team2: #f2b632;
-  --m-display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
   color-scheme: dark;
   position: relative;
   min-height: 100%;
@@ -25,13 +13,7 @@
   isolation: isolate;
 }
 /* Force the app's own tokens dark while the menu is up (dialogs, toasts, live view). */
-.force-dark {
-  --bg: #0b1220; --bg2: #0f172a; --panel: #131c2e; --panel2: #18233a; --line: #22304b; --line2: #2c3d5e;
-  --text: #e6ebf5; --muted: #8a9bb8; --dim: #5f708e; --accent: #38bdf8; --accent2: #0ea5e9;
-  --good: #34d399; --warn: #fbbf24; --bad: #f87171; --gold: #facc15; --purple: #a78bfa;
-  color-scheme: dark;
-  height: 100%;
-}
+.force-dark { color-scheme: dark; height: 100%; }
 
 /* ── background layers ── */
 .mm-bg, .mm-bg::before, .mm-bg::after { position: absolute; inset: 0; content: ''; z-index: -3; }
