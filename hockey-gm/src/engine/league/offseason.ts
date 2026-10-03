@@ -28,6 +28,7 @@ import { expectedToiFor } from '../player/generate';
 import { generateCoach } from '../team/coaching';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable } from '../economy/roster';
+import { advanceContracts } from '../cba/contractService';
 
 export function endRegularSeasonHooks(league: League): void {
   if (!league.draftCombineDone) runCombine(league);
@@ -197,14 +198,7 @@ export function retirements(league: League): void {
 
 /** Contract years tick down once the season is over; extensions kick in. */
 function rollContracts(league: League): void {
-  for (const p of Object.values(league.players)) {
-    if (!p.contract || p.status === 'retired') continue;
-    p.contract.years--;
-    if (p.contract.years <= 0 && p.contract.next) {
-      const n = p.contract.next;
-      p.contract = { salary: n.salary, years: n.years, type: 'standard', ntc: n.ntc, signedSeason: league.season };
-    }
-  }
+  advanceContracts(league, league.season + 1);
 }
 
 /** Draft finished → begin re-signing period. */

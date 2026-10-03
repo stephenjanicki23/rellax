@@ -1,6 +1,7 @@
 import type { Rng } from '../core/rng';
 import { clamp } from '../core/math';
-import type { Contract, League, Player, Team } from '../types';
+import type { League, Player, Team } from '../types';
+import { capProjection, teamCapSheet } from '../cba/capManager';
 
 /** Ability as perceived by the market: current ability plus some credit for youth upside. */
 export function perceivedAbility(p: Player, season: number): number {
@@ -54,21 +55,15 @@ export function isRFA(p: Player, season: number): boolean {
   return age < 27 && p.proSeasons < 7;
 }
 
-export function makeContract(salary: number, years: number, season: number, ntc = false, type: Contract['type'] = 'standard'): Contract {
-  return { salary: Math.round(salary), years, type, ntc, signedSeason: season };
-}
 
-/** Active-roster cap hit for a team (minor-leaguers do not count). */
+/** Team cap charge for the current books (CapManager: active roster, buried, retained, dead cap). */
 export function payroll(league: League, teamId: number): number {
-  let s = 0;
-  for (const p of Object.values(league.players)) {
-    if (p.teamId === teamId && p.status === 'active' && p.contract) s += p.contract.salary;
-  }
-  return s;
+  return teamCapSheet(league, teamId).total;
 }
 
+/** Cap space for the current books (upper limit + LTIR relief − total). */
 export function capSpace(league: League, teamId: number): number {
-  return league.cap.upper - payroll(league, teamId);
+  return teamCapSheet(league, teamId).space;
 }
 
 export function rosterOf(league: League, teamId: number, status: Player['status'] = 'active'): Player[] {
@@ -77,14 +72,9 @@ export function rosterOf(league: League, teamId: number, status: Player['status'
   return out;
 }
 
-/** Commitments for future seasons: [this season, next, +2 ...]. */
+/** Commitments for future seasons: [current books, next, +2 ...] (contracts + dead cap). */
 export function futureCommitments(league: League, teamId: number, years = 5): number[] {
-  const out = new Array(years).fill(0);
-  for (const p of Object.values(league.players)) {
-    if (p.teamId !== teamId || !p.contract || (p.status !== 'active' && p.status !== 'prospect')) continue;
-    for (let y = 0; y < Math.min(years, p.contract.years); y++) out[y] += p.status === 'active' || y > 0 ? p.contract.salary : 0;
-  }
-  return out;
+  return capProjection(league, teamId, years).map((y) => y.committed + y.deadCap);
 }
 
 export function teamBudget(t: Team, cap: number): number {

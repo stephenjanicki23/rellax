@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "asOf": null,
+  "source": "none — import real contracts here (see data/README.md). Players without an entry get an estimated contract flagged source=\"estimated\".",
+  "contracts": []
+}

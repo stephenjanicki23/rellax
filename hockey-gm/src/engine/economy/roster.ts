@@ -1,7 +1,8 @@
 import type { League, Player } from '../types';
 import { addNews, addTransaction, playersOf, teamName, withRng } from '../league/helpers';
 import { generatePlayer } from '../player/generate';
-import { capSpace, makeContract, marketValue } from './contracts';
+import { capSpace, marketValue } from './contracts';
+import { signFromOffer, type SignResult } from '../cba/contractService';
 import { fullName, isForward } from '../player/ability';
 import { emptyStatLine } from '../core/statline';
 
@@ -57,12 +58,17 @@ export function releasePlayer(league: League, p: Player, reason = 'released'): v
   }
 }
 
-export function signPlayer(league: League, p: Player, teamId: number, salary: number, years: number, ntc = false): void {
-  p.teamId = teamId;
-  p.status = 'active';
-  p.rightsTeamId = null;
-  p.contract = makeContract(salary, years, league.season, ntc);
-  ensureStats(league, p);
+/**
+ * Sign a player through the ContractService (CBA validation + cap check).
+ * Returns the result so callers can react to an illegal contract.
+ */
+export function signPlayer(league: League, p: Player, teamId: number, salary: number, years: number, ntc = false, opts: { skipCapCheck?: boolean; origin?: 'signing' | 'offerSheet'; announce?: boolean } = {}): SignResult {
+  const res = signFromOffer(league, p, teamId, { aav: salary, years, clauses: ntc ? 'NTC' : null, twoWay: salary < league.cap.minSalary * 1.4 && years <= 2 }, { skipCapCheck: opts.skipCapCheck, origin: opts.origin ?? 'signing', announce: opts.announce ?? false });
+  if (res.ok) {
+    p.status = 'active';
+    ensureStats(league, p);
+  }
+  return res;
 }
 
 /**
@@ -94,7 +100,8 @@ export function ensureDressable(league: League, teamId: number): void {
       continue;
     }
     if (fa) {
-      signPlayer(league, fa, teamId, Math.max(league.cap.minSalary, Math.min(marketValue(fa, league), league.cap.minSalary * 1.5)), 1);
+      // Emergency signing to dress a legal lineup (game simplification: allowed even if it breaches the cap).
+      signPlayer(league, fa, teamId, Math.max(league.cap.minSalary, Math.min(marketValue(fa, league), league.cap.minSalary * 1.5)), 1, false, { skipCapCheck: true });
       addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [fa.id], description: `${teamName(league, teamId)} sign ${fullName(fa)} to a one-year deal` });
       continue;
     }
@@ -105,7 +112,7 @@ export function ensureDressable(league: League, teamId: number): void {
       return generatePlayer(rng, { id: league.nextId.player++, pos: p, targetCA: target, age: rng.int(24, 31), season: league.season });
     });
     league.players[callup.id] = callup;
-    signPlayer(league, callup, teamId, league.cap.minSalary, 1);
+    signPlayer(league, callup, teamId, league.cap.minSalary, 1, false, { skipCapCheck: true });
     addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [callup.id], description: `${teamName(league, teamId)} sign minor-leaguer ${fullName(callup)} to fill an emergency need` });
   }
 }

@@ -9,7 +9,8 @@ import { clamp } from '../core/math';
 import { seedFrom, Rng } from '../core/rng';
 import type { FreeAgentOffer, League, Player } from '../types';
 import { addNews, addTransaction, isCpu, playersOf, teamName, withRng } from '../league/helpers';
-import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, makeContract, payroll } from './contracts';
+import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, payroll } from './contracts';
+import { signFromOffer, type OfferTerms } from '../cba/contractService';
 import { signPlayer, releasePlayer, rosterSize, rosterCounts, ensureDressable, trimRoster } from './roster';
 import { executeTrade } from './trade';
 import { fullName, isForward } from '../player/ability';
@@ -49,7 +50,7 @@ export interface NegotiationResult {
 }
 
 /** Offer a contract to one of your own players (re-sign or extension). */
-export function offerContract(league: League, p: Player, salary: number, years: number): NegotiationResult {
+export function offerContract(league: League, p: Player, salary: number, years: number, terms: Partial<OfferTerms> = {}): NegotiationResult {
   if (p.teamId === null || !p.contract) return { ok: false, message: 'Not under contract with a team.' };
   const ask = askingSalary(p, league, p.teamId, years);
   const will = willingness(league, p);
@@ -57,29 +58,24 @@ export function offerContract(league: League, p: Player, salary: number, years: 
   const roll = (seedFrom(league.seed, 'resign', league.season, p.id, years) % 1000) / 1000;
   if (roll > will + (salary / ask - 1) * 2) return { ok: false, message: `${fullName(p)} wants to test the market rather than commit right now.` };
   const extension = p.contract.years >= 1;
-  if (extension) {
-    p.contract.next = { salary, years, ntc: false };
-  } else {
-    const ntc = years >= 4 && league.season - p.birthYear >= 26 && p.ca >= 150;
-    p.contract = makeContract(salary, years, league.season, ntc);
-  }
+  const ntc = years >= 4 && league.season - p.birthYear >= 26 && p.ca >= 150;
+  const res = signFromOffer(league, p, p.teamId, { aav: salary, years, clauses: ntc ? 'NTC' : null, ...terms }, { extension, origin: extension ? 'extension' : 'signing' });
+  if (!res.ok) return { ok: false, message: res.message };
   p.morale = clamp(p.morale + 6, 0, 100);
-  addTransaction(league, { kind: 'extension', teamIds: [p.teamId], playerIds: [p.id], description: `${teamName(league, p.teamId)} ${extension ? 'extend' : 're-sign'} ${fullName(p)}: ${years} yr / $${(salary / 1000).toFixed(2)}M AAV` });
-  if (p.reputation >= 50) addNews(league, { category: 'signing', headline: `${fullName(p)} ${extension ? 'signs a' : 'agrees to a'} ${years}-year, $${((salary * years) / 1000).toFixed(1)}M ${extension ? 'extension' : 'deal'} with ${teamName(league, p.teamId)}`, teamIds: [p.teamId], playerIds: [p.id], importance: 3 });
-  return { ok: true, message: `${fullName(p)} signs: ${years} years at $${(salary / 1000).toFixed(2)}M per season.` };
+  return { ok: true, message: res.message };
 }
 
-/** Arbitration-style resolution for restricted free agents: the arbitrator splits the difference. */
+/** Arbitration-style resolution for restricted free agents (full hearings live in cba/arbitration). */
 export function arbitrate(league: League, p: Player): NegotiationResult {
   if (!p.contract || p.teamId === null) return { ok: false, message: 'No rights held.' };
   if (!isRFA(p, league.season)) return { ok: false, message: 'Only restricted free agents are arbitration-eligible.' };
   const ask = askingSalary(p, league, p.teamId, 2);
   const teamOffer = Math.round(marketValue(p, league) * 0.82);
-  const award = Math.round(((ask + teamOffer) / 2) / 5) * 5;
+  const award = Math.max(league.cap.minSalary, Math.round(((ask + teamOffer) / 2) / 5) * 5);
   const years = league.season - p.birthYear >= 24 ? 2 : 1;
-  p.contract = makeContract(Math.max(league.cap.minSalary, award), years, league.season, false);
+  const res = signFromOffer(league, p, p.teamId, { aav: award, years }, { origin: 'arbitration', skipCapCheck: true });
+  if (!res.ok) return { ok: false, message: res.message };
   p.morale = clamp(p.morale - 6, 0, 100);
-  addTransaction(league, { kind: 'extension', teamIds: [p.teamId], playerIds: [p.id], description: `Arbitrator awards ${fullName(p)} ${years} yr / $${(award / 1000).toFixed(2)}M with ${teamName(league, p.teamId)}` });
   return { ok: true, message: `Arbitrator awards ${years} year(s) at $${(award / 1000).toFixed(2)}M.` };
 }
 
@@ -101,13 +97,13 @@ export function aiResign(league: League, teamId: number): void {
     if (p.status === 'prospect') want = p.pa >= 125 || p.ca >= 110;
     if (!want) continue;
     if (rfa) {
-      p.contract = makeContract(ask.salary, ask.years, league.season, false, p.status === 'prospect' && age <= 21 ? 'ELC' : 'standard');
+      signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, twoWay: p.status === 'prospect' }, { origin: 'signing', toMinors: p.status === 'prospect' });
       continue;
     }
     const roll = (seedFrom(league.seed, 'airesign', league.season, p.id) % 1000) / 1000;
     if (roll < willingness(league, p)) {
       const ntc = ask.years >= 4 && age >= 26 && p.ca >= 150;
-      p.contract = makeContract(ask.salary, ask.years, league.season, ntc);
+      signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, clauses: ntc ? 'NTC' : null }, { origin: 'signing' });
     }
   }
 }
@@ -168,7 +164,9 @@ export function makeOffer(league: League, teamId: number, p: Player, salary: num
   if (league.phase !== 'freeAgency') {
     const u = offerUtility(league, p, offer);
     if (u >= 0.97) {
-      completeSigning(league, offer);
+      const res = signPlayer(league, p, teamId, salary, years, false);
+      if (!res.ok) return { ok: false, message: res.message };
+      league.faOffers = league.faOffers.filter((x) => x.playerId !== p.id);
       return { ok: true, message: `${fullName(p)} accepts your offer!` };
     }
     return { ok: false, message: `${fullName(p)} declines. He wants roughly $${(askingSalary(p, league, null, years) / 1000).toFixed(2)}M.` };
@@ -178,14 +176,20 @@ export function makeOffer(league: League, teamId: number, p: Player, salary: num
   return { ok: true, message: u >= 1.05 ? `${fullName(p)}'s camp is very interested.` : u >= 0.95 ? `${fullName(p)} is considering your offer.` : `${fullName(p)}'s agent says the offer is below what other teams are discussing.` };
 }
 
-function completeSigning(league: League, o: FreeAgentOffer): void {
+function completeSigning(league: League, o: FreeAgentOffer): boolean {
   const p = league.players[o.playerId];
-  signPlayer(league, p, o.teamId, o.salary, o.years, o.ntc);
+  const res = signPlayer(league, p, o.teamId, o.salary, o.years, o.ntc);
+  if (!res.ok) {
+    // Illegal now (cap/term/roster): the offer is void.
+    league.faOffers = league.faOffers.filter((x) => !(x.playerId === o.playerId && x.teamId === o.teamId));
+    return false;
+  }
   league.faOffers = league.faOffers.filter((x) => x.playerId !== o.playerId);
   addTransaction(league, { kind: 'signing', teamIds: [o.teamId], playerIds: [p.id], description: `${teamName(league, o.teamId)} sign ${fullName(p)} (${p.pos}): ${o.years} yr / $${(o.salary / 1000).toFixed(2)}M AAV` });
   if (p.reputation >= 45 || o.teamId === league.userTeamId) {
     addNews(league, { category: 'signing', headline: `${fullName(p)} signs ${o.years}-year, $${((o.salary * o.years) / 1000).toFixed(1)}M contract with ${teamName(league, o.teamId)}`, teamIds: [o.teamId], playerIds: [p.id], importance: p.reputation >= 60 ? 4 : 2 });
   }
+  return true;
 }
 
 /** CPU teams place offers on free agents that fit their needs and budget. */

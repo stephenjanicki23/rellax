@@ -1,0 +1,544 @@
+{
+  "schemaVersion": 1,
+  "units": "All money values are in thousands of US dollars (e.g. 95500 = $95.5M).",
+  "provenance": {
+    "CBA2013": "NHL/NHLPA Collective Bargaining Agreement 2013-2022 as amended by the 2020 MOU (current rules through 2025-26).",
+    "MOU2025": "NHL/NHLPA Memorandum of Understanding dated June 27, 2025 (new CBA, effective 2026-27 unless noted).",
+    "NHL": "Figures published by the NHL (cap, floor, minimum salary, thresholds).",
+    "PROJECTED": "Not yet published; projected by the game. Update when the league announces the figure.",
+    "SIMPLIFICATION": "Game simplification of a more detailed rule."
+  },
+  "elcMaxCompensationByDraftYear": {
+    "_source": "MOU2025 (2024-2026 fixed; 2027+ = minimum salary + $175K)",
+    "2023": 950,
+    "2024": 975,
+    "2025": 975,
+    "2026": 1000,
+    "2027": 1025,
+    "2028": 1075,
+    "2029": 1125,
+    "2030": 1175
+  },
+  "elcTermByAge": {
+    "_source": "CBA2013 9.1 (age as of Sept 15 of signing year)",
+    "18": 3,
+    "19": 3,
+    "20": 3,
+    "21": 3,
+    "22": 2,
+    "23": 2,
+    "24": 1
+  },
+  "elcSignatureBonusMaxPct": {
+    "_source": "CBA2013 9.3",
+    "value": 0.1
+  },
+  "elcScheduleABonusMax": {
+    "_source": "CBA2013 9.3 (Schedule A); verify against MOU2025",
+    "value": 850
+  },
+  "elcSlide": {
+    "_source": "CBA2013 9.1(d)",
+    "ages": [
+      18,
+      19
+    ],
+    "maxNhlGames": 9
+  },
+  "waiverExemption": {
+    "_source": "CBA2013 13.4 (age = age at signing of first SPC)",
+    "skater": {
+      "18": [
+        5,
+        160
+      ],
+      "19": [
+        4,
+        160
+      ],
+      "20": [
+        3,
+        160
+      ],
+      "21": [
+        3,
+        80
+      ],
+      "22": [
+        3,
+        70
+      ],
+      "23": [
+        3,
+        60
+      ],
+      "24": [
+        2,
+        60
+      ],
+      "25": [
+        1,
+        0
+      ]
+    },
+    "goalie": {
+      "18": [
+        6,
+        80
+      ],
+      "19": [
+        5,
+        80
+      ],
+      "20": [
+        4,
+        80
+      ],
+      "21": [
+        4,
+        60
+      ],
+      "22": [
+        4,
+        60
+      ],
+      "23": [
+        3,
+        60
+      ],
+      "24": [
+        2,
+        60
+      ],
+      "25": [
+        1,
+        0
+      ]
+    },
+    "earlyGames": {
+      "_note": "Age 18/19 signers who play 11+ NHL games: exemption years drop to 3 (skaters) / 4 (goalies)",
+      "games": 11,
+      "skaterYears": 3,
+      "goalieYears": 4
+    }
+  },
+  "arbitrationEligibility": {
+    "_source": "CBA2013 12.1(a): years of professional experience by age at first SPC",
+    "18": 4,
+    "19": 4,
+    "20": 4,
+    "21": 3,
+    "22": 2,
+    "23": 2,
+    "24": 1
+  },
+  "freeAgency": {
+    "_source": "CBA2013 Art. 10 (Group 3 UFA: age 27 by June 30 or 7 accrued seasons; Group 6: 25+, 3+ pro seasons, <80 NHL GP skater / <28 GP goalie; Group 5: 10+ pro seasons and below-average salary, one-time election)",
+    "ufaAge": 27,
+    "ufaAccruedSeasons": 7,
+    "accruedSeasonGames": 40,
+    "group6Age": 25,
+    "group6ProSeasons": 3,
+    "group6MaxGamesSkater": 80,
+    "group6MaxGamesGoalie": 28,
+    "group5ProSeasons": 10
+  },
+  "seasons": {
+    "2025": {
+      "label": "2025-26",
+      "ruleset": "CBA2013",
+      "upperLimit": {
+        "value": 95500,
+        "source": "NHL"
+      },
+      "lowerLimit": {
+        "value": 70600,
+        "source": "NHL"
+      },
+      "minimumSalary": {
+        "value": 775,
+        "source": "CBA2013"
+      },
+      "averageLeagueSalary": {
+        "value": 3973.228,
+        "source": "NHL"
+      },
+      "maxSalaryPctOfUpper": {
+        "value": 0.2,
+        "source": "CBA2013 50.5(b)"
+      },
+      "maxTermOwnTeam": {
+        "value": 8,
+        "source": "CBA2013 50.8"
+      },
+      "maxTermExternal": {
+        "value": 7,
+        "source": "CBA2013 50.8"
+      },
+      "salaryVariance": {
+        "adjacentPctOfFirstYear": 0.25,
+        "lowestPctOfHighest": 0.6,
+        "source": "CBA2013 50.7 as amended"
+      },
+      "signingBonusMaxPctOfTotal": {
+        "value": null,
+        "source": "CBA2013 (no aggregate cap)"
+      },
+      "qualifyingOffer": {
+        "tiers": [
+          [
+            660,
+            1.1
+          ],
+          [
+            1000,
+            1.05
+          ],
+          [
+            null,
+            1.0
+          ]
+        ],
+        "tier2Cap": 1000,
+        "aavCapPct": 1.2,
+        "oneWayGamesLast3": 180,
+        "oneWayGamesLastSeason": 60,
+        "source": "CBA2013 10.2(a)(ii) + 2020 MOU (120% of AAV cap)"
+      },
+      "offerSheetTiers": {
+        "aavDivisorMaxYears": 5,
+        "tiers": [
+          [
+            1544.424,
+            []
+          ],
+          [
+            2340.037,
+            [
+              "3"
+            ]
+          ],
+          [
+            4680.076,
+            [
+              "2"
+            ]
+          ],
+          [
+            7020.113,
+            [
+              "1",
+              "3"
+            ]
+          ],
+          [
+            9360.153,
+            [
+              "1",
+              "2",
+              "3"
+            ]
+          ],
+          [
+            11700.192,
+            [
+              "1",
+              "1",
+              "2",
+              "3"
+            ]
+          ],
+          [
+            null,
+            [
+              "1",
+              "1",
+              "1",
+              "1"
+            ]
+          ]
+        ],
+        "source": "NHL (2025-26 thresholds)"
+      },
+      "arbitration": {
+        "clubElectThreshold": 2386.3,
+        "walkAwayThreshold": 4755.0,
+        "source": "PROJECTED (back-indexed from 2026 NHL figures)"
+      },
+      "buriedAllowance": {
+        "value": 375,
+        "source": "CBA2013 50.5(d)(i)(B)(5): relief = minimum salary + $375K"
+      },
+      "bonusCushionPct": {
+        "value": 0.075,
+        "source": "CBA2013 50.5(h)"
+      },
+      "retention": {
+        "maxPct": 0.5,
+        "maxContractsPerTeam": 3,
+        "maxTimesPerContract": 2,
+        "source": "CBA2013 50.5(e)(iii)"
+      },
+      "buyout": {
+        "ratioUnder26": 0.3333333,
+        "ratio26Plus": 0.6666667,
+        "termMultiplier": 2,
+        "source": "CBA2013 50.9(i)"
+      },
+      "ltir": {
+        "minDays": 24,
+        "minGames": 10,
+        "inSeasonReturnReliefCap": "averageLeagueSalary",
+        "source": "MOU2025 LTIR change effective 2025-26 (relief capped at ALS unless out for season + playoffs)"
+      },
+      "playoffCap": {
+        "value": false,
+        "source": "CBA2013"
+      },
+      "rosterMax": {
+        "value": 23,
+        "source": "CBA2013 16.4"
+      },
+      "contractLimit": {
+        "value": 50,
+        "source": "CBA2013 50.10"
+      },
+      "escrowCapPct": {
+        "value": 6,
+        "source": "SIMPLIFICATION (display only)"
+      },
+      "thirtyFivePlusAge": {
+        "value": 35,
+        "source": "CBA2013 50.5(d)(i)(B)(4)"
+      },
+      "offseasonOveragePct": {
+        "value": 0.1,
+        "source": "CBA2013 50.5(f)(i): clubs may exceed the upper limit by up to 10% during the offseason"
+      },
+      "injuryReserveDays": {
+        "value": 7,
+        "source": "CBA2013 16.11 (IR: out at least 7 days; does not count against the 23-man roster)"
+      }
+    },
+    "2026": {
+      "label": "2026-27",
+      "ruleset": "MOU2025",
+      "upperLimit": {
+        "value": 104000,
+        "source": "NHL"
+      },
+      "lowerLimit": {
+        "value": 76900,
+        "source": "NHL"
+      },
+      "minimumSalary": {
+        "value": 850,
+        "source": "MOU2025"
+      },
+      "averageLeagueSalary": {
+        "value": 4327.0,
+        "source": "PROJECTED (2025-26 ALS indexed by cap growth)"
+      },
+      "maxSalaryPctOfUpper": {
+        "value": 0.2,
+        "source": "CBA2013 50.5(b)"
+      },
+      "maxTermOwnTeam": {
+        "value": 7,
+        "source": "MOU2025"
+      },
+      "maxTermExternal": {
+        "value": 6,
+        "source": "MOU2025"
+      },
+      "salaryVariance": {
+        "adjacentPctOfFirstYear": 0.2,
+        "lowestPctOfHighest": 0.71,
+        "source": "MOU2025"
+      },
+      "signingBonusMaxPctOfTotal": {
+        "value": 0.6,
+        "source": "MOU2025"
+      },
+      "qualifyingOffer": {
+        "tiers": [
+          [
+            1250,
+            1.1
+          ],
+          [
+            1750,
+            1.05
+          ],
+          [
+            null,
+            1.0
+          ]
+        ],
+        "tier2Cap": 1750,
+        "aavCapPct": 1.2,
+        "oneWayGamesLast3": 180,
+        "oneWayGamesLastSeason": 60,
+        "source": "MOU2025 thresholds + 2020 MOU (120% of AAV cap); one-way thresholds per CBA2013 10.2"
+      },
+      "offerSheetTiers": {
+        "aavDivisorMaxYears": 5,
+        "tiers": [
+          [
+            1606.2,
+            []
+          ],
+          [
+            2433.6,
+            [
+              "3"
+            ]
+          ],
+          [
+            4867.3,
+            [
+              "2"
+            ]
+          ],
+          [
+            7300.9,
+            [
+              "1",
+              "3"
+            ]
+          ],
+          [
+            9734.6,
+            [
+              "1",
+              "2",
+              "3"
+            ]
+          ],
+          [
+            12168.2,
+            [
+              "1",
+              "1",
+              "2",
+              "3"
+            ]
+          ],
+          [
+            null,
+            [
+              "1",
+              "1",
+              "1",
+              "1"
+            ]
+          ]
+        ],
+        "source": "PROJECTED (2025-26 tiers indexed +4%; replace when NHL publishes 2026-27 tiers)"
+      },
+      "arbitration": {
+        "clubElectThreshold": 2484.079,
+        "walkAwayThreshold": 4950.08,
+        "source": "NHL (2026 figures)"
+      },
+      "buriedAllowance": {
+        "value": 375,
+        "source": "CBA2013 50.5(d)(i)(B)(5)"
+      },
+      "bonusCushionPct": {
+        "value": 0.075,
+        "source": "CBA2013 50.5(h)"
+      },
+      "retention": {
+        "maxPct": 0.5,
+        "maxContractsPerTeam": 3,
+        "maxTimesPerContract": 2,
+        "source": "CBA2013 50.5(e)(iii)"
+      },
+      "buyout": {
+        "ratioUnder26": 0.3333333,
+        "ratio26Plus": 0.6666667,
+        "termMultiplier": 2,
+        "source": "CBA2013 50.9(i)"
+      },
+      "ltir": {
+        "minDays": 24,
+        "minGames": 10,
+        "inSeasonReturnReliefCap": "averageLeagueSalary",
+        "source": "MOU2025"
+      },
+      "playoffCap": {
+        "value": true,
+        "source": "MOU2025 (dressed players' cap hits must fit under the upper limit; dead cap counts; performance bonuses excluded; LTIR relief not available)"
+      },
+      "rosterMax": {
+        "value": 23,
+        "source": "CBA2013 16.4"
+      },
+      "contractLimit": {
+        "value": 50,
+        "source": "CBA2013 50.10"
+      },
+      "escrowCapPct": {
+        "value": 6,
+        "source": "SIMPLIFICATION (display only)"
+      },
+      "thirtyFivePlusAge": {
+        "value": 35,
+        "source": "CBA2013; MOU2025 exempts contracts whose compensation never decreases year to year with no signing bonus after year 1"
+      }
+    },
+    "2027": {
+      "label": "2027-28",
+      "ruleset": "MOU2025",
+      "upperLimit": {
+        "value": 113500,
+        "source": "NHL (projected by league)"
+      },
+      "lowerLimit": {
+        "value": 83900,
+        "source": "NHL (projected by league)"
+      },
+      "minimumSalary": {
+        "value": 900,
+        "source": "MOU2025"
+      }
+    },
+    "2028": {
+      "label": "2028-29",
+      "ruleset": "MOU2025",
+      "upperLimit": {
+        "value": 119200,
+        "source": "PROJECTED (+5%)"
+      },
+      "lowerLimit": {
+        "value": 88100,
+        "source": "PROJECTED (+5%)"
+      },
+      "minimumSalary": {
+        "value": 950,
+        "source": "MOU2025"
+      }
+    },
+    "2029": {
+      "label": "2029-30",
+      "ruleset": "MOU2025",
+      "upperLimit": {
+        "value": 125100,
+        "source": "PROJECTED (+5%)"
+      },
+      "lowerLimit": {
+        "value": 92500,
+        "source": "PROJECTED (+5%)"
+      },
+      "minimumSalary": {
+        "value": 1000,
+        "source": "MOU2025"
+      }
+    }
+  },
+  "projection": {
+    "_note": "Seasons beyond the table inherit the last season's rules; cap and money thresholds grow by this rate (PROJECTED).",
+    "annualGrowth": 0.05
+  }
+}

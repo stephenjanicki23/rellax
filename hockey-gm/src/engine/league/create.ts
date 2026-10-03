@@ -8,7 +8,11 @@ import { generatePlayer } from '../player/generate';
 import { generateProspect } from '../player/prospects';
 import { autoLines, emptyLines } from '../team/lines';
 import { generateCoach, tacticsForRoster, DEFAULT_TACTICS } from '../team/coaching';
-import { makeContract, marketValue, typicalTerm, teamBudget } from '../economy/contracts';
+import { marketValue, typicalTerm, teamBudget } from '../economy/contracts';
+import { rulesFor, STATIC } from '../cba/rules';
+import { contractFromImport, emptyFinancialState, estimateContract, estimateFirstSpcAge, estimatePriorExperience, importedContract, importedDeadCap } from '../cba/import';
+import { scaleContract, yearsOf, aav, termOf, totalValue, endOf } from '../cba/contract';
+import { determineFreeAgentStatus } from '../cba/rulesEngine';
 import { generateSchedule } from './schedule';
 import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
@@ -29,7 +33,7 @@ export interface CreateLeagueOptions {
 /** Active roster shape taken from a real roster (the rest go to the minors / system). */
 const REAL_ACTIVE = { F: 14, D: 7, G: 2 };
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 const AGE_WEIGHTS: [number, number][] = [
   [19, 0.6], [20, 2.5], [21, 4.5], [22, 6.5], [23, 8], [24, 9], [25, 9], [26, 9], [27, 9], [28, 8], [29, 7.5], [30, 7],
@@ -101,7 +105,9 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     return t;
   });
 
-  const cap = { upper: cfg.economics.salaryCap, floor: cfg.economics.capFloor, minSalary: cfg.economics.minSalary };
+  const capRules = rulesFor(season);
+  const cap = { upper: capRules.upperLimit, floor: capRules.lowerLimit, minSalary: capRules.minimumSalary };
+  let contractIds = 1;
   const valueCtx = { season, cap };
 
   const addPlayer = (p: Player) => {
@@ -113,14 +119,37 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   const abbrs = teams.map((t) => t.abbr);
   const real = snap && snapshotHasRosters(snap, abbrs) ? buildRealPlayers(rng, snap, abbrs, season, () => ids.player++) : null;
 
-  const signContract = (p: Player) => {
+  /** Contract for a player already in the league: real (imported) if available, otherwise an estimate. */
+  const signContract = (p: Player, teamId: number) => {
     const age = season - p.birthYear;
-    const mv = marketValue(p, valueCtx);
-    const years = typicalTerm(p, season, rng);
-    const elc = age <= 22 && rng.chance(0.6);
-    p.contract = elc
-      ? makeContract(rng.int(cfg.economics.minSalary, cfg.economics.elcMaxSalary), rng.int(1, 3), season - 1, false, 'ELC')
-      : makeContract(mv * clamp(rng.normal(1, 0.15), 0.6, 1.35), rng.int(1, years), season - 1, mv > 6000 && age >= 27 && rng.chance(0.5));
+    if (p.nhlGamesBefore === undefined) {
+      const exp = estimatePriorExperience(p, season);
+      p.nhlGamesBefore = exp.games;
+      p.accruedBefore = exp.accrued;
+    }
+    const real = importedContract(p.nhlId);
+    if (real) {
+      p.contract = contractFromImport(real, teams, season, p);
+      p.firstSpcAge = real.firstSpcAge ?? estimateFirstSpcAge(p, season);
+      p.firstSpcSeason = real.firstSpcSeason ?? season - p.proSeasons;
+    } else {
+      p.firstSpcAge ??= estimateFirstSpcAge(p, season);
+      p.firstSpcSeason ??= season - Math.max(0, p.proSeasons);
+      const elcTerm = STATIC().elcTermByAge[String(Math.min(24, Math.max(18, p.firstSpcAge)))] ?? 0;
+      const intoContract = season - p.firstSpcSeason;
+      const elc = p.firstSpcAge < 25 && intoContract < elcTerm && age <= 24;
+      const mv = marketValue(p, valueCtx) * clamp(rng.normal(1, 0.15), 0.6, 1.35);
+      p.contract = estimateContract(rng, p, {
+        season,
+        marketValue: mv,
+        yearsLeft: elc ? elcTerm - intoContract : rng.int(1, Math.max(1, typicalTerm(p, season, rng))),
+        elc,
+        teamId,
+      });
+    }
+    p.contract.id = contractIds++;
+    p.contract.expiryStatus = determineFreeAgentStatus(p, endOf(p.contract)).status;
+    p.contractHistory = [{ teamId, signingTeamId: p.contract.signingTeamId ?? teamId, startSeason: yearsOf(p.contract)[0].season, endSeason: endOf(p.contract), years: termOf(p.contract), totalValue: totalValue(p.contract), aav: aav(p.contract), type: p.contract.type, origin: p.contract.origin, source: p.contract.source }];
   };
 
   // ── Rosters
@@ -143,7 +172,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
           p.status = 'prospect';
           realExtras++;
         }
-        signContract(p);
+        signContract(p, t.id);
         addPlayer(p);
       }
       // Fill any gaps (e.g. injured players missing from the feed) with depth players.
@@ -153,7 +182,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
           const p = generatePlayer(rng, { id: ids.player++, pos, targetCA: Math.round(target), age: pickAge(rng, target), season });
           p.teamId = t.id;
           p.status = 'active';
-          signContract(p);
+          signContract(p, t.id);
           addPlayer(p);
         }
       };
@@ -169,12 +198,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       const p = generatePlayer(rng, { id: ids.player++, pos, targetCA: Math.round(target), age, season });
       p.teamId = t.id;
       p.status = 'active';
-      const mv = marketValue(p, valueCtx);
-      const years = typicalTerm(p, season, rng);
-      const elc = age <= 22 && rng.chance(0.6);
-      p.contract = elc
-        ? makeContract(rng.int(cfg.economics.minSalary, cfg.economics.elcMaxSalary), rng.int(1, 3), season - 1, false, 'ELC')
-        : makeContract(mv * clamp(rng.normal(1, 0.15), 0.6, 1.35), rng.int(1, years), season - 1, mv > 6000 && age >= 27 && rng.chance(0.5));
+      signContract(p, t.id);
       return addPlayer(p);
     };
     if (!real) {
@@ -195,8 +219,11 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       p.ca = Math.min(p.pa, p.ca + yearsIn * 6);
       p.teamId = t.id;
       p.status = 'prospect';
-      p.contract = makeContract(rng.int(cfg.economics.minSalary, cfg.economics.elcMaxSalary), rng.int(1, 3), season - 1, false, 'ELC');
       p.draft = { season: season - 1 - yearsIn, round: rng.int(1, 7), pick: rng.int(1, 32), teamId: t.id };
+      p.proSeasons = Math.max(0, yearsIn - 1);
+      p.firstSpcAge = clamp(p.draft.season + 1 - p.birthYear, 18, 21);
+      p.firstSpcSeason = season - p.proSeasons;
+      signContract(p, t.id);
       addPlayer(p);
     }
     // Keep payroll under the cap (and under budget).
@@ -204,8 +231,11 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     const total = roster.reduce((s, p) => s + (p.contract?.salary ?? 0), 0);
     const limit = Math.min(cap.upper * 0.985, t.budget);
     if (total > limit) {
-      const scale = limit / total;
-      for (const p of roster) if (p.contract) p.contract.salary = Math.max(cap.minSalary, Math.round(p.contract.salary * scale));
+      // Scale estimated (never real) veteran contracts so the team starts cap compliant.
+      const scalable = roster.filter((p) => p.contract && p.contract.source === 'estimated' && p.contract.type !== 'ELC');
+      const fixed = total - scalable.reduce((s, p) => s + p.contract!.salary, 0);
+      const scale = Math.max(0.5, (limit - fixed) / Math.max(1, total - fixed));
+      for (const p of scalable) scaleContract(p.contract!, scale, season);
     }
   }
 
@@ -322,7 +352,11 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     ratingBaseline: 120,
     tradeOffers: [],
     aiMemory: Object.fromEntries(teams.map((t) => [t.id, { lastTradeDay: -100, coachHotSeat: 0 }])),
+    ...emptyFinancialState(),
   };
+  league.nextContractId = contractIds;
+  let chargeId = 1;
+  league.capLedger = importedDeadCap(teams, () => chargeId++);
   for (const p of Object.values(players)) p.caSeasonStart = p.ca;
   league.projections = Object.fromEntries(teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   return league;

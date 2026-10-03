@@ -114,16 +114,92 @@ export interface Injury {
   dayInjured: number;
 }
 
-export interface Contract {
-  /** Annual salary in thousands of dollars. */
+/** One league year of a contract (money in thousands of dollars). */
+export interface ContractYear {
+  season: number;
+  /** NHL base salary paid this season. */
   salary: number;
-  /** Seasons remaining including the current one. */
+  /** Signing bonus paid this season (counts toward the cap hit). */
+  signingBonus: number;
+  /** Maximum performance bonuses achievable this season (ELC / 35+ / eligible one-year deals). */
+  perfBonus: number;
+  /** Minor-league salary on a two-way deal. */
+  minorSalary?: number;
+}
+
+export type ClauseKind = 'NMC' | 'NTC' | 'M-NTC';
+
+export interface ContractClause {
+  kind: ClauseKind;
+  /** First and last season the clause is in force. */
+  from: number;
+  to: number;
+  /** Modified NTC: number of teams on the player's list. */
+  teams?: number;
+  /** 'block' = list of teams he can refuse; 'approve' = list he would accept. */
+  mode?: 'block' | 'approve';
+}
+
+/** Salary retained by a former team in a trade. */
+export interface RetainedSalary {
+  teamId: number;
+  /** Share of cap hit and salary retained (0..0.5). */
+  pct: number;
+  season: number;
+}
+
+/**
+ * A Standard Player Contract. Year-by-year money is the source of truth; the
+ * flat fields (salary, years, ntc) are kept in sync for convenience and mean
+ * "this player's cap hit to his current team", "seasons remaining" and "any
+ * movement protection this season".
+ */
+export interface Contract {
+  /** Cap hit to the current team this season after retention (thousands). */
+  salary: number;
+  /** Seasons remaining, including the current one. */
   years: number;
   type: 'ELC' | 'standard';
+  /** Any trade/movement protection in force this season (NTC, M-NTC or NMC). */
   ntc: boolean;
   signedSeason: number;
   /** Extension signed during the final year; takes effect next season. */
-  next?: { salary: number; years: number; ntc: boolean };
+  next?: Contract;
+  // ── full contract ──
+  id?: number;
+  startSeason?: number;
+  endSeason?: number;
+  yearsDetail?: ContractYear[];
+  twoWay?: boolean;
+  clauses?: ContractClause[];
+  signingTeamId?: number | null;
+  signedDay?: number;
+  /** Signed at 35+ (as of June 30 before year one) on a multi-year deal (cap hit stays if he retires; no buried relief). */
+  thirtyFivePlus?: boolean;
+  retained?: RetainedSalary[];
+  /** Where the terms come from. */
+  source?: 'real' | 'estimated' | 'game';
+  /** How it was obtained (signing, extension, arbitration, offer sheet, qualifying offer, ELC). */
+  origin?: 'signing' | 'extension' | 'arbitration' | 'offerSheet' | 'qualifyingOffer' | 'elc' | 'import';
+  /** Free-agent status the player is projected to have when this contract expires. */
+  expiryStatus?: 'RFA' | 'UFA';
+  /** ELC seasons slid (18/19-year-olds who played fewer than 10 NHL games). */
+  slid?: number;
+}
+
+/** Past contracts shown on the player profile. */
+export interface ContractHistoryEntry {
+  teamId: number | null;
+  signingTeamId: number | null;
+  startSeason: number;
+  endSeason: number;
+  years: number;
+  totalValue: number;
+  aav: number;
+  type: 'ELC' | 'standard';
+  origin?: Contract['origin'];
+  source?: Contract['source'];
+  note?: string;
 }
 
 export interface StatLine {
@@ -189,6 +265,19 @@ export interface Player {
   id: number;
   /** Real-world NHL player id when imported from the roster snapshot. */
   nhlId?: number;
+  /** Age (as of Sept 15) when he signed his first NHL contract; drives ELC, waiver and arbitration rules. */
+  firstSpcAge?: number;
+  /** Season his first NHL contract started. */
+  firstSpcSeason?: number;
+  /** Contract history (newest last). */
+  contractHistory?: ContractHistoryEntry[];
+  /** NHL regular-season games and accrued seasons from before this save's history (imported/estimated). */
+  nhlGamesBefore?: number;
+  accruedBefore?: number;
+  /** Restricted free agent whose rights are held (status 'fa' with rightsTeamId set). */
+  rfa?: boolean;
+  /** Placed on long-term injured reserve. */
+  ltir?: boolean;
   /** Official headshot URL for real players. */
   headshot?: string;
   first: string;
@@ -486,7 +575,27 @@ export interface Transaction {
   id: number;
   season: number;
   day: number;
-  kind: 'trade' | 'signing' | 'release' | 'draft' | 'extension' | 'retirement' | 'callup' | 'senddown' | 'coach';
+  kind:
+    | 'trade'
+    | 'signing'
+    | 'release'
+    | 'draft'
+    | 'extension'
+    | 'retirement'
+    | 'callup'
+    | 'senddown'
+    | 'coach'
+    | 'waiverClaim'
+    | 'waiverClear'
+    | 'waivers'
+    | 'buyout'
+    | 'ltir'
+    | 'ltirActivate'
+    | 'termination'
+    | 'offerSheet'
+    | 'arbitration'
+    | 'qualifyingOffer'
+    | 'elc';
   teamIds: number[];
   playerIds: number[];
   pickIds?: number[];
@@ -494,6 +603,100 @@ export interface Transaction {
 }
 
 export type Phase = 'preseason' | 'regular' | 'playoffs' | 'draft' | 'resign' | 'freeAgency';
+
+/** A non-player cap charge on a team's books (dead cap). */
+export interface CapCharge {
+  id: number;
+  teamId: number;
+  season: number;
+  /** Cap charge in thousands. */
+  amount: number;
+  kind: 'buyout' | 'bonusOverage' | 'thirtyFivePlus' | 'termination' | 'recapture' | 'other';
+  playerId?: number;
+  playerName: string;
+  note?: string;
+}
+
+/** A player on long-term injured reserve (relief fixed at placement). */
+export interface LtirEntry {
+  playerId: number;
+  teamId: number;
+  season: number;
+  day: number;
+  /** Cap relief available while he is on LTIR (thousands). */
+  relief: number;
+  capHit: number;
+  /** Expected to miss the regular season and playoffs (full relief) vs. return this season (capped). */
+  seasonEnding: boolean;
+}
+
+export interface WaiverEntry {
+  playerId: number;
+  fromTeamId: number;
+  season: number;
+  day: number;
+  /** Teams that put in a claim. */
+  claims: number[];
+  reason: 'assignment' | 'release' | 'other';
+}
+
+export interface QualifyingOfferRecord {
+  playerId: number;
+  teamId: number;
+  season: number;
+  previousSalary: number;
+  previousAav: number;
+  amount: number;
+  oneWay: boolean;
+  /** Why the amount is what it is (shown to the GM). */
+  explanation: string;
+  status: 'required' | 'submitted' | 'notSubmitted' | 'accepted' | 'rejected' | 'expired';
+  arbitrationEligible: boolean;
+}
+
+export interface ArbitrationCase {
+  playerId: number;
+  teamId: number;
+  season: number;
+  electedBy: 'player' | 'club';
+  playerAsk: number;
+  clubOffer: number;
+  /** Term (club elections may choose 1 or 2 years). */
+  years: number;
+  hearingDay: number;
+  award?: number;
+  comparables?: { playerId: number; name: string; aav: number }[];
+  status: 'filed' | 'settled' | 'awarded' | 'walkedAway';
+  reasoning?: string;
+}
+
+export interface OfferSheet {
+  id: number;
+  playerId: number;
+  fromTeamId: number;
+  rightsTeamId: number;
+  season: number;
+  day: number;
+  aav: number;
+  years: number;
+  salaries: number[];
+  /** Compensation AAV (total / min(years, 5)). */
+  compAav: number;
+  compensation: string[];
+  status: 'pending' | 'matched' | 'declined' | 'withdrawn';
+  decisionDay: number;
+}
+
+export interface NegotiationState {
+  playerId: number;
+  teamId: number;
+  season: number;
+  /** 0..100: how much more haggling the player tolerates. */
+  patience: number;
+  lastOffer?: { aav: number; years: number };
+  demand: { aav: number; years: number };
+  history: { aav: number; years: number; response: string }[];
+}
 
 export interface SeasonAwardResult {
   award: string;
@@ -591,4 +794,17 @@ export interface League {
   aiMemory: Record<number, { lastTradeDay: number; coachHotSeat: number }>;
   /** Trade proposals CPU teams have made to the user (from = CPU team). */
   tradeOffers: { id: number; from: number; give: { kind: 'player' | 'pick'; id: number }[]; get: { kind: 'player' | 'pick'; id: number }[]; day: number; season: number; note: string }[];
+  // ── NHL contract & cap system ──
+  /** Dead-cap charges by season (buyouts, bonus overages, 35+, terminations). */
+  capLedger: CapCharge[];
+  ltir: LtirEntry[];
+  waivers: WaiverEntry[];
+  qualifyingOffers: QualifyingOfferRecord[];
+  arbitration: ArbitrationCase[];
+  offerSheets: OfferSheet[];
+  negotiations: Record<number, NegotiationState>;
+  /** Retained-salary transactions per team (for the per-team limit). */
+  nextContractId: number;
+  /** Offseason calendar step within the 'resign' / 'freeAgency' phases. */
+  offseasonStep?: 'buyoutWindow' | 'qualifyingOffers' | 'freeAgency' | 'arbitration' | 'camp';
 }

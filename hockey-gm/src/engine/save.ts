@@ -4,6 +4,10 @@
  */
 import type { League } from './types';
 import { SAVE_VERSION } from './league/create';
+import { emptyFinancialState } from './cba/import';
+import { buildContract } from './cba/contract';
+import { capSeason } from './cba/capManager';
+import { determineFreeAgentStatus } from './cba/rulesEngine';
 
 export interface SaveMeta {
   id: string;
@@ -51,6 +55,36 @@ function migrate(league: League): League {
   for (const t of league.teams) league.aiMemory[t.id] ??= { lastTradeDay: -100, coachHotSeat: 0 };
   for (const p of Object.values(league.players)) p.caHistory ??= [];
   league.tradeOffers ??= [];
+  // v2: NHL contract & cap system.
+  const fin = emptyFinancialState();
+  league.capLedger ??= fin.capLedger;
+  league.ltir ??= fin.ltir;
+  league.waivers ??= fin.waivers;
+  league.qualifyingOffers ??= fin.qualifyingOffers;
+  league.arbitration ??= fin.arbitration;
+  league.offerSheets ??= fin.offerSheets;
+  league.negotiations ??= fin.negotiations;
+  league.nextContractId ??= 1;
+  const books = capSeason(league);
+  const upgrade = (c: NonNullable<(typeof league.players)[number]['contract']>, start: number) => {
+    if (c.yearsDetail?.length) return c;
+    const years = Math.max(1, c.years);
+    const full = buildContract({ startSeason: start, salaries: new Array(years).fill(c.salary), type: c.type, clauses: c.ntc ? [{ kind: 'NTC', from: start, to: start + years - 1 }] : [], signedSeason: c.signedSeason, source: 'game', origin: 'signing' }, books);
+    full.id = league.nextContractId++;
+    return full;
+  };
+  for (const p of Object.values(league.players)) {
+    if (!p.contract) continue;
+    const legacyNext = p.contract.next as unknown as { salary: number; years: number; ntc: boolean } | undefined;
+    const hadDetail = !!p.contract.yearsDetail?.length;
+    p.contract = upgrade(p.contract, p.contract.years <= 0 ? books - 1 : books);
+    if (!hadDetail && legacyNext) {
+      const end = books + Math.max(1, p.contract.years) - 1;
+      p.contract.next = upgrade({ salary: legacyNext.salary, years: legacyNext.years, type: 'standard', ntc: legacyNext.ntc, signedSeason: league.season }, end + 1);
+    }
+    p.contract.expiryStatus ??= determineFreeAgentStatus(p, p.contract.endSeason ?? books).status;
+    p.contractHistory ??= [{ teamId: p.teamId, signingTeamId: p.teamId, startSeason: p.contract.startSeason ?? books, endSeason: p.contract.endSeason ?? books, years: p.contract.yearsDetail?.length ?? 1, totalValue: (p.contract.yearsDetail ?? []).reduce((s, y) => s + y.salary + y.signingBonus, 0), aav: p.contract.salary, type: p.contract.type, origin: p.contract.origin, source: p.contract.source }];
+  }
   league.version = SAVE_VERSION;
   return league;
 }
