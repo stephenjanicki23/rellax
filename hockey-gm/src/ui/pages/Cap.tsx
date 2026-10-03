@@ -97,7 +97,7 @@ export function CapPage() {
           {x.retainedPct > 0 && <span className="pill">{Math.round(x.retainedPct * 100)}% ret.</span>}
           {x.thirtyFivePlus && <span className="pill">35+</span>}
           {x.buried && <span className="pill">buried</span>}
-          {x.perfBonus > 0 && <span className="pill" title="Potential performance bonuses (count toward the cap hit)">+{fm(x.perfBonus)} bonus</span>}
+          {x.perfBonus > 0 && <span className="pill" title="Potential performance bonuses: allowed over the cap via the bonus cushion; any overage is charged to next season">+{fm(x.perfBonus)} bonus</span>}
           {x.source === 'estimated' && <span className="pill dim" title="No contract data imported for this player; contract is a structural estimate">est.</span>}
         </span>
       ),

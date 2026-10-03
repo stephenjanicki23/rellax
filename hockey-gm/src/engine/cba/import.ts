@@ -11,23 +11,49 @@ import CONTRACTS_JSON from '../../../data/contracts/contracts.json';
 import DEAD_CAP_JSON from '../../../data/transactions/dead_cap.json';
 import type { Rng } from '../core/rng';
 import { clamp } from '../core/math';
-import type { CapCharge, Contract, ContractClause, League, Player, Team } from '../types';
-import { buildContract, contractStructureErrors, isThirtyFivePlus, yearsOf } from './contract';
+import type { CapCharge, Contract, ContractClause, ContractHistoryEntry, League, Player, Team } from '../types';
+import { buildContract, contractStructureErrors, isThirtyFivePlus, refreshContract, yearsOf } from './contract';
 import { STATIC, elcMaxFor, rulesFor } from './rules';
 
+/** One contract as written by scripts/fetch-contracts.mjs. */
 export interface ImportedContract {
-  nhlId: number;
-  teamAbbr: string;
-  signingTeamAbbr?: string;
-  type?: 'ELC' | 'standard';
+  type: 'ELC' | 'standard';
+  extension?: boolean;
+  signingTeamAbbr: string | null;
+  signingDate?: string | null;
+  signedSeason: number;
+  expiryStatus?: 'RFA' | 'UFA';
+  arbitrationAtExpiry?: boolean;
+  /** Official cap hit (excluding performance bonuses), thousands. */
+  capHit: number | null;
+  totalValue?: number | null;
   twoWay?: boolean;
-  signedSeason?: number;
   years: { season: number; salary: number; signingBonus?: number; perfBonus?: number; minorSalary?: number }[];
   clauses?: { kind: ContractClause['kind']; from: number; to: number; teams?: number; mode?: 'block' | 'approve' }[];
   retained?: { teamAbbr: string; pct: number }[];
-  expiryStatus?: 'RFA' | 'UFA';
+  boughtOut?: boolean;
+  qualifyingOffer?: number | null;
+}
+
+/** A player's contract record: every contract (history, current, signed extensions). */
+export interface ImportedPlayer {
+  nhlId: number;
+  slug?: string;
+  name: string;
+  teamAbbr: string | null;
+  /** CapWages status: NHL, Minor, IR, LTIR, Loan, ... */
+  status?: string | null;
+  born?: string | null;
+  pos?: string | null;
+  shoots?: string | null;
+  nationality?: string | null;
+  number?: number | null;
+  waiversExempt?: boolean;
+  slideCandidate?: boolean;
   firstSpcAge?: number;
   firstSpcSeason?: number;
+  careerGames?: number;
+  contracts: ImportedContract[];
 }
 
 export interface ImportedCharge {
@@ -36,6 +62,7 @@ export interface ImportedCharge {
   amount: number;
   kind: CapCharge['kind'];
   playerName: string;
+  nhlId?: number;
   note?: string;
 }
 
@@ -43,30 +70,37 @@ interface ContractsFile {
   schemaVersion: number;
   asOf: string | null;
   source: string;
-  contracts: ImportedContract[];
+  players?: ImportedPlayer[];
 }
 
 let contractsDb = CONTRACTS_JSON as unknown as ContractsFile;
 let deadCapDb = DEAD_CAP_JSON as unknown as { charges: ImportedCharge[] };
+let index: Map<number, ImportedPlayer> | null = null;
 
 /** Swap in a different contracts database (tests / refreshed data). */
 export function loadContractDatabase(contracts: unknown, deadCap?: unknown): void {
   contractsDb = contracts as ContractsFile;
+  index = null;
   if (deadCap) deadCapDb = deadCap as { charges: ImportedCharge[] };
 }
 
 export function contractDbInfo(): { count: number; asOf: string | null; source: string } {
-  return { count: contractsDb.contracts.length, asOf: contractsDb.asOf, source: contractsDb.source };
+  return { count: (contractsDb.players ?? []).length, asOf: contractsDb.asOf, source: contractsDb.source };
 }
 
-export function importedContract(nhlId: number | undefined): ImportedContract | undefined {
+export function importedPlayer(nhlId: number | undefined): ImportedPlayer | undefined {
   if (nhlId === undefined) return undefined;
-  return contractsDb.contracts.find((c) => c.nhlId === nhlId);
+  index ??= new Map((contractsDb.players ?? []).map((r) => [r.nhlId, r]));
+  return index.get(nhlId);
 }
 
-/** Build a Contract from an imported record. */
-export function contractFromImport(rec: ImportedContract, teams: Team[], season: number, p: Player): Contract {
-  const byAbbr = (a?: string) => (a ? (teams.find((t) => t.abbr === a)?.id ?? null) : null);
+export function importedPlayers(): ImportedPlayer[] {
+  return contractsDb.players ?? [];
+}
+
+/** Build a Contract from one imported contract. */
+export function contractFromImport(rec: ImportedContract, teams: Team[], season: number, p: Player, holderAbbr: string | null): Contract {
+  const byAbbr = (a?: string | null) => (a ? (teams.find((t) => t.abbr === a)?.id ?? null) : null);
   const ys = [...rec.years].sort((a, b) => a.season - b.season);
   const c = buildContract(
     {
@@ -74,32 +108,87 @@ export function contractFromImport(rec: ImportedContract, teams: Team[], season:
       salaries: ys.map((y) => y.salary),
       signingBonuses: ys.map((y) => y.signingBonus ?? 0),
       perfBonuses: ys.map((y) => y.perfBonus ?? 0),
-      minorSalaries: ys.some((y) => y.minorSalary !== undefined) ? ys.map((y) => y.minorSalary ?? 0) : undefined,
+      minorSalaries: ys.some((y) => y.minorSalary !== undefined) ? ys.map((y) => y.minorSalary ?? y.salary) : undefined,
       type: rec.type ?? 'standard',
       twoWay: rec.twoWay ?? false,
       clauses: rec.clauses ?? [],
-      signingTeamId: byAbbr(rec.signingTeamAbbr ?? rec.teamAbbr),
+      signingTeamId: byAbbr(rec.signingTeamAbbr ?? holderAbbr),
       signedSeason: rec.signedSeason ?? ys[0].season - 1,
       source: 'real',
-      origin: 'import',
+      origin: rec.type === 'ELC' ? 'elc' : 'import',
       ageAtStart: ys[0].season - p.birthYear,
     },
     season,
   );
-  c.retained = (rec.retained ?? []).map((r) => ({ teamId: byAbbr(r.teamAbbr) ?? -1, pct: r.pct, season })).filter((r) => r.teamId >= 0);
+  if (rec.capHit !== null && rec.capHit !== undefined && rec.capHit > 0) c.capHitOverride = rec.capHit;
+  if (rec.signingDate) c.signingDate = rec.signingDate;
+  c.retained = (rec.retained ?? []).map((r) => ({ teamId: byAbbr(r.teamAbbr) ?? -1, pct: r.pct, season })).filter((r) => r.teamId >= 0 && r.teamId !== byAbbr(holderAbbr));
   if (rec.expiryStatus) c.expiryStatus = rec.expiryStatus;
+  refreshContract(c, season);
   return c;
 }
 
+const signDay = (c: ImportedContract) => {
+  const d = parseBorn(c.signingDate);
+  return d ? d.year * 400 + d.month * 32 + d.day : 0;
+};
+const endSeason = (c: ImportedContract) => Math.max(...c.years.map((y) => y.season));
+const startSeason = (c: ImportedContract) => Math.min(...c.years.map((y) => y.season));
+
+/**
+ * The contracts a player holds at `season`: the one in force (or the next
+ * one starting, for a player between deals), a signed extension, and his
+ * past contracts as history entries.
+ */
+export function playerContractsFromImport(rec: ImportedPlayer, teams: Team[], season: number, p: Player): { current: Contract | null; next: Contract | null; history: ContractHistoryEntry[] } {
+  const byAbbr = (a?: string | null) => (a ? (teams.find((t) => t.abbr === a)?.id ?? null) : null);
+  const live = rec.contracts.filter((c) => !c.boughtOut && c.years.length && endSeason(c) >= season).sort((a, b) => startSeason(a) - startSeason(b));
+  // Several deals can overlap a season (e.g. an old contract ended by a trade/termination and a new one signed): the latest signing wins.
+  const covering = live.filter((c) => startSeason(c) <= season).sort((a, b) => a.signedSeason - b.signedSeason || startSeason(a) - startSeason(b) || signDay(a) - signDay(b));
+  const curRec = covering[covering.length - 1] ?? live[0] ?? null;
+  const nextRec = curRec ? (live.find((c) => c !== curRec && startSeason(c) > endSeason(curRec)) ?? null) : null;
+  const current = curRec ? contractFromImport(curRec, teams, season, p, rec.teamAbbr) : null;
+  const next = nextRec ? contractFromImport(nextRec, teams, season, p, rec.teamAbbr) : null;
+  if (current && next) current.next = next;
+  const history: ContractHistoryEntry[] = rec.contracts
+    .filter((c) => c.years.length)
+    .sort((a, b) => startSeason(a) - startSeason(b))
+    .map((c) => {
+      const total = c.totalValue ?? c.years.reduce((s, y) => s + y.salary + (y.signingBonus ?? 0), 0);
+      return {
+        teamId: byAbbr(c.signingTeamAbbr),
+        signingTeamId: byAbbr(c.signingTeamAbbr),
+        startSeason: startSeason(c),
+        endSeason: endSeason(c),
+        years: c.years.length,
+        totalValue: total,
+        aav: c.capHit ?? total / c.years.length,
+        type: c.type,
+        origin: c.type === 'ELC' ? 'elc' : 'import',
+        source: 'real',
+        note: [c.extension ? 'extension' : '', c.signingDate ? `signed ${c.signingDate}` : '', c.boughtOut ? 'bought out' : ''].filter(Boolean).join(' · ') || undefined,
+      } as ContractHistoryEntry;
+    });
+  return { current, next, history };
+}
+
 /** Dead-cap charges from the data file mapped onto team ids. */
-export function importedDeadCap(teams: Team[], nextId: () => number): CapCharge[] {
+export function importedDeadCap(teams: Team[], nextId: () => number, fromSeason = -Infinity): CapCharge[] {
   const out: CapCharge[] = [];
   for (const ch of deadCapDb.charges ?? []) {
     const t = teams.find((x) => x.abbr === ch.teamAbbr);
-    if (!t) continue;
+    if (!t || ch.season < fromSeason) continue;
     out.push({ id: nextId(), teamId: t.id, season: ch.season, amount: ch.amount, kind: ch.kind, playerName: ch.playerName, note: ch.note });
   }
   return out;
+}
+
+/** Parse "May. 25, 1996" → { year, month, day }. */
+export function parseBorn(s: string | null | undefined): { year: number; month: number; day: number } | null {
+  const m = String(s ?? '').match(/([A-Z][a-z]{2})\w*\.? (\d+), (\d{4})/);
+  if (!m) return null;
+  const months: Record<string, number> = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
+  return { year: Number(m[3]), month: months[m[1]] ?? 1, day: Number(m[2]) };
 }
 
 export interface EstimateContext {

@@ -7,6 +7,7 @@ import { capSeason, contractFor, teamCapSheet } from '../cba/capManager';
 import { endOf } from '../cba/contract';
 import { rulesFor } from '../cba/rules';
 import { buyoutPlayer, canPlaceOnLTIR, inBuyoutWindow, placeOnLTIR } from '../cba/capActions';
+import { executeTrade, validateTrade } from './trade';
 import { needsWaivers, onWaivers, placeOnWaivers, waiverConsentBlock, waiverPeriod, waiverRisk } from '../cba/waivers';
 import { fullName, isForward } from '../player/ability';
 import { emptyStatLine } from '../core/statline';
@@ -142,7 +143,9 @@ export function ensureDressable(league: League, teamId: number): void {
     }
     if (fa) {
       // Emergency signing to dress a legal lineup (game simplification: allowed even if it breaches the cap).
-      signPlayer(league, fa, teamId, Math.max(league.cap.minSalary, Math.min(marketValue(fa, league), league.cap.minSalary * 1.5)), 1, false, { skipCapCheck: true });
+      const room = capSpace(league, teamId);
+      const pay = room >= league.cap.minSalary * 1.5 ? Math.max(league.cap.minSalary, Math.min(marketValue(fa, league), league.cap.minSalary * 1.5)) : league.cap.minSalary;
+      signPlayer(league, fa, teamId, pay, 1, false, { skipCapCheck: true });
       addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [fa.id], description: `${teamName(league, teamId)} sign ${fullName(fa)} to a one-year deal` });
       continue;
     }
@@ -234,7 +237,8 @@ export function enforceCap(league: League, teamId: number): void {
     // 2./3. Send down whoever frees cap at the lowest risk.
     const send = active
       .filter((p) => canLose(p) && p.contract && !p.contract.thirtyFivePlus && (p.contract.salary ?? 0) > league.cap.minSalary + 100)
-      .map((p) => ({ p, cost: sendDownCost(league, p) + Math.max(0, p.ca - 120) * 0.4 - buriedRelief(p) / 400 }))
+      // Burying saves at most min + $375K, so only cheap, low-impact contracts are worth sending down.
+      .map((p) => ({ p, cost: sendDownCost(league, p) + Math.max(0, p.ca - 120) * 0.4 - buriedRelief(p) / 400 + Math.max(0, (p.contract?.salary ?? 0) - buriedRelief(p)) / 400 }))
       .filter((x) => Number.isFinite(x.cost))
       .sort((a, b) => a.cost - b.cost)[0];
     if (send && demote(league, send.p, teamId === league.userTeamId).ok) continue;
@@ -245,8 +249,40 @@ export function enforceCap(league: League, teamId: number): void {
         .sort((a, b) => (marketValue(a, league) - a.contract!.salary) - (marketValue(b, league) - b.contract!.salary));
       if (cands[0] && buyoutPlayer(league, cands[0]).ok) continue;
     }
+    // 5. Trade a contract to a team with cap space (a pick goes with an overpaid deal).
+    if (dumpContract(league, teamId, over)) continue;
     return;
   }
+}
+
+/** Cap dump: move the contract that best clears the overage to a CPU team with room, sweetened with a pick if it is overpaid. */
+function dumpContract(league: League, teamId: number, over: number): boolean {
+  if (league.phase === 'playoffs' || (league.phase === 'regular' && league.day > league.tradeDeadlineDay)) return false;
+  const active = playersOf(league, teamId, ['active']);
+  const grp = (p: Player) => (p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : 'F');
+  // A dumped player must be replaceable: by a spare regular or a signed minor-leaguer at his position.
+  const spare = (p: Player) => {
+    const same = active.filter((x) => grp(x) === grp(p)).length;
+    const need = grp(p) === 'G' ? 2 : grp(p) === 'D' ? 6 : 12;
+    return same > need || playersOf(league, teamId, ['prospect']).some((x) => x.contract && grp(x) === grp(p) && !onWaiversNow(league, x));
+  };
+  const cands = active
+    .filter((p) => p.contract && spare(p) && p.contract.salary >= Math.min(over, 1000))
+    .sort((a, b) => (a.contract!.salary >= over ? 0 : 1) - (b.contract!.salary >= over ? 0 : 1) || (marketValue(a, league) - a.contract!.salary) - (marketValue(b, league) - b.contract!.salary));
+  const partners = league.teams.filter((t) => t.id !== teamId && t.id !== league.userTeamId).sort((a, b) => teamCapSheet(league, b.id).space - teamCapSheet(league, a.id).space);
+  for (const p of cands.slice(0, 4)) {
+    const overpaid = marketValue(p, league) < p.contract!.salary * 0.85;
+    const pick = overpaid ? league.draftPicks.filter((d) => d.ownerId === teamId && d.playerId === undefined && d.season > league.season).sort((a, b) => b.round - a.round || a.season - b.season).find((d) => d.round <= 4) : undefined;
+    for (const t of partners.slice(0, 8)) {
+      const proposal = { from: teamId, to: t.id, give: [{ kind: 'player' as const, id: p.id }, ...(pick ? [{ kind: 'pick' as const, id: pick.id }] : [])], get: [] };
+      if (validateTrade(league, proposal).length) continue;
+      executeTrade(league, proposal);
+      trimRoster(league, t.id);
+      ensureDressable(league, teamId);
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Keep the prospect pool within the configured limit (release the lowest-ceiling prospects). */

@@ -250,7 +250,7 @@ describe('performance bonuses', () => {
     // Push the team up to the cap without bonuses.
     const sheet = teamCapSheet(l, tid, l.season);
     const filler = roster(l, tid).find((x) => x.id !== kid.id && x.contract && x.contract.type !== 'ELC')!;
-    setContract(l, filler, holderCapHit(filler.contract!) + (sheet.upper - (sheet.total - sheet.perfBonusPotential)), 2);
+    setContract(l, filler, holderCapHit(filler.contract!) + (sheet.upper - sheet.total), 2);
     const res = settlePerformanceBonuses(l).find((r) => r.teamId === tid)!;
     expect(res.earned).toBeGreaterThan(2000);
     expect(res.overage).toBeGreaterThan(0);

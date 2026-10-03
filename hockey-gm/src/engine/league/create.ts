@@ -10,7 +10,9 @@ import { autoLines, emptyLines } from '../team/lines';
 import { generateCoach, tacticsForRoster, DEFAULT_TACTICS } from '../team/coaching';
 import { marketValue, typicalTerm, teamBudget } from '../economy/contracts';
 import { rulesFor, STATIC } from '../cba/rules';
-import { contractFromImport, emptyFinancialState, estimateContract, estimateFirstSpcAge, estimatePriorExperience, importedContract, importedDeadCap } from '../cba/import';
+import { contractDbInfo, emptyFinancialState, estimateContract, estimateFirstSpcAge, estimatePriorExperience, importedDeadCap, importedPlayer, importedPlayers, parseBorn, playerContractsFromImport, type ImportedPlayer } from '../cba/import';
+import { placeOnLTIR } from '../cba/capActions';
+import { teamCapSheet } from '../cba/capManager';
 import { scaleContract, yearsOf, aav, termOf, totalValue, endOf } from '../cba/contract';
 import { determineFreeAgentStatus } from '../cba/rulesEngine';
 import { generateSchedule } from './schedule';
@@ -20,6 +22,44 @@ import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
 import type { NhlSnapshot } from '../data/nhl/types';
 import { COACH_QUALITY, NHL_GMS, splitName } from '../data/nhl/staff';
 import NHL_SNAPSHOT from '../data/nhl/rosters.json';
+
+/**
+ * Opening-day roster housekeeping for real rosters: clubs over the cap use
+ * LTIR on their injured players (as NHL teams do), and active rosters are
+ * trimmed to the limit by assigning the lowest-rated healthy depth players.
+ */
+function openingDayCompliance(league: League): void {
+  const r = rulesFor(league.season);
+  for (const t of league.teams) {
+    const roster = () => Object.values(league.players).filter((p) => p.teamId === t.id && p.status === 'active');
+    for (const p of roster().filter((x) => x.injury && !x.ltir).sort((a, b) => (b.contract?.salary ?? 0) - (a.contract?.salary ?? 0))) {
+      const sheet = teamCapSheet(league, t.id);
+      if (sheet.total <= sheet.effectiveLimit) break;
+      placeOnLTIR(league, p);
+    }
+    // Still over: assign the lowest-rated depth player whose buried relief clears the overage.
+    for (let guard = 0; guard < 4; guard++) {
+      const sheet = teamCapSheet(league, t.id);
+      const over = sheet.total - sheet.effectiveLimit;
+      if (over <= 0) break;
+      const relief = (p: Player) => Math.min(p.contract?.salary ?? 0, r.minimumSalary + r.buriedAllowance);
+      const cand = roster()
+        .filter((p) => !p.injury && p.contract && !p.contract.thirtyFivePlus && !(p.contract.clauses ?? []).some((c) => c.kind === 'NMC') && p.pos !== 'G')
+        .sort((a, b) => (relief(b) >= over ? 1 : 0) - (relief(a) >= over ? 1 : 0) || a.ca - b.ca)[0];
+      if (!cand) break;
+      cand.status = 'prospect';
+    }
+    const counting = () => roster().filter((p) => !p.ltir && !(p.injury && p.injury.daysRemaining >= r.injuryReserveDays));
+    for (let guard = 0; counting().length > r.rosterMax && guard < 10; guard++) {
+      const healthy = counting();
+      const g = (x: Player) => (x.pos === 'G' ? 'G' : x.pos === 'D' ? 'D' : 'F');
+      const n = { F: healthy.filter((x) => g(x) === 'F').length, D: healthy.filter((x) => g(x) === 'D').length, G: healthy.filter((x) => g(x) === 'G').length };
+      const spare = healthy.filter((x) => (g(x) === 'G' ? n.G > 2 : g(x) === 'D' ? n.D > 7 : n.F > 13)).sort((a, b) => (a.contract?.source === 'estimated' ? -1 : 0) - (b.contract?.source === 'estimated' ? -1 : 0) || a.ca - b.ca)[0];
+      if (!spare) break;
+      spare.status = 'prospect';
+    }
+  }
+}
 
 export interface CreateLeagueOptions {
   seed?: string;
@@ -32,6 +72,9 @@ export interface CreateLeagueOptions {
 
 /** Active roster shape taken from a real roster (the rest go to the minors / system). */
 const REAL_ACTIVE = { F: 14, D: 7, G: 2 };
+
+/** Contract-database statuses that mean the player starts outside the NHL roster. */
+const MINOR_STATUSES = new Set(['Minor', 'Junior', 'Loan', 'Inactive', 'PTO']);
 
 export const SAVE_VERSION = 2;
 
@@ -119,6 +162,46 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   const abbrs = teams.map((t) => t.abbr);
   const real = snap && snapshotHasRosters(snap, abbrs) ? buildRealPlayers(rng, snap, abbrs, season, () => ids.player++) : null;
 
+  const realIds = new Set<number>();
+  if (real) for (const list of real.values()) for (const p of list) if (p.nhlId !== undefined) realIds.add(p.nhlId);
+  const ltirAtStart: Player[] = [];
+  /** Injured-reserve statuses from the contract database become injuries (LTIR players are placed on LTIR once the league exists). */
+  const markInjury = (p: Player, st: string) => {
+    const days = st === 'LTIR' || st === 'SEIR' ? 300 : st === 'SOIR' ? 30 : st === 'IR' ? 21 : 0;
+    if (!days) return;
+    p.injury = { type: 'Undisclosed injury', bodyPart: 'other', severity: days >= 60 ? 'severe' : 'moderate', daysRemaining: days, totalDays: days, season, dayInjured: 0 };
+    if (st === 'LTIR' || st === 'SEIR') ltirAtStart.push(p);
+  };
+  /** Build a player who is under contract in the database but not in the roster feed. Ratings are estimated from his contract and experience. */
+  const playerFromImport = (rec: ImportedPlayer, teamId: number): Player | null => {
+    const born = parseBorn(rec.born);
+    const pos = (rec.pos === 'F' ? 'C' : rec.pos) as Position;
+    if (!born || !['C', 'LW', 'RW', 'D', 'G'].includes(pos)) return null;
+    const probe = { birthYear: born.year } as Player;
+    const cur = playerContractsFromImport(rec, teams, season, probe).current;
+    if (!cur) return null;
+    const age = season - born.year;
+    const hit = Math.max(cap.minSalary, cur.capHitOverride ?? cur.salary);
+    const minors = MINOR_STATUSES.has(rec.status ?? '');
+    const games = rec.careerGames ?? 0;
+    const target = clamp(100 + 21.5 * Math.log(hit / 850) + Math.min(8, games / 60) - (minors ? 4 : 0), 88, 165);
+    const p = generatePlayer(rng, { id: ids.player++, pos, targetCA: Math.round(target), age, season, nat: rec.nationality ?? undefined });
+    const [first, ...rest] = rec.name.split(' ');
+    p.first = first;
+    p.last = rest.join(' ') || first;
+    p.birthYear = born.year;
+    p.nhlId = rec.nhlId;
+    if (rec.number) p.number = rec.number;
+    if (rec.shoots === 'L' || rec.shoots === 'R') p.shoots = rec.shoots;
+    p.headshot = `https://assets.nhle.com/mugs/nhl/latest/${rec.nhlId}.png`;
+    if (age <= 23) p.pa = Math.max(p.pa, Math.min(195, p.ca + Math.round(rng.float(8, 30))));
+    p.proSeasons = Math.max(0, season - (rec.firstSpcSeason ?? season - Math.max(0, age - 21)));
+    p.teamId = teamId;
+    p.status = minors ? 'prospect' : 'active';
+    markInjury(p, rec.status ?? '');
+    return p;
+  };
+
   /** Contract for a player already in the league: real (imported) if available, otherwise an estimate. */
   const signContract = (p: Player, teamId: number) => {
     const age = season - p.birthYear;
@@ -127,11 +210,13 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       p.nhlGamesBefore = exp.games;
       p.accruedBefore = exp.accrued;
     }
-    const real = importedContract(p.nhlId);
-    if (real) {
-      p.contract = contractFromImport(real, teams, season, p);
-      p.firstSpcAge = real.firstSpcAge ?? estimateFirstSpcAge(p, season);
-      p.firstSpcSeason = real.firstSpcSeason ?? season - p.proSeasons;
+    const rec = importedPlayer(p.nhlId);
+    const imp = rec ? playerContractsFromImport(rec, teams, season, p) : null;
+    if (rec && imp?.current) {
+      p.contract = imp.current;
+      p.firstSpcAge = rec.firstSpcAge ?? estimateFirstSpcAge(p, season);
+      p.firstSpcSeason = rec.firstSpcSeason ?? season - p.proSeasons;
+      if (rec.careerGames !== undefined) p.nhlGamesBefore = rec.careerGames;
     } else {
       p.firstSpcAge ??= estimateFirstSpcAge(p, season);
       p.firstSpcSeason ??= season - Math.max(0, p.proSeasons);
@@ -148,7 +233,12 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       });
     }
     p.contract.id = contractIds++;
-    p.contract.expiryStatus = determineFreeAgentStatus(p, endOf(p.contract)).status;
+    if (p.contract.next) p.contract.next.id = contractIds++;
+    p.contract.expiryStatus ??= determineFreeAgentStatus(p, endOf(p.contract)).status;
+    if (imp?.current && imp.history.length) {
+      p.contractHistory = imp.history;
+      return;
+    }
     p.contractHistory = [{ teamId, signingTeamId: p.contract.signingTeamId ?? teamId, startSeason: yearsOf(p.contract)[0].season, endSeason: endOf(p.contract), years: termOf(p.contract), totalValue: totalValue(p.contract), aav: aav(p.contract), type: p.contract.type, origin: p.contract.origin, source: p.contract.source }];
   };
 
@@ -158,6 +248,8 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     const star = rng.chance(0.2) ? rng.float(10, 22) : 0;
     const fPos = forwardPositions(rng, F_SLOTS.length);
     let realExtras = 0;
+    let importedMinors = 0;
+    let usedStatuses = false;
     if (real) {
       // Best players by position make the active roster; the rest start in the system.
       const mine = real.get(t.abbr)!;
@@ -165,7 +257,15 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       for (const p of mine) {
         const g = p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : 'F';
         p.teamId = t.id;
-        if (taken[g] < REAL_ACTIVE[g]) {
+        const st = importedPlayer(p.nhlId)?.status;
+        if (st && st !== 'Retired') {
+          usedStatuses = true;
+          // Real roster status from the contract database (NHL roster vs minors/junior).
+          p.status = MINOR_STATUSES.has(st) ? 'prospect' : 'active';
+          if (p.status === 'active') taken[g]++;
+          else realExtras++;
+          markInjury(p, st);
+        } else if (taken[g] < REAL_ACTIVE[g]) {
           taken[g]++;
           p.status = 'active';
         } else {
@@ -186,9 +286,22 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
           addPlayer(p);
         }
       };
-      fill('C', REAL_ACTIVE.F - taken.F);
-      fill('D', REAL_ACTIVE.D - taken.D);
-      fill('G', REAL_ACTIVE.G - taken.G);
+      // Contracted organisation players missing from the roster feed (minor leagues, long-term injured).
+      for (const rec of importedPlayers()) {
+        if (rec.teamAbbr !== t.abbr || realIds.has(rec.nhlId) || !rec.status || rec.status === 'Retired') continue;
+        const p = playerFromImport(rec, t.id);
+        if (!p) continue;
+        realIds.add(rec.nhlId);
+        if (p.status === 'prospect') importedMinors++;
+        else taken[p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : 'F']++;
+        signContract(p, t.id);
+        addPlayer(p);
+      }
+      // With real roster statuses only fill holes below a dressable lineup; otherwise use the default roster shape.
+      const shape = usedStatuses ? { F: 13, D: 7, G: 2 } : REAL_ACTIVE;
+      fill('C', shape.F - taken.F);
+      fill('D', shape.D - taken.D);
+      fill('G', shape.G - taken.G);
     }
     const make = (pos: Position, base: number, slotIdx: number) => {
       let target = base + teamOffset + rng.normal(0, 6);
@@ -207,7 +320,10 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       G_SLOTS.forEach((ca, i) => make('G', ca, i));
     }
     // Prospects in the system.
-    for (let i = 0; i < Math.max(3, 9 - realExtras); i++) {
+    const orgContracts = Object.values(players).filter((p) => p.teamId === t.id && p.contract).length;
+    // Real organisations already carry their signed prospects; only top up with unsigned-style prospects within the contract limit.
+    const prospectCount = usedStatuses ? Math.max(0, Math.min(2, 48 - orgContracts)) : Math.max(3, 9 - realExtras);
+    for (let i = 0; i < prospectCount; i++) {
       let p = generateProspect(rng, ids.player++, season, rng.int(18, 21));
       // Every organisation starts with at least one goaltending prospect.
       if (i === 0 && p.pos !== 'G') {
@@ -239,7 +355,8 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     const total = rostered.reduce((s, p) => s + p.contract!.salary, 0);
     const est = scalable.reduce((s, p) => s + p.contract!.salary, 0);
     const target = cap.upper * 0.94 * teams.length;
-    const factor = clamp((target - (total - est)) / Math.max(1, est), 1, 1.3);
+    const realShare = rostered.filter((p) => p.contract!.source === 'real').length / Math.max(1, rostered.length);
+    const factor = realShare > 0.5 ? 1 : clamp((target - (total - est)) / Math.max(1, est), 1, 1.3);
     if (factor > 1.001) for (const p of scalable) scaleContract(p.contract!, factor, season);
   }
   for (const t of teams) {
@@ -373,7 +490,9 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   };
   league.nextContractId = contractIds;
   let chargeId = 1;
-  league.capLedger = importedDeadCap(teams, () => chargeId++);
+  league.capLedger = importedDeadCap(teams, () => chargeId++, season);
+  for (const p of ltirAtStart) if (p.teamId !== null && p.contract) placeOnLTIR(league, p);
+  if (real && contractDbInfo().count > 0) openingDayCompliance(league);
   for (const p of Object.values(players)) p.caSeasonStart = p.ca;
   league.projections = Object.fromEntries(teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   return league;

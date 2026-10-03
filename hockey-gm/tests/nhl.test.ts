@@ -4,7 +4,10 @@ import { runGameBatch } from '../src/engine/analytics';
 import { DEFAULT_CONFIG } from '../src/engine/data/leagueConfig';
 import { caForPercentile } from '../src/engine/data/nhl/realPlayers';
 import { syntheticSnapshot } from './nhlFixture';
+import { loadContractDatabase } from '../src/engine/cba/import';
 
+// The synthetic fixture tests roster building on its own (no contract database).
+loadContractDatabase({ schemaVersion: 2, asOf: null, source: 'test', players: [] }, { charges: [] });
 const snap = syntheticSnapshot();
 const league = createLeague({ seed: 'nhl-real', rosters: snap });
 const players = Object.values(league.players);

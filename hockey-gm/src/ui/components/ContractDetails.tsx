@@ -14,7 +14,7 @@ function YearTable({ c, season, title }: { c: Contract; season: number; title: s
   const hasMinor = ys.some((y) => y.minorSalary !== undefined);
   const hit = fullCapHit(c);
   return (
-    <div style={{ marginTop: 8 }}>
+    <div style={{ marginTop: 8, overflowX: 'auto' }}>
       <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>{title}</div>
       <table className="tbl" style={{ fontSize: 12 }}>
         <thead>
@@ -48,6 +48,8 @@ function YearTable({ c, season, title }: { c: Contract; season: number; title: s
     </div>
   );
 }
+
+const ORIGIN: Record<string, string> = { import: 'Contract', signing: 'Signing', extension: 'Extension', arbitration: 'Arbitration', qualifyingOffer: 'QO', offerSheet: 'Offer sheet', elc: 'ELC' };
 
 /** Full contract view for the player profile: terms, year-by-year structure, CBA status and history. */
 export function ContractDetails({ league, p }: { league: League; p: Player }) {
@@ -140,7 +142,7 @@ export function ContractDetails({ league, p }: { league: League; p: Player }) {
                 <span>
                   {h.years} yr / {fm(h.totalValue)} ({fm(h.aav)} AAV)
                 </span>
-                <span className="pill">{h.type === 'ELC' ? 'ELC' : (h.origin ?? 'signing')}</span>
+                <span className="pill">{h.type === 'ELC' ? 'ELC' : ORIGIN[h.origin ?? 'signing'] ?? 'Contract'}</span>
                 {h.source === 'estimated' && <span className="pill dim">est.</span>}
                 {h.note && <span className="muted">{h.note}</span>}
               </div>

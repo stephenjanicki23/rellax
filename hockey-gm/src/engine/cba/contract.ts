@@ -83,12 +83,14 @@ export function aav(c: Contract): number {
 }
 
 /**
- * Cap hit before retention. Performance bonuses count toward the cap hit for
- * contracts allowed to carry them (ELC, 35+, eligible one-year deals), per
- * CBA 50.5(d)(i)(B)(2).
+ * Cap hit before retention: the official figure when imported, otherwise the
+ * Averaged Amount. Performance bonuses are not part of the cap hit; teams may
+ * exceed the upper limit through them (the bonus cushion) and any overage is
+ * charged to the next season (CBA 50.5(h)), which the cap ledger handles.
  */
 export function fullCapHit(c: Contract): number {
-  return round((totalValue(c) + totalPerfBonus(c)) / termOf(c));
+  if (c.capHitOverride !== undefined) return round(c.capHitOverride);
+  return round(totalValue(c) / termOf(c));
 }
 
 /** Share of the cap hit still carried by the player's current team (after retention). */

@@ -185,6 +185,10 @@ export interface Contract {
   expiryStatus?: 'RFA' | 'UFA';
   /** ELC seasons slid (18/19-year-olds who played fewer than 10 NHL games). */
   slid?: number;
+  /** Official cap hit from imported data (excluding performance bonuses); overrides the computed AAV. */
+  capHitOverride?: number;
+  /** Signing date as published (imported contracts). */
+  signingDate?: string;
 }
 
 /** Past contracts shown on the player profile. */

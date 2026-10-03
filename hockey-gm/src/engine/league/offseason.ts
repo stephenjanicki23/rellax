@@ -27,11 +27,11 @@ import { teamBudget } from '../economy/contracts';
 import { expectedToiFor } from '../player/generate';
 import { generateCoach } from '../team/coaching';
 import { fullName } from '../player/ability';
-import { trimRoster, ensureDressable } from '../economy/roster';
+import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
 import { advanceContracts } from '../cba/contractService';
 import { aiQualifyingDecisions, prepareExpiries } from '../cba/rfa';
 import { processWaivers } from '../cba/waivers';
-import { applyElcSlides, pruneLedger, settlePerformanceBonuses, thirtyFivePlusRetirement } from '../cba/capActions';
+import { applyElcSlides, pruneLedger, rolloverLtir, settlePerformanceBonuses, thirtyFivePlusRetirement } from '../cba/capActions';
 import { rulesFor } from '../cba/rules';
 import { aiBuyouts } from '../ai/finance';
 
@@ -236,6 +236,8 @@ export function startResignPhase(league: League): void {
 /** Start the next season: schedule, cap growth, resets. */
 export function startNewSeason(league: League): void {
   league.season++;
+  // The books are now kept for the new season (capSeason depends on the phase).
+  league.phase = 'preseason';
   const cfg = league.config;
   const capRules = rulesFor(league.season);
   league.cap = { upper: capRules.upperLimit, floor: capRules.lowerLimit, minSalary: capRules.minimumSalary };
@@ -300,6 +302,7 @@ export function startNewSeason(league: League): void {
   league.projections = Object.fromEntries(league.teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   league.ratingBaseline = ratingBaselineFor(league);
   league.phase = 'preseason';
+  rolloverLtir(league);
   addNews(league, { category: 'league', headline: `The ${league.season}-${(league.season + 1) % 100} season is set to begin. Salary cap: $${(league.cap.upper / 1000).toFixed(1)}M`, teamIds: [], playerIds: [], importance: 3 });
 }
 
@@ -311,6 +314,10 @@ export function startRegularSeason(league: League): void {
     ensureDressable(league, t.id);
     // Filling a positional hole can push the roster back over the limit.
     trimRoster(league, t.id);
+    if (isCpu(league, t.id)) {
+      enforceCap(league, t.id);
+      ensureDressable(league, t.id);
+    }
   }
   league.phase = 'regular';
 }

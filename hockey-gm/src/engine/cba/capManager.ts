@@ -83,7 +83,7 @@ export interface CapSheet {
   retained: number;
   buyouts: number;
   bonuses: number;
-  /** Potential performance bonuses included in cap hits (ELC / 35+). */
+  /** Potential performance bonuses (not in cap hits; earned bonuses over the cap become next season's overage). */
   perfBonusPotential: number;
   ltirRelief: number;
   total: number;

@@ -126,11 +126,24 @@ export function activateFromLTIR(league: League, p: Player): { ok: boolean; mess
   return { ok: true, message: msg, overBy };
 }
 
+/**
+ * New league year: LTIR relief is recalculated. Players still injured are
+ * placed on LTIR again for the new season; healed players come off it.
+ */
+export function rolloverLtir(league: League): void {
+  const season = capSeason(league);
+  league.ltir = league.ltir.filter((l) => l.season >= season);
+  for (const p of Object.values(league.players)) {
+    if (!p.ltir || league.ltir.some((l) => l.playerId === p.id)) continue;
+    p.ltir = false;
+    if (p.injury && p.injury.daysRemaining > 0 && p.teamId !== null && p.contract) placeOnLTIR(league, p);
+  }
+}
+
 /** Daily: healthy players come off LTIR; entries from past seasons are cleared. */
 export function dailyLtir(league: League): Player[] {
   const back: Player[] = [];
-  const season = capSeason(league);
-  league.ltir = league.ltir.filter((l) => l.season >= season);
+  if (league.ltir.some((l) => l.season < capSeason(league)) || Object.values(league.players).some((p) => p.ltir && !league.ltir.some((l) => l.playerId === p.id))) rolloverLtir(league);
   for (const l of [...league.ltir]) {
     const p = league.players[l.playerId];
     if (!p || p.status === 'retired' || p.teamId !== l.teamId) {
@@ -194,7 +207,7 @@ export function settlePerformanceBonuses(league: League): BonusResult[] {
       if (earned > 0) players.push({ playerId: p.id, name: row.name, earned, max });
     }
     const earned = players.reduce((s, x) => s + x.earned, 0);
-    const base = sheet.total - sheet.perfBonusPotential;
+    const base = sheet.total; // cap hits exclude performance bonuses
     const overage = Math.max(0, Math.round(base + earned - (sheet.upper + sheet.ltirRelief)));
     if (overage > 0)
       addCharge(league, { teamId: t.id, season: season + 1, amount: overage, kind: 'bonusOverage', playerName: players.map((x) => x.name).join(', ') || 'Performance bonuses', note: `${season}-${(season + 1) % 100} performance bonuses: ${fmtCap(earned)} earned, ${fmtCap(overage)} over the cap carried into ${season + 1}-${(season + 2) % 100}` });

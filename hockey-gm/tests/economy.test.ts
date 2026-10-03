@@ -2,7 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from '../src/engine/league/create';
 import { simTo } from '../src/engine/league/season';
 import { advanceOffseason, simOffseason } from '../src/engine/league/offseason';
-import { payroll, marketValue, rosterOf, capSpace } from '../src/engine/economy/contracts';
+import { marketValue, rosterOf, capSpace } from '../src/engine/economy/contracts';
+import { teamCapSheet } from '../src/engine/cba/capManager';
 import { evaluateTrade, executeTrade, playerTradeValue, findOfferForUser, validateTrade, type TradeProposal } from '../src/engine/economy/trade';
 import { currentPick, makeDraftPick, suggestPick } from '../src/engine/economy/draft';
 import { estimate } from '../src/engine/economy/scouting';
@@ -13,7 +14,8 @@ import type { League } from '../src/engine/types';
 describe('contracts & cap', () => {
   const league = createLeague({ seed: 'cap-test' });
   it('starts every team at or under the cap', () => {
-    for (const t of league.teams) expect(payroll(league, t.id)).toBeLessThanOrEqual(league.cap.upper);
+    // Real payrolls: compliant means under the upper limit plus any LTIR relief.
+    for (const t of league.teams) expect(teamCapSheet(league, t.id).compliant).toBe(true);
   });
   it('values better players more', () => {
     const ps = Object.values(league.players).filter((p) => p.status === 'active' && league.season - p.birthYear === 27);
@@ -119,7 +121,8 @@ describe('offseason: draft, re-sign, free agency', () => {
     expect(league.phase).toBe('regular');
     for (const t of league.teams) {
       if (t.id === league.userTeamId) continue;
-      expect(payroll(league, t.id)).toBeLessThanOrEqual(league.cap.upper * 1.001);
+      const sheet = teamCapSheet(league, t.id);
+      expect(sheet.total).toBeLessThanOrEqual(sheet.effectiveLimit * 1.001);
       const n = rosterSize(league, t.id);
       expect(n).toBeGreaterThanOrEqual(20);
       expect(n).toBeLessThanOrEqual(league.config.economics.rosterMax);

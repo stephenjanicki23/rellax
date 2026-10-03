@@ -1,6 +1,817 @@
 {
-  "schemaVersion": 1,
-  "asOf": null,
-  "source": "none — import existing buyouts, retained salary and other dead-cap charges here (see data/README.md).",
-  "charges": []
+ "schemaVersion": 1,
+ "asOf": "2026-10-03",
+ "source": "CapWages buyout history",
+ "charges": [
+  {
+   "teamAbbr": "BUF",
+   "season": 2024,
+   "amount": 1444.44,
+   "kind": "buyout",
+   "playerName": "Jeff Skinner",
+   "nhlId": 8475784,
+   "note": "This contract was bought out (Buffalo Sabres - Jun 29, 2024)"
+  },
+  {
+   "teamAbbr": "BUF",
+   "season": 2025,
+   "amount": 4444.44,
+   "kind": "buyout",
+   "playerName": "Jeff Skinner",
+   "nhlId": 8475784,
+   "note": "This contract was bought out (Buffalo Sabres - Jun 29, 2024)"
+  },
+  {
+   "teamAbbr": "BUF",
+   "season": 2026,
+   "amount": 6444.44,
+   "kind": "buyout",
+   "playerName": "Jeff Skinner",
+   "nhlId": 8475784,
+   "note": "This contract was bought out (Buffalo Sabres - Jun 29, 2024)"
+  },
+  {
+   "teamAbbr": "BUF",
+   "season": 2027,
+   "amount": 2444.44,
+   "kind": "buyout",
+   "playerName": "Jeff Skinner",
+   "nhlId": 8475784,
+   "note": "This contract was bought out (Buffalo Sabres - Jun 29, 2024)"
+  },
+  {
+   "teamAbbr": "BUF",
+   "season": 2028,
+   "amount": 2444.44,
+   "kind": "buyout",
+   "playerName": "Jeff Skinner",
+   "nhlId": 8475784,
+   "note": "This contract was bought out (Buffalo Sabres - Jun 29, 2024)"
+  },
+  {
+   "teamAbbr": "BUF",
+   "season": 2029,
+   "amount": 2444.44,
+   "kind": "buyout",
+   "playerName": "Jeff Skinner",
+   "nhlId": 8475784,
+   "note": "This contract was bought out (Buffalo Sabres - Jun 29, 2024)"
+  },
+  {
+   "teamAbbr": "OTT",
+   "season": 2022,
+   "amount": 875,
+   "kind": "buyout",
+   "playerName": "Colin White",
+   "nhlId": 8478400,
+   "note": "This contract was bought out (Ottawa Senators - Jul 5, 2022)"
+  },
+  {
+   "teamAbbr": "OTT",
+   "season": 2023,
+   "amount": 875,
+   "kind": "buyout",
+   "playerName": "Colin White",
+   "nhlId": 8478400,
+   "note": "This contract was bought out (Ottawa Senators - Jul 5, 2022)"
+  },
+  {
+   "teamAbbr": "OTT",
+   "season": 2024,
+   "amount": -625,
+   "kind": "buyout",
+   "playerName": "Colin White",
+   "nhlId": 8478400,
+   "note": "This contract was bought out (Ottawa Senators - Jul 5, 2022)"
+  },
+  {
+   "teamAbbr": "OTT",
+   "season": 2025,
+   "amount": 875,
+   "kind": "buyout",
+   "playerName": "Colin White",
+   "nhlId": 8478400,
+   "note": "This contract was bought out (Ottawa Senators - Jul 5, 2022)"
+  },
+  {
+   "teamAbbr": "OTT",
+   "season": 2026,
+   "amount": 875,
+   "kind": "buyout",
+   "playerName": "Colin White",
+   "nhlId": 8478400,
+   "note": "This contract was bought out (Ottawa Senators - Jul 5, 2022)"
+  },
+  {
+   "teamAbbr": "OTT",
+   "season": 2027,
+   "amount": 875,
+   "kind": "buyout",
+   "playerName": "Colin White",
+   "nhlId": 8478400,
+   "note": "This contract was bought out (Ottawa Senators - Jul 5, 2022)"
+  },
+  {
+   "teamAbbr": "VAN",
+   "season": 2023,
+   "amount": 146.67,
+   "kind": "buyout",
+   "playerName": "Oliver Ekman-Larsson",
+   "nhlId": 8475171,
+   "note": "This contract was bought out (Vancouver Canucks - Jun 16, 2023)"
+  },
+  {
+   "teamAbbr": "VAN",
+   "season": 2024,
+   "amount": 2346.67,
+   "kind": "buyout",
+   "playerName": "Oliver Ekman-Larsson",
+   "nhlId": 8475171,
+   "note": "This contract was bought out (Vancouver Canucks - Jun 16, 2023)"
+  },
+  {
+   "teamAbbr": "VAN",
+   "season": 2025,
+   "amount": 4766.67,
+   "kind": "buyout",
+   "playerName": "Oliver Ekman-Larsson",
+   "nhlId": 8475171,
+   "note": "This contract was bought out (Vancouver Canucks - Jun 16, 2023)"
+  },
+  {
+   "teamAbbr": "VAN",
+   "season": 2026,
+   "amount": 4766.67,
+   "kind": "buyout",
+   "playerName": "Oliver Ekman-Larsson",
+   "nhlId": 8475171,
+   "note": "This contract was bought out (Vancouver Canucks - Jun 16, 2023)"
+  },
+  {
+   "teamAbbr": "VAN",
+   "season": 2027,
+   "amount": 2126.67,
+   "kind": "buyout",
+   "playerName": "Oliver Ekman-Larsson",
+   "nhlId": 8475171,
+   "note": "This contract was bought out (Vancouver Canucks - Jun 16, 2023)"
+  },
+  {
+   "teamAbbr": "VAN",
+   "season": 2028,
+   "amount": 2126.67,
+   "kind": "buyout",
+   "playerName": "Oliver Ekman-Larsson",
+   "nhlId": 8475171,
+   "note": "This contract was bought out (Vancouver Canucks - Jun 16, 2023)"
+  },
+  {
+   "teamAbbr": "VAN",
+   "season": 2029,
+   "amount": 2126.67,
+   "kind": "buyout",
+   "playerName": "Oliver Ekman-Larsson",
+   "nhlId": 8475171,
+   "note": "This contract was bought out (Vancouver Canucks - Jun 16, 2023)"
+  },
+  {
+   "teamAbbr": "VAN",
+   "season": 2030,
+   "amount": 2126.67,
+   "kind": "buyout",
+   "playerName": "Oliver Ekman-Larsson",
+   "nhlId": 8475171,
+   "note": "This contract was bought out (Vancouver Canucks - Jun 16, 2023)"
+  },
+  {
+   "teamAbbr": "BOS",
+   "season": 2023,
+   "amount": 333.33,
+   "kind": "buyout",
+   "playerName": "Mike Reilly",
+   "nhlId": 8476422,
+   "note": "This contract was bought out (Boston Bruins - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "BOS",
+   "season": 2024,
+   "amount": 1333.33,
+   "kind": "buyout",
+   "playerName": "Mike Reilly",
+   "nhlId": 8476422,
+   "note": "This contract was bought out (Boston Bruins - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "PHI",
+   "season": 2023,
+   "amount": 1666.67,
+   "kind": "buyout",
+   "playerName": "Tony DeAngelo",
+   "nhlId": 8477950,
+   "note": "This contract was bought out (Philadelphia Flyers - Jul 14, 2023)"
+  },
+  {
+   "teamAbbr": "PHI",
+   "season": 2024,
+   "amount": 1666.67,
+   "kind": "buyout",
+   "playerName": "Tony DeAngelo",
+   "nhlId": 8477950,
+   "note": "This contract was bought out (Philadelphia Flyers - Jul 14, 2023)"
+  },
+  {
+   "teamAbbr": "SEA",
+   "season": 2025,
+   "amount": 795.83,
+   "kind": "buyout",
+   "playerName": "Joe Veleno",
+   "nhlId": 8480813,
+   "note": "This contract was bought out (Seattle Kraken - Jun 29, 2025)"
+  },
+  {
+   "teamAbbr": "SEA",
+   "season": 2026,
+   "amount": 295.83,
+   "kind": "buyout",
+   "playerName": "Joe Veleno",
+   "nhlId": 8480813,
+   "note": "This contract was bought out (Seattle Kraken - Jun 29, 2025)"
+  },
+  {
+   "teamAbbr": "CHI",
+   "season": 2025,
+   "amount": 3233.33,
+   "kind": "buyout",
+   "playerName": "TJ Brodie",
+   "nhlId": 8474673,
+   "note": "This contract was bought out (Chicago Blackhawks - Jun 22, 2025)"
+  },
+  {
+   "teamAbbr": "CHI",
+   "season": 2026,
+   "amount": 258.33,
+   "kind": "buyout",
+   "playerName": "TJ Brodie",
+   "nhlId": 8474673,
+   "note": "This contract was bought out (Chicago Blackhawks - Jun 22, 2025)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2023,
+   "amount": 2555.56,
+   "kind": "buyout",
+   "playerName": "Matt Duchene",
+   "nhlId": 8475168,
+   "note": "This contract was bought out (Nashville Predators - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2024,
+   "amount": 5555.56,
+   "kind": "buyout",
+   "playerName": "Matt Duchene",
+   "nhlId": 8475168,
+   "note": "This contract was bought out (Nashville Predators - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2025,
+   "amount": 6555.56,
+   "kind": "buyout",
+   "playerName": "Matt Duchene",
+   "nhlId": 8475168,
+   "note": "This contract was bought out (Nashville Predators - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2026,
+   "amount": 1555.56,
+   "kind": "buyout",
+   "playerName": "Matt Duchene",
+   "nhlId": 8475168,
+   "note": "This contract was bought out (Nashville Predators - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2027,
+   "amount": 1555.56,
+   "kind": "buyout",
+   "playerName": "Matt Duchene",
+   "nhlId": 8475168,
+   "note": "This contract was bought out (Nashville Predators - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2028,
+   "amount": 1555.56,
+   "kind": "buyout",
+   "playerName": "Matt Duchene",
+   "nhlId": 8475168,
+   "note": "This contract was bought out (Nashville Predators - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2021,
+   "amount": 2371.8,
+   "kind": "buyout",
+   "playerName": "Zach Parise",
+   "nhlId": 8470610,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2022,
+   "amount": 6371.8,
+   "kind": "buyout",
+   "playerName": "Zach Parise",
+   "nhlId": 8470610,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2023,
+   "amount": 7371.8,
+   "kind": "buyout",
+   "playerName": "Zach Parise",
+   "nhlId": 8470610,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2024,
+   "amount": 7371.8,
+   "kind": "buyout",
+   "playerName": "Zach Parise",
+   "nhlId": 8470610,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2025,
+   "amount": 833.33,
+   "kind": "buyout",
+   "playerName": "Zach Parise",
+   "nhlId": 8470610,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2026,
+   "amount": 833.33,
+   "kind": "buyout",
+   "playerName": "Zach Parise",
+   "nhlId": 8470610,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2027,
+   "amount": 833.33,
+   "kind": "buyout",
+   "playerName": "Zach Parise",
+   "nhlId": 8470610,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2028,
+   "amount": 833.33,
+   "kind": "buyout",
+   "playerName": "Zach Parise",
+   "nhlId": 8470610,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "DAL",
+   "season": 2024,
+   "amount": 783.33,
+   "kind": "buyout",
+   "playerName": "Ryan Suter",
+   "nhlId": 8470600,
+   "note": "This contract was bought out (Dallas Stars - Jun 28, 2024)"
+  },
+  {
+   "teamAbbr": "DAL",
+   "season": 2025,
+   "amount": 1433.33,
+   "kind": "buyout",
+   "playerName": "Ryan Suter",
+   "nhlId": 8470600,
+   "note": "This contract was bought out (Dallas Stars - Jun 28, 2024)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2024,
+   "amount": 7371.8,
+   "kind": "buyout",
+   "playerName": "Ryan Suter",
+   "nhlId": 8470600,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2025,
+   "amount": 833.33,
+   "kind": "buyout",
+   "playerName": "Ryan Suter",
+   "nhlId": 8470600,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2026,
+   "amount": 833.33,
+   "kind": "buyout",
+   "playerName": "Ryan Suter",
+   "nhlId": 8470600,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2027,
+   "amount": 833.33,
+   "kind": "buyout",
+   "playerName": "Ryan Suter",
+   "nhlId": 8470600,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "MIN",
+   "season": 2028,
+   "amount": 833.33,
+   "kind": "buyout",
+   "playerName": "Ryan Suter",
+   "nhlId": 8470600,
+   "note": "This contract was bought out (Minnesota Wild - Jul 13, 2021)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2020,
+   "amount": 2000,
+   "kind": "buyout",
+   "playerName": "Kyle Turris",
+   "nhlId": 8474068,
+   "note": "This contract was bought out (Nashville Predators - Oct 7, 2020)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2021,
+   "amount": 2000,
+   "kind": "buyout",
+   "playerName": "Kyle Turris",
+   "nhlId": 8474068,
+   "note": "This contract was bought out (Nashville Predators - Oct 7, 2020)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2022,
+   "amount": 2000,
+   "kind": "buyout",
+   "playerName": "Kyle Turris",
+   "nhlId": 8474068,
+   "note": "This contract was bought out (Nashville Predators - Oct 7, 2020)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2023,
+   "amount": 2000,
+   "kind": "buyout",
+   "playerName": "Kyle Turris",
+   "nhlId": 8474068,
+   "note": "This contract was bought out (Nashville Predators - Oct 7, 2020)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2024,
+   "amount": 2000,
+   "kind": "buyout",
+   "playerName": "Kyle Turris",
+   "nhlId": 8474068,
+   "note": "This contract was bought out (Nashville Predators - Oct 7, 2020)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2025,
+   "amount": 2000,
+   "kind": "buyout",
+   "playerName": "Kyle Turris",
+   "nhlId": 8474068,
+   "note": "This contract was bought out (Nashville Predators - Oct 7, 2020)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2026,
+   "amount": 2000,
+   "kind": "buyout",
+   "playerName": "Kyle Turris",
+   "nhlId": 8474068,
+   "note": "This contract was bought out (Nashville Predators - Oct 7, 2020)"
+  },
+  {
+   "teamAbbr": "NSH",
+   "season": 2027,
+   "amount": 2000,
+   "kind": "buyout",
+   "playerName": "Kyle Turris",
+   "nhlId": 8474068,
+   "note": "This contract was bought out (Nashville Predators - Oct 7, 2020)"
+  },
+  {
+   "teamAbbr": "STL",
+   "season": 2026,
+   "amount": 1333.33,
+   "kind": "buyout",
+   "playerName": "Jonathan Drouin",
+   "nhlId": 8477494,
+   "note": "This contract was bought out (St. Louis Blues - Jun 30, 2026)"
+  },
+  {
+   "teamAbbr": "STL",
+   "season": 2027,
+   "amount": 1333.33,
+   "kind": "buyout",
+   "playerName": "Jonathan Drouin",
+   "nhlId": 8477494,
+   "note": "This contract was bought out (St. Louis Blues - Jun 30, 2026)"
+  },
+  {
+   "teamAbbr": "DET",
+   "season": 2023,
+   "amount": 433.33,
+   "kind": "buyout",
+   "playerName": "Kailer Yamamoto",
+   "nhlId": 8479977,
+   "note": "This contract was bought out (Detroit Red Wings - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "DET",
+   "season": 2024,
+   "amount": 533.33,
+   "kind": "buyout",
+   "playerName": "Kailer Yamamoto",
+   "nhlId": 8479977,
+   "note": "This contract was bought out (Detroit Red Wings - Jun 30, 2023)"
+  },
+  {
+   "teamAbbr": "WPG",
+   "season": 2024,
+   "amount": 2716.67,
+   "kind": "buyout",
+   "playerName": "Nate Schmidt",
+   "nhlId": 8477220,
+   "note": "This contract was bought out (Winnipeg Jets - Jun 30, 2024)"
+  },
+  {
+   "teamAbbr": "WPG",
+   "season": 2025,
+   "amount": 1616.67,
+   "kind": "buyout",
+   "playerName": "Nate Schmidt",
+   "nhlId": 8477220,
+   "note": "This contract was bought out (Winnipeg Jets - Jun 30, 2024)"
+  },
+  {
+   "teamAbbr": "EDM",
+   "season": 2024,
+   "amount": 1100,
+   "kind": "buyout",
+   "playerName": "Jack Campbell",
+   "nhlId": 8475789,
+   "note": "This contract was bought out (Edmonton Oilers - Jun 30, 2024)"
+  },
+  {
+   "teamAbbr": "EDM",
+   "season": 2025,
+   "amount": 2300,
+   "kind": "buyout",
+   "playerName": "Jack Campbell",
+   "nhlId": 8475789,
+   "note": "This contract was bought out (Edmonton Oilers - Jun 30, 2024)"
+  },
+  {
+   "teamAbbr": "EDM",
+   "season": 2026,
+   "amount": 2600,
+   "kind": "buyout",
+   "playerName": "Jack Campbell",
+   "nhlId": 8475789,
+   "note": "This contract was bought out (Edmonton Oilers - Jun 30, 2024)"
+  },
+  {
+   "teamAbbr": "EDM",
+   "season": 2027,
+   "amount": 1500,
+   "kind": "buyout",
+   "playerName": "Jack Campbell",
+   "nhlId": 8475789,
+   "note": "This contract was bought out (Edmonton Oilers - Jun 30, 2024)"
+  },
+  {
+   "teamAbbr": "EDM",
+   "season": 2028,
+   "amount": 1500,
+   "kind": "buyout",
+   "playerName": "Jack Campbell",
+   "nhlId": 8475789,
+   "note": "This contract was bought out (Edmonton Oilers - Jun 30, 2024)"
+  },
+  {
+   "teamAbbr": "EDM",
+   "season": 2029,
+   "amount": 1500,
+   "kind": "buyout",
+   "playerName": "Jack Campbell",
+   "nhlId": 8475789,
+   "note": "This contract was bought out (Edmonton Oilers - Jun 30, 2024)"
+  },
+  {
+   "teamAbbr": "LAK",
+   "season": 2025,
+   "amount": 600,
+   "kind": "buyout",
+   "playerName": "Mike Richards",
+   "nhlId": 8470617,
+   "note": "Buyout"
+  },
+  {
+   "teamAbbr": "LAK",
+   "season": 2026,
+   "amount": 600,
+   "kind": "buyout",
+   "playerName": "Mike Richards",
+   "nhlId": 8470617,
+   "note": "Buyout"
+  },
+  {
+   "teamAbbr": "LAK",
+   "season": 2027,
+   "amount": 600,
+   "kind": "buyout",
+   "playerName": "Mike Richards",
+   "nhlId": 8470617,
+   "note": "Buyout"
+  },
+  {
+   "teamAbbr": "LAK",
+   "season": 2028,
+   "amount": 600,
+   "kind": "buyout",
+   "playerName": "Mike Richards",
+   "nhlId": 8470617,
+   "note": "Buyout"
+  },
+  {
+   "teamAbbr": "LAK",
+   "season": 2029,
+   "amount": 500,
+   "kind": "buyout",
+   "playerName": "Mike Richards",
+   "nhlId": 8470617,
+   "note": "Buyout"
+  },
+  {
+   "teamAbbr": "LAK",
+   "season": 2030,
+   "amount": 500,
+   "kind": "buyout",
+   "playerName": "Mike Richards",
+   "nhlId": 8470617,
+   "note": "Buyout"
+  },
+  {
+   "teamAbbr": "LAK",
+   "season": 2031,
+   "amount": 400,
+   "kind": "buyout",
+   "playerName": "Mike Richards",
+   "nhlId": 8470617,
+   "note": "Buyout"
+  },
+  {
+   "teamAbbr": "CBJ",
+   "season": 2020,
+   "amount": 441.67,
+   "kind": "buyout",
+   "playerName": "Alexander Wennberg",
+   "nhlId": 8477505,
+   "note": "This contract was bought out (Columbus Blue Jackets - Oct 8, 2020)"
+  },
+  {
+   "teamAbbr": "CBJ",
+   "season": 2021,
+   "amount": 441.67,
+   "kind": "buyout",
+   "playerName": "Alexander Wennberg",
+   "nhlId": 8477505,
+   "note": "This contract was bought out (Columbus Blue Jackets - Oct 8, 2020)"
+  },
+  {
+   "teamAbbr": "CBJ",
+   "season": 2022,
+   "amount": 441.67,
+   "kind": "buyout",
+   "playerName": "Alexander Wennberg",
+   "nhlId": 8477505,
+   "note": "This contract was bought out (Columbus Blue Jackets - Oct 8, 2020)"
+  },
+  {
+   "teamAbbr": "CBJ",
+   "season": 2023,
+   "amount": 891.67,
+   "kind": "buyout",
+   "playerName": "Alexander Wennberg",
+   "nhlId": 8477505,
+   "note": "This contract was bought out (Columbus Blue Jackets - Oct 8, 2020)"
+  },
+  {
+   "teamAbbr": "CBJ",
+   "season": 2024,
+   "amount": 891.67,
+   "kind": "buyout",
+   "playerName": "Alexander Wennberg",
+   "nhlId": 8477505,
+   "note": "This contract was bought out (Columbus Blue Jackets - Oct 8, 2020)"
+  },
+  {
+   "teamAbbr": "CBJ",
+   "season": 2025,
+   "amount": 891.67,
+   "kind": "buyout",
+   "playerName": "Alexander Wennberg",
+   "nhlId": 8477505,
+   "note": "This contract was bought out (Columbus Blue Jackets - Oct 8, 2020)"
+  },
+  {
+   "teamAbbr": "SJS",
+   "season": 2021,
+   "amount": 1916.67,
+   "kind": "buyout",
+   "playerName": "Martin Jones",
+   "nhlId": 8474889,
+   "note": "This contract was bought out (San Jose Sharks - Jul 27, 2021)"
+  },
+  {
+   "teamAbbr": "SJS",
+   "season": 2022,
+   "amount": 2416.67,
+   "kind": "buyout",
+   "playerName": "Martin Jones",
+   "nhlId": 8474889,
+   "note": "This contract was bought out (San Jose Sharks - Jul 27, 2021)"
+  },
+  {
+   "teamAbbr": "SJS",
+   "season": 2023,
+   "amount": 2916.67,
+   "kind": "buyout",
+   "playerName": "Martin Jones",
+   "nhlId": 8474889,
+   "note": "This contract was bought out (San Jose Sharks - Jul 27, 2021)"
+  },
+  {
+   "teamAbbr": "SJS",
+   "season": 2024,
+   "amount": 1666.67,
+   "kind": "buyout",
+   "playerName": "Martin Jones",
+   "nhlId": 8474889,
+   "note": "This contract was bought out (San Jose Sharks - Jul 27, 2021)"
+  },
+  {
+   "teamAbbr": "SJS",
+   "season": 2025,
+   "amount": 1666.67,
+   "kind": "buyout",
+   "playerName": "Martin Jones",
+   "nhlId": 8474889,
+   "note": "This contract was bought out (San Jose Sharks - Jul 27, 2021)"
+  },
+  {
+   "teamAbbr": "SJS",
+   "season": 2026,
+   "amount": 1666.67,
+   "kind": "buyout",
+   "playerName": "Martin Jones",
+   "nhlId": 8474889,
+   "note": "This contract was bought out (San Jose Sharks - Jul 27, 2021)"
+  },
+  {
+   "teamAbbr": "SJS",
+   "season": 2025,
+   "amount": 4666.67,
+   "kind": "buyout",
+   "playerName": "Marc-Edouard Vlasic",
+   "nhlId": 8471709,
+   "note": "This contract was bought out (San Jose Sharks - Jun 26, 2025)"
+  },
+  {
+   "teamAbbr": "SJS",
+   "season": 2026,
+   "amount": 1166.67,
+   "kind": "buyout",
+   "playerName": "Marc-Edouard Vlasic",
+   "nhlId": 8471709,
+   "note": "This contract was bought out (San Jose Sharks - Jun 26, 2025)"
+  }
+ ]
 }
