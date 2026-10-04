@@ -318,6 +318,11 @@ export interface Player {
   contract: Contract | null;
   /** Unsigned draft rights or RFA rights held by this team. */
   rightsTeamId: number | null;
+  /** Draft prospect: last amateur club and NHL Central Scouting list rank (real prospects). */
+  amateurClub?: string;
+  csRank?: { category: CsCategory; rank: number };
+  /** Rank on an imported public big board (real prospects). */
+  boardRank?: number;
   /** Agent representing him (see cba/agents). */
   agentId?: number;
   /** Restricted free agent refusing his qualifying offer (sits out until he signs). */
@@ -428,7 +433,7 @@ export interface Scout {
 }
 
 export type ScoutAssignment =
-  | { kind: 'draft' }
+  | { kind: 'draft'; region?: 'NA' | 'EU' }
   | { kind: 'team'; teamId: number }
   | { kind: 'freeAgents' }
   | { kind: 'idle' };
@@ -717,6 +722,16 @@ export interface OfferSheet {
   decisionDay: number;
 }
 
+/** Central Scouting lists: North American / International skaters and goalies. */
+export type CsCategory = 'NA-S' | 'INT-S' | 'NA-G' | 'INT-G';
+
+/** In-game Central Scouting rankings for the upcoming draft (midterm in January, final in April). */
+export interface CsRankings {
+  season: number;
+  stage: 'midterm' | 'final';
+  lists: Record<CsCategory, number[]>;
+}
+
 export type AgentStyle = 'hardball' | 'fair' | 'friendly' | 'media';
 
 export interface Agent {
@@ -838,7 +853,15 @@ export interface League {
   transactions: Transaction[];
   history: SeasonHistory[];
   records: RecordBook;
-  scouting: { knowledge: Record<number, number> };
+  scouting: {
+    knowledge: Record<number, number>;
+    /** Prospects the user has interviewed at the combine (playerId -> season). */
+    interviewed?: Record<number, number>;
+    /** The user's draft shortlist, in order. */
+    shortlist?: number[];
+    /** Central Scouting rankings for the upcoming draft. */
+    central?: CsRankings | null;
+  };
   /** Shared ice time between teammates: "minId-maxId" -> seconds. */
   chemistry: Record<string, number>;
   nextId: { player: number; coach: number; news: number; game: number; tx: number; pick: number; scout: number };

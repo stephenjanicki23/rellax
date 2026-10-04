@@ -6,14 +6,16 @@ import { estimate, knowledgeOf, scoutReport } from '../../engine/economy/scoutin
 import { describeAsset, projectedPickNumber } from '../../engine/economy/trade';
 import { ARCHETYPES } from '../../engine/player/archetypes';
 import type { Player } from '../../engine/types';
+import { draftColumns } from '../components/DraftColumns';
 
 export function DraftPage() {
   const { league, version } = useGame();
-  const [tab, setTab] = useState<'board' | 'order'>('board');
+  const [tab, setTab] = useState<'board' | 'mine' | 'order'>('board');
   const me = league.userTeamId;
   const pick = league.phase === 'draft' ? currentPick(league) : undefined;
   const onClock = pick?.ownerId === me;
   const available = useMemo(() => draftRankings(league), [league, version]);
+  const shortlist = useMemo(() => (league.scouting.shortlist ?? []).map((id) => league.players[id]).filter((p) => p?.status === 'draft'), [league, version]);
   const suggestion = onClock ? suggestPick(league) : undefined;
   const myPicks = league.draftPicks.filter((p) => p.ownerId === me && p.season === league.season && p.playerId === undefined);
   const order = league.draftOrder.map((id) => league.draftPicks.find((p) => p.id === id)).filter(Boolean);
@@ -28,7 +30,7 @@ export function DraftPage() {
     { key: 'pos', label: 'Pos', render: (p) => <Pos pos={p.pos} /> },
     { key: 'name', label: 'Prospect', render: (p) => <PlayerLink p={p} /> },
     { key: 'age', label: 'Age', num: true, render: (p) => league.season - p.birthYear },
-    { key: 'jr', label: 'From', render: (p) => <span className="muted">{p.junior}</span> },
+    ...draftColumns(league),
     { key: 'type', label: 'Type', render: (p) => <span className="muted">{ARCHETYPES[p.archetype].label}</span> },
     { key: 'ca', label: 'Now', render: (p) => { const e = estimate(league, p); return <Stars value={e.ca} range={[e.caLow, e.caHigh]} />; }, sort: (p) => estimate(league, p).ca },
     { key: 'pa', label: 'Ceiling', render: (p) => { const e = estimate(league, p); return <Stars value={e.pa} range={[e.paLow, e.paHigh]} />; }, sort: (p) => estimate(league, p).pa },
@@ -85,10 +87,10 @@ export function DraftPage() {
             ))}
         </div>
       )}
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'board', label: 'Big board' }, { id: 'order', label: 'Draft order & picks made' }]} />
-      {tab === 'board' ? (
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'board', label: 'Big board' }, { id: 'mine', label: `My shortlist (${shortlist.length})` }, { id: 'order', label: 'Draft order & picks made' }]} />
+      {tab === 'board' || tab === 'mine' ? (
         <Card tight>
-          <Table rows={available} columns={cols} rowKey={(p) => p.id} limit={250} />
+          <Table rows={tab === 'mine' ? shortlist : available} columns={cols} rowKey={(p) => p.id} limit={250} empty={tab === 'mine' ? 'Star prospects (☆) to build your own list.' : undefined} />
         </Card>
       ) : (
         <Card tight>

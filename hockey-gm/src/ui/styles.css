@@ -246,3 +246,6 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 .mm-card-id > .headshot { display: block; width: min(220px, 70%); height: auto; aspect-ratio: 1; margin: 4px auto 6px; }
 .mm-name { display: inline-flex; align-items: center; gap: 10px; }
 .mm-name .headshot { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18); }
+
+.star-toggle { background: none; border: 0; cursor: pointer; font-size: 16px; color: var(--dim, #888); padding: 0 4px; line-height: 1; }
+.star-toggle.on { color: var(--accent, #ffb81c); }

@@ -19,6 +19,7 @@ import { determineFreeAgentStatus } from '../cba/rulesEngine';
 import { generateSchedule } from './schedule';
 import { updateStrategies } from '../ai/gm';
 import { applyRealPickOwnership, buildRealReserves, draftDataInfo } from './realDraft';
+import { buildRealDraftClass, isReentryClass } from './realDraftClass';
 import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
 import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
@@ -392,7 +393,12 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
 
   // ── Draft class for the upcoming draft
   const draftClassSize = cfg.teams.length * cfg.draft.rounds + 40;
-  for (let i = 0; i < draftClassSize; i++) addPlayer(generateProspect(rng, ids.player++, season));
+  // Real prospects (NHL Central Scouting lists) first; generated players fill out the class.
+  const realClass = real ? buildRealDraftClass(rng, season, Object.values(players), () => ids.player++) : [];
+  for (const p of realClass) addPlayer(p);
+  // Re-entries alone are a late-round crop: the first-time-eligible class is generated until Central Scouting publishes it.
+  const firstTimers = isReentryClass() ? realClass.filter((p) => p.boardRank).length : realClass.length;
+  for (let i = firstTimers; i < draftClassSize; i++) addPlayer(generateProspect(rng, ids.player++, season));
 
   // ── Coaches
   const realStaff = !!snap && snapshotHasRosters(snap, abbrs);

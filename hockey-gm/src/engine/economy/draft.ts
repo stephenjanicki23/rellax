@@ -2,11 +2,11 @@ import { STATIC, elcMaxFor, rulesFor } from '../cba/rules';
 import { buildContract } from '../cba/contract';
 import { registerContract } from '../cba/contractService';
 import { emptyStatLine } from '../core/statline';
-import type { DraftPick, League, Player } from '../types';
+import type { CsCategory, DraftPick, League, Player } from '../types';
 import { addNews, addTransaction, playersOf, teamName, withRng, points } from '../league/helpers';
 import { playoffResultFor } from '../league/playoffs';
 import { compareRecords } from '../league/standings';
-import { aiPerceivedPA, estimate } from './scouting';
+import { aiPerceivedPA, centralRank, estimate } from './scouting';
 
 import { fullName } from '../player/ability';
 
@@ -95,9 +95,17 @@ function resolveProtection(league: League, pick: DraftPick): void {
 
 /** Public consensus ranking of draft-eligible prospects. */
 export function draftRankings(league: League): Player[] {
-  return Object.values(league.players)
-    .filter((p) => p.status === 'draft')
-    .sort((a, b) => b.reputation + b.ca * 0.15 - (a.reputation + a.ca * 0.15));
+  const pool = Object.values(league.players).filter((p) => p.status === 'draft');
+  // Once Central Scouting has published, the consensus follows its lists (merged by typical draft slot).
+  if (league.scouting.central?.season === league.season) {
+    const per: Record<CsCategory, number> = { 'NA-S': 1.55, 'INT-S': 2.4, 'NA-G': 7, 'INT-G': 9 };
+    const slot = (p: Player) => {
+      const r = centralRank(league, p);
+      return r ? r.rank * per[r.category] : 999;
+    };
+    return pool.sort((a, b) => slot(a) - slot(b));
+  }
+  return pool.sort((a, b) => b.reputation + b.ca * 0.15 - (a.reputation + a.ca * 0.15));
 }
 
 export function currentPick(league: League): DraftPick | undefined {
