@@ -34,6 +34,8 @@ export interface LiveRinkProps {
   away: RinkTeam;
   players: RinkPlayer[];
   playoff?: boolean;
+  /** A goal replay started (true) or ended (false); the live view pauses play meanwhile. */
+  onReplay?: (on: boolean) => void;
 }
 
 interface Trajectory {
@@ -100,7 +102,19 @@ function iceNoise(): string | null {
   return noiseUrl;
 }
 
-export function LiveRink({ feed, snap, home, away, players, playoff = false, onShown, seasonTotals }: LiveRinkProps) {
+/** Replay window around a goal (presentation seconds before/after the puck goes in) and slow-motion rate. */
+const REPLAY_BEFORE = 6.5;
+const REPLAY_AFTER = 1.4;
+const REPLAY_RATE = 0.45;
+
+export function LiveRink({ feed, snap, home, away, players, playoff = false, onShown, seasonTotals, onReplay }: LiveRinkProps) {
+  const replayCb = useRef(onReplay);
+  replayCb.current = onReplay;
+  // Last goal shown (for the replay button) and the replay in progress.
+  const lastGoal = useRef<{ s: number; event: GameEvent } | null>(null);
+  const replay = useRef<{ from: number; to: number; resume: number; started: boolean } | null>(null);
+  const [replayable, setReplayable] = useState<GameEvent | null>(null);
+  const [replaying, setReplaying] = useState(false);
   const totalsRef = useRef(seasonTotals);
   totalsRef.current = seasonTotals;
   // Goals and assists already shown in this game (added to the season totals on the goal card).
@@ -181,6 +195,8 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
       }
       switch (e.type) {
         case 'goal': {
+          lastGoal.current = { s: k.s, event: e };
+          setReplayable(e);
           const bump = (id: number | undefined, k: 'g' | 'a') => {
             if (id === undefined) return;
             const t = tally.current.get(id) ?? { g: 0, a: 0 };
@@ -243,10 +259,34 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
       }
       const realDt = Math.min(0.1, (now - last) / 1000);
       last = now;
+      const rp = replay.current;
+      if (rp) {
+        // Replay: rewind, play the goal again in slow motion (no play-by-play, no new marks), then return.
+        if (!rp.started) {
+          motion.seek(rp.from);
+          trail.length = 0;
+          rp.started = true;
+        }
+        let adv = realDt * REPLAY_RATE;
+        while (adv > 1e-6) {
+          const d = Math.min(STEP, adv);
+          motion.step(d);
+          adv -= d;
+        }
+        if (motion.P >= rp.to) {
+          motion.seek(rp.resume);
+          trail.length = 0;
+          replay.current = null;
+          setReplaying(false);
+          replayCb.current?.(false);
+        }
+      }
       const target = feed.done ? tl.end : Math.min(tl.end, feed.pres + (feed.rate ? ((now - feed.presAt) / 1000) * feed.rate : 0));
-      const lag = target - motion.P;
+      const lag = rp ? 0 : target - motion.P;
       const P0 = motion.P;
-      if (lag > Math.max(8, feed.rate * 0.75) || (feed.done && lag > 0.5)) {
+      if (rp) {
+        /* replaying: the live timeline waits */
+      } else if (lag > Math.max(8, feed.rate * 0.75) || (feed.done && lag > 0.5)) {
         motion.snapTo(target - (feed.done ? 0 : 0.5), onKey);
         trail.length = 0;
       } else if (feed.rate > 0 || lag > 0) {
@@ -326,6 +366,16 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
     return () => clearTimeout(id);
   }, [savePulse]);
 
+  const startReplay = () => {
+    const g = lastGoal.current;
+    if (!g || replay.current) return;
+    const m = engine.current!.motion;
+    replay.current = { from: Math.max(0, g.s - REPLAY_BEFORE), to: g.s + REPLAY_AFTER, resume: m.P, started: false };
+    setGoal(null);
+    setReplaying(true);
+    replayCb.current?.(true);
+  };
+
   const homeDir = attackDir(0, period);
   const teams = [home, away] as const;
   const colors = [home.colors, away.colors] as const;
@@ -350,6 +400,16 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           <button className={`rink-toggle ${showMap ? 'on' : ''}`} onClick={() => setShowMap((v) => !v)} title="Show every shot this period">
             Shot map
           </button>
+          {replayable && (
+            <button
+              className={`rink-toggle ${replaying ? 'on' : ''}`}
+              disabled={replaying}
+              onClick={startReplay}
+              title={`Watch ${meta.get(replayable.p1 ?? -1)?.last ?? 'the last'} goal again in slow motion`}
+            >
+              ↺ Replay goal
+            </button>
+          )}
         </span>
         <span className="rink-dir right" style={{ '--tc': teamBar(away.colors) } as React.CSSProperties}>
           {possTeam === 1 && <em className="poss-dot" title="Has the puck" />}
@@ -537,7 +597,16 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
             </span>
           ))}
         </div>
-        {goal && (
+        {replaying && replayable && (
+          <div className="replay-banner" style={{ '--tc': teamBar(colors[replayable.team]) } as React.CSSProperties}>
+            <span className="rb-tag">Replay</span>
+            <span>
+              {num(replayable.p1)}
+              {name(replayable.p1)} · {teams[replayable.team].abbr}
+            </span>
+          </div>
+        )}
+        {goal && !replaying && (
           <div key={goal.id} className="goal-card" style={{ '--tc': teamBar(colors[goal.event.team]) } as React.CSSProperties}>
             <div className="gc-head">
               <span className="gc-label">GOAL</span>

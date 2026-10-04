@@ -5,7 +5,7 @@ import { navigate } from '../router';
 import { GameSim, simulateGame } from '../../engine/sim/engine';
 import { buildGameInput } from '../../engine/league/gameInput';
 import { prepareUserGame } from '../../engine/league/season';
-import { describe } from '../../engine/sim/commentary';
+import { describe, periodLabel } from '../../engine/sim/commentary';
 import type { GameEvent, GameInput, GameResult, GameSnapshot } from '../../engine/sim/gameTypes';
 import type { ScheduledGame, Team } from '../../engine/types';
 import { recordString } from '../../engine/league/standings';
@@ -15,6 +15,7 @@ import { Scoreboard, type Speed } from '../live/Scoreboard';
 import { LiveFeed, type FeedLine } from '../live/LiveFeed';
 import { GamePanels } from '../live/GamePanels';
 import { Ticker, type TickerGame } from '../live/Ticker';
+import { Intermission } from '../live/Intermission';
 import '../live/live.css';
 import { whistleHold, type RinkPlayer } from '../rink/director';
 import type { RinkFeed } from '../rink/LiveRink';
@@ -121,14 +122,69 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   }, [sim]);
   const ctx = useMemo(() => ({ name: (id?: number) => (id !== undefined ? names.get(id) ?? '?' : '?'), team: (s: 0 | 1) => (s === 0 ? home.name : away.name) }), [names, home, away]);
 
+  // Intermission reports: the game pauses at the end of a period (unless the viewer skips them).
+  const [report, setReport] = useState<{ period: number; t: number; title: string; label: string } | null>(null);
+  const [finalOpen, setFinalOpen] = useState(false);
+  const [skipReports, setSkipReports] = useState(() => {
+    try {
+      return localStorage.getItem('hgm.skipIntermissions') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const speedBefore = useRef<Speed>('1');
+  const skipRef = useRef(skipReports);
+  skipRef.current = skipReports;
+
   // Play-by-play lines are emitted by the rink as it shows each play, so the text never runs ahead of the ice.
   const pushEvents = (evs: GameEvent[]) => {
     const out: FeedLine[] = [];
     for (const e of evs) {
       const l = describe(e, ctx);
       if (l) out.push({ ...l, uid: ++uid.current });
+      if (e.type === 'periodEnd' && !feed.done && !skipRef.current) {
+        // Score as the period ends (from the goals shown so far).
+        const goals = feed.items.filter((x) => x.e.type === 'goal' && x.e.t <= e.t);
+        const tied = goals.filter((x) => x.e.team === 0).length === goals.filter((x) => x.e.team === 1).length;
+        const regulationOver = e.period >= 3;
+        // Intermissions after the 1st and 2nd, and before playoff overtime (regular-season OT follows right away).
+        if (!regulationOver || (tied && playoff)) {
+          const next = e.period + 1;
+          setReport({
+            period: e.period,
+            t: e.t,
+            title: regulationOver ? (e.period === 3 ? 'End of regulation' : `End of ${periodLabel(e.period, playoff)}`) : `${periodLabel(e.period, playoff)} intermission`,
+            label: next > 3 ? `Start ${periodLabel(next, playoff)}` : `Start ${periodLabel(next, playoff)} period`,
+          });
+          setSpeed((sp) => {
+            if (sp !== 'pause') speedBefore.current = sp;
+            return 'pause';
+          });
+        }
+      }
     }
     if (out.length) setLines((prev) => [...out.reverse(), ...prev].slice(0, 400));
+  };
+  const resumeFromReport = () => {
+    setReport(null);
+    setSpeed(speedBefore.current);
+  };
+  const setSkip = (v: boolean) => {
+    setSkipReports(v);
+    try {
+      localStorage.setItem('hgm.skipIntermissions', v ? '1' : '0');
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  // Goal replays pause live play while the rink rewinds.
+  const onReplay = (on: boolean) => {
+    if (on)
+      setSpeed((sp) => {
+        if (sp !== 'pause') speedBefore.current = sp;
+        return 'pause';
+      });
+    else if (!report && !finished) setSpeed(speedBefore.current);
   };
 
   // Playback runs on game time: at N× the clock advances N game seconds per
@@ -167,7 +223,10 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     setSnap(pb.cur.snap);
     setDispT(t);
     if (sim.finished && !pb.queue.length && !pb.pending.length) {
-      setFinished(true);
+      setFinished((was) => {
+        if (!was) setFinalOpen(true);
+        return true;
+      });
       setSpeed('pause');
     }
   };
@@ -223,6 +282,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     return p ? `${p.number != null ? `#${p.number} ` : ''}${p.last ?? ''}` : '';
   };
   const running = !finished && speed !== 'pause';
+  const finalResult = useMemo(() => (finished ? sim.result() : null), [finished, sim]);
 
   return (
     <div className="live-screen">
@@ -252,7 +312,43 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
       {ticker && ticker.length > 0 && <Ticker games={ticker} period={period} clock={clock} finished={finished} playoff={playoff} />}
       <div className="live-main">
         <div className="live-rink">
-          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} playoff={playoff} onShown={pushEvents} seasonTotals={seasonTotals} />
+          {report && (
+            <Intermission
+              title={report.title}
+              period={report.period}
+              snap={s}
+              items={feed.items.filter((x) => x.e.t <= report.t)}
+              home={home}
+              away={away}
+              players={meta}
+              playoff={playoff}
+              onContinue={resumeFromReport}
+              continueLabel={report.label}
+              skip={skipReports}
+              onSkip={setSkip}
+            />
+          )}
+          {finalResult && finalOpen && (
+            <Intermission
+              title={finalResult.so ? 'Final / SO' : finalResult.ot ? 'Final / OT' : 'Final'}
+              period={Math.max(3, Math.min(s.period, finalResult.periods))}
+              snap={s}
+              items={feed.items}
+              home={home}
+              away={away}
+              players={meta}
+              playoff={playoff}
+              stars={finalResult.stars}
+              onContinue={() => void finalize()}
+              continueLabel={finishLabel}
+              extra={
+                <button className="btn" onClick={() => setFinalOpen(false)}>
+                  Close
+                </button>
+              }
+            />
+          )}
+          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} playoff={playoff} onShown={pushEvents} seasonTotals={seasonTotals} onReplay={onReplay} />
           <div className="live-momentum" title="Momentum: which team is pushing the play">
             <span>{home.abbr}</span>
             <div className="momentum">
