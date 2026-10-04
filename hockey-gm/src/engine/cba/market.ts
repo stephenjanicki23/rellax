@@ -8,7 +8,7 @@
  */
 import { clamp } from '../core/math';
 import { seedFrom } from '../core/rng';
-import type { League, Player } from '../types';
+import type { ClauseKind, League, Player } from '../types';
 import { aav, endOf, yearsOf } from './contract';
 import { capSeason } from './capManager';
 import { rulesFor } from './rules';
@@ -191,7 +191,7 @@ export interface SigningScore {
  * and term against team quality, role, contention, location, coach and GM
  * reputation, teammates and their previous team — not just the highest bid.
  */
-export function signingScore(league: League, p: Player, offer: { teamId: number; aav: number; years: number }): SigningScore {
+export function signingScore(league: League, p: Player, offer: { teamId: number; aav: number; years: number; clause?: ClauseKind | null }): SigningScore {
   const prof = freeAgentProfile(p, league);
   const team = league.teams[offer.teamId];
   const age = capSeason(league) - p.birthYear;
@@ -212,6 +212,8 @@ export function signingScore(league: League, p: Player, offer: { teamId: number;
     { label: 'GM / organisation', value: ((team.reputation - 50) / 100) * 0.06 },
     { label: 'Teammates', value: Math.min(3, countrymen) * 0.01 },
     { label: 'Previous team', value: prof.previousTeamId === offer.teamId ? (prof.loyalty - 0.8) * 0.2 : 0 },
+    // Established veterans on long deals want trade protection.
+    { label: 'Trade protection', value: offer.clause ? (age >= 27 && offer.years >= 3 ? (p.ca >= 145 ? 0.05 : 0.025) : 0.01) : age >= 28 && offer.years >= 4 && p.ca >= 150 ? -0.03 : 0 },
   ];
   return { total: parts.reduce((s, x) => s + x.value, 0), parts };
 }

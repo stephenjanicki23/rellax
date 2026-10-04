@@ -131,7 +131,7 @@ export function FreeAgencyPage() {
           freeAgent={!isRestricted(neg)}
           title={`Offer to ${neg.first} ${neg.last}`}
           onClose={() => setNeg(null)}
-          submit={(salary, years) => mutate((l) => makeOffer(l, me, neg, salary, years))}
+          submit={(salary, years, x) => mutate((l) => makeOffer(l, me, neg, salary, years, x))}
         />
       )}
     </>

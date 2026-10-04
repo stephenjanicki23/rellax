@@ -1,4 +1,4 @@
-import type { League, Player } from '../types';
+import type { ClauseKind, League, Player } from '../types';
 import { addNews, addTransaction, playersOf, teamName, withRng } from '../league/helpers';
 import { generatePlayer } from '../player/generate';
 import { capSpace, marketValue } from './contracts';
@@ -105,8 +105,8 @@ export function releasePlayer(league: League, p: Player, reason = 'released'): M
  * Sign a player through the ContractService (CBA validation + cap check).
  * Returns the result so callers can react to an illegal contract.
  */
-export function signPlayer(league: League, p: Player, teamId: number, salary: number, years: number, ntc = false, opts: { skipCapCheck?: boolean; origin?: 'signing' | 'offerSheet'; announce?: boolean } = {}): SignResult {
-  const res = signFromOffer(league, p, teamId, { aav: salary, years, clauses: ntc ? 'NTC' : null, twoWay: salary < league.cap.minSalary * 1.4 && years <= 2 }, { skipCapCheck: opts.skipCapCheck, origin: opts.origin ?? 'signing', announce: opts.announce ?? false });
+export function signPlayer(league: League, p: Player, teamId: number, salary: number, years: number, ntc: boolean | ClauseKind = false, opts: { skipCapCheck?: boolean; origin?: 'signing' | 'offerSheet'; announce?: boolean } = {}): SignResult {
+  const res = signFromOffer(league, p, teamId, { aav: salary, years, clauses: ntc === true ? 'NTC' : ntc || null, twoWay: salary < league.cap.minSalary * 1.4 && years <= 2 }, { skipCapCheck: opts.skipCapCheck, origin: opts.origin ?? 'signing', announce: opts.announce ?? false });
   if (res.ok) {
     p.status = 'active';
     ensureStats(league, p);

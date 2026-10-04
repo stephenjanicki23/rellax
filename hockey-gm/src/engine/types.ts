@@ -318,6 +318,10 @@ export interface Player {
   contract: Contract | null;
   /** Unsigned draft rights or RFA rights held by this team. */
   rightsTeamId: number | null;
+  /** Agent representing him (see cba/agents). */
+  agentId?: number;
+  /** Restricted free agent refusing his qualifying offer (sits out until he signs). */
+  holdout?: { season: number; sinceDay: number };
   draft: { season: number; round: number; pick: number; teamId: number } | null;
   /**
    * Unsigned draft pick (status 'prospect', no contract, rightsTeamId set):
@@ -713,15 +717,39 @@ export interface OfferSheet {
   decisionDay: number;
 }
 
+export type AgentStyle = 'hardball' | 'fair' | 'friendly' | 'media';
+
+export interface Agent {
+  id: number;
+  name: string;
+  agency: string;
+  style: AgentStyle;
+  /** One of the big agencies (represents more stars). */
+  power: boolean;
+}
+
+/** Where a player stands going into talks. */
+export type NegotiationStance = 'open' | 'contenderOnly' | 'testMarket';
+
+export interface ContractAsk {
+  aav: number;
+  years: number;
+  /** Trade protection he wants (null = none). */
+  clause?: ClauseKind | null;
+  /** Share of each season's pay he wants as a signing bonus (0..0.8). */
+  bonusShare?: number;
+}
+
 export interface NegotiationState {
   playerId: number;
   teamId: number;
   season: number;
   /** 0..100: how much more haggling the player tolerates. */
   patience: number;
-  lastOffer?: { aav: number; years: number };
-  demand: { aav: number; years: number };
-  history: { aav: number; years: number; response: string }[];
+  lastOffer?: ContractAsk;
+  demand: ContractAsk;
+  stance?: NegotiationStance;
+  history: (ContractAsk & { response: string })[];
 }
 
 export interface SeasonAwardResult {
@@ -766,6 +794,8 @@ export interface FreeAgentOffer {
   years: number;
   day: number;
   ntc: boolean;
+  /** Trade protection offered (newer saves; `ntc` kept for older ones). */
+  clause?: ClauseKind | null;
 }
 
 export interface LeagueSettings {
@@ -829,6 +859,8 @@ export interface League {
   arbitration: ArbitrationCase[];
   offerSheets: OfferSheet[];
   negotiations: Record<number, NegotiationState>;
+  /** Player agents (created on demand for older saves). */
+  agents?: Record<number, Agent>;
   /** Retained-salary transactions per team (for the per-team limit). */
   nextContractId: number;
   /** Offseason calendar step within the 'resign' / 'freeAgency' phases. */

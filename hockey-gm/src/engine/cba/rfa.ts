@@ -21,6 +21,7 @@ import { CapManager, capProjection, capSeason } from './capManager';
 import { contractValue, freeAgentProfile } from './market';
 import { rulesFor } from './rules';
 import { totalValue } from './contract';
+import { beginHoldout, wantsToHoldOut } from './holdouts';
 
 export const ARB_PLAYER_FILE_DAY = 3;
 export const ARB_CLUB_FILE_DAY = 4;
@@ -366,6 +367,12 @@ export function rfaDay(league: League, rng: Rng, final: boolean): void {
     if (league.arbitration.some((a) => a.playerId === p.id && a.season === league.season && a.status === 'filed')) continue;
     const value = contractValue(p, league).value;
     const late = league.faDay >= QO_EXPIRY_DAY;
+    if (p.holdout) continue;
+    // At the end of free agency a star who feels badly underpaid holds out instead.
+    if (final && wantsToHoldOut(league, p, q)) {
+      beginHoldout(league, p, q.teamId);
+      continue;
+    }
     if (final || value <= q.amount * 1.02 || (late && value <= q.amount * 1.3)) signQualifyingOffer(league, p, q);
   }
 }

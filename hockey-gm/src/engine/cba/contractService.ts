@@ -154,6 +154,16 @@ export interface OfferTerms {
   perfBonuses?: number[];
 }
 
+/**
+ * Trade protection is only valid once a player is eligible for unrestricted
+ * free agency (age 27 or seven accrued seasons). Returns the first season a
+ * clause can take effect in a deal starting at `start`, or null.
+ */
+export function clauseStartSeason(p: Player, start: number, years: number): number | null {
+  for (let s = start; s < start + years; s++) if (s - p.birthYear >= 27 || (p.accruedBefore ?? 0) + (s - start) >= 7) return s;
+  return null;
+}
+
 /** Turn simple offer terms into a contract starting at the right league year. */
 export function contractFromOffer(league: League, p: Player, t: OfferTerms, opts: { start?: number } = {}): Contract {
   const start = opts.start ?? contractStartSeason(league);
@@ -165,7 +175,9 @@ export function contractFromOffer(league: League, p: Player, t: OfferTerms, opts
   terms.type = t.type ?? 'standard';
   terms.twoWay = t.twoWay ?? false;
   terms.ageAtStart = start - p.birthYear;
-  if (t.clauses) terms.clauses = [{ kind: t.clauses, from: start, to: start + t.years - 1, ...(t.clauses === 'M-NTC' ? { teams: 10, mode: 'block' as const } : {}) }];
+  // Trade protection only takes effect once the player is UFA-eligible.
+  const clauseFrom = t.clauses ? clauseStartSeason(p, start, t.years) : null;
+  if (t.clauses && clauseFrom !== null) terms.clauses = [{ kind: t.clauses, from: clauseFrom, to: start + t.years - 1, ...(t.clauses === 'M-NTC' ? { teams: 10, mode: 'block' as const } : {}) }];
   return buildContract(terms, Math.max(league.season, start));
 }
 
