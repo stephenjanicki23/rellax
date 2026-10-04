@@ -8,6 +8,7 @@ import { simTo } from '../../src/engine/league/season';
 import { simOffseason } from '../../src/engine/league/offseason';
 import { seasonSummary, checkTargets, SEASON_TARGETS } from '../../src/engine/analytics';
 import { payroll } from '../../src/engine/economy/contracts';
+import { teamCapSheet } from '../../src/engine/cba/capManager';
 import { playersOf } from '../../src/engine/league/helpers';
 
 const heavy = !!process.env.VALIDATION;
@@ -30,7 +31,9 @@ describe.skipIf(!heavy)('league validation — multiple seasons', () => {
       for (const t of league.teams) {
         const n = playersOf(league, t.id).length;
         expect(n).toBeGreaterThanOrEqual(20);
-        expect(payroll(league, t.id)).toBeLessThanOrEqual(league.cap.upper * 1.01);
+        // Payroll may exceed the upper limit only by legitimate LTIR relief.
+        const sheet = teamCapSheet(league, t.id);
+        expect(payroll(league, t.id)).toBeLessThanOrEqual(Math.max(league.cap.upper, sheet.effectiveLimit) * 1.01);
       }
     }
     // Talent level does not run away.
