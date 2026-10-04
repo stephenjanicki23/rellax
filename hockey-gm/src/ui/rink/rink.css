@@ -74,3 +74,13 @@
 @media (prefers-reduced-motion: reduce) {
   .rink2 .pm .carrier-ring, .rink2 .goal-light, .goal-card, .rink-chip { animation: none; }
 }
+
+/* Goal replay: tag in the corner, slight desaturation of the ice while it plays. */
+.replay-banner {
+  position: absolute; top: 10px; left: 12px; display: flex; align-items: center; gap: 10px; padding: 4px 12px 4px 4px;
+  background: rgba(12, 13, 15, 0.9); color: #f2f4f6; border-left: 4px solid var(--tc); font-family: var(--m-display, inherit);
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 13px; pointer-events: none; animation: goal-in 0.3s ease-out;
+}
+.replay-banner .rb-tag { background: #c8102e; color: #fff; font-weight: 800; padding: 2px 8px; font-style: italic; animation: rb-blink 1.2s steps(2) infinite; }
+@keyframes rb-blink { 50% { opacity: 0.55; } }
+.rink-toggle:disabled { opacity: 0.6; cursor: default; }

@@ -158,6 +158,20 @@ export class RinkMotion {
     this.pendingCarrier = null;
   }
 
+  /** Jump to presentation time `P`, backwards or forwards (replays), without firing keyframe callbacks. */
+  seek(P: number): void {
+    const keys = this.tl.keys;
+    let lo = 0;
+    let hi = keys.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (keys[mid].s <= P) lo = mid + 1;
+      else hi = mid;
+    }
+    this.k = lo;
+    this.snapTo(P);
+  }
+
   /** Advance by `dt` presentation seconds (call in small steps, e.g. ≤ 1/30 s). */
   step(dt: number, onKey?: (k: Key) => void): void {
     if (dt <= 0) return;
