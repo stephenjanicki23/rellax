@@ -20,7 +20,8 @@ const clauseOf = (league: League, p: League['players'][number]) => {
 
 function AssetList({ league, teamId, selected, toggle, onBlock }: { league: League; teamId: number; selected: TradeAsset[]; toggle: (a: TradeAsset) => void; onBlock?: (id: number) => void }) {
   const block = new Set(league.teams[teamId].tradeBlock ?? []);
-  const players = playersOf(league, teamId, ['active', 'prospect']).sort((a, b) => estimate(league, b).ca - estimate(league, a).ca);
+  // AHL-contract players belong to the affiliate, not the NHL club: they can't be traded.
+  const players = playersOf(league, teamId, ['active', 'prospect']).filter((p) => !p.ahlContract).sort((a, b) => estimate(league, b).ca - estimate(league, a).ca);
   const picks = league.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined).sort((a, b) => a.season - b.season || a.round - b.round);
   const sel = new Set(selected.map(key));
   return (

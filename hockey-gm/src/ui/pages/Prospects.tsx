@@ -8,6 +8,8 @@ import { ARCHETYPES } from '../../engine/player/archetypes';
 import type { Player } from '../../engine/types';
 import { href } from '../router';
 import { signByLabel, signDraftPick, unsignedPicks } from '../../engine/economy/draftRights';
+import { AhlPanel } from '../components/AhlPanel';
+import { prospectLevel } from '../../engine/league/ahl';
 
 export function ProspectsPage() {
   const { league, version } = useGame();
@@ -36,6 +38,7 @@ export function ProspectsPage() {
     { key: 'ca', label: 'Now', render: (p) => { const e = estimate(league, p); return <Stars value={e.ca} range={[e.caLow, e.caHigh]} />; }, sort: (p) => estimate(league, p).ca },
     { key: 'pa', label: 'Ceiling', render: (p) => { const e = estimate(league, p); return <Stars value={e.pa} range={[e.paLow, e.paHigh]} />; }, sort: (p) => estimate(league, p).pa },
     { key: 'proj', label: 'Projection', render: (p) => <span className="muted" style={{ whiteSpace: 'normal' }}>{scoutReport(league, p).projection}</span> },
+    { key: 'lvl', label: 'Playing', render: (p) => <span className="muted">{prospectLevel(league, p)}</span> },
     { key: 'draft', label: 'Drafted', render: (p) => (p.draft ? `${p.draft.season + 1} R${p.draft.round} #${p.draft.pick}` : 'Undrafted') },
     { key: 'gp', label: 'GP (pro)', num: true, render: (p) => p.career.filter((c) => !c.playoffs).reduce((s, c) => s + c.stats.gp, 0) + (league.seasonStats[p.id]?.reg.gp ?? 0) },
   ];
@@ -66,6 +69,7 @@ export function ProspectsPage() {
       </div>
       <div className="grid g-main">
         <div className="grid">
+          <AhlPanel league={league} version={version} />
           <Card title={`In the system (${prospects.length})`} tight>
             <Table rows={prospects} columns={cols} rowKey={(p) => p.id} initialSort={{ key: 'pa' }} empty="No prospects in your system." />
           </Card>

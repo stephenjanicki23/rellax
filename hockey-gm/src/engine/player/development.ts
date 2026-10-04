@@ -47,6 +47,8 @@ export interface DevContext {
   injuryDays: number;
   /** Is the player in the minors/juniors (prospect)? */
   minors: boolean;
+  /** Development factor from his role with the AHL affiliate (when he plays there). */
+  minorIce?: number;
   leagueSeed: string;
 }
 
@@ -102,7 +104,7 @@ export function developPlayer(p: Player, ctx: DevContext): number {
   let rate = ageGrowth(curveAge(p.pos === 'G' ? age - 2 : age, p.devCurve));
   const pers = PERSONALITIES[p.personality];
   const det = 0.88 + 0.24 * clamp((p.attrs.determination - 60) / 140, 0, 1);
-  let ice = ctx.minors ? 0.92 : 0.7 + 0.4 * clamp(ctx.iceTime, 0, 1);
+  let ice = ctx.minors ? (ctx.minorIce ?? 0.92) : 0.7 + 0.4 * clamp(ctx.iceTime, 0, 1);
   if (p.devCurve === 'opportunity') ice = ctx.minors ? 0.75 : 0.45 + 0.95 * clamp(ctx.iceTime, 0, 1);
   if (p.devCurve === 'plateau' && age >= 22) rate *= 0.45;
   const inj = ctx.injuryDays > 120 ? 0.65 : ctx.injuryDays > 45 ? 0.82 : ctx.injuryDays > 20 ? 0.93 : 1;
