@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useGame, mutate, toast } from '../store';
 import { Card, PlayerLink, Pos, Stars, TeamLogo } from '../components/common';
 import { playersOf } from '../../engine/league/helpers';
+import { askingPrice, counterOffer, gmPatience, recordRejection, shopPlayer, toggleTradeBlock, tradeBlock, type Counter, type UserOffer } from '../../engine/ai/tradeMarket';
 import { balanceTrade, checkTrade, describeAsset, evaluateTrade, executeTrade, projectedPickNumber, validateTrade, type TradeAsset, type TradeProposal } from '../../engine/economy/trade';
 import { estimate } from '../../engine/economy/scouting';
 import { fmtMoney } from '../../engine/economy/contracts';
@@ -17,7 +18,8 @@ const clauseOf = (league: League, p: League['players'][number]) => {
   return cl ? cl.kind : null;
 };
 
-function AssetList({ league, teamId, selected, toggle }: { league: League; teamId: number; selected: TradeAsset[]; toggle: (a: TradeAsset) => void }) {
+function AssetList({ league, teamId, selected, toggle, onBlock }: { league: League; teamId: number; selected: TradeAsset[]; toggle: (a: TradeAsset) => void; onBlock?: (id: number) => void }) {
+  const block = new Set(league.teams[teamId].tradeBlock ?? []);
   const players = playersOf(league, teamId, ['active', 'prospect']).sort((a, b) => estimate(league, b).ca - estimate(league, a).ca);
   const picks = league.draftPicks.filter((p) => p.ownerId === teamId && p.playerId === undefined).sort((a, b) => a.season - b.season || a.round - b.round);
   const sel = new Set(selected.map(key));
@@ -37,7 +39,17 @@ function AssetList({ league, teamId, selected, toggle }: { league: League; teamI
                   <Pos pos={p.pos} />
                 </td>
                 <td>
-                  <PlayerLink p={p} /> {p.status === 'prospect' && <span className="pill">{p.contract ? 'minors' : 'unsigned'}</span>} {clauseOf(league, p) && <span className="pill warn">{clauseOf(league, p)}</span>}
+                  <PlayerLink p={p} /> {p.status === 'prospect' && <span className="pill">{p.contract ? 'minors' : 'unsigned'}</span>}{' '}
+                  {onBlock && (
+                    <button
+                      className={`pill${block.has(p.id) ? ' accent' : ''}`}
+                      style={{ cursor: 'pointer', border: 0 }}
+                      title={block.has(p.id) ? 'Remove from your trade block' : 'Put on your trade block'}
+                      onClick={(e) => { e.stopPropagation(); onBlock(p.id); }}
+                    >
+                      {block.has(p.id) ? 'on block' : '+ block'}
+                    </button>
+                  )} {clauseOf(league, p) && <span className="pill warn">{clauseOf(league, p)}</span>}
                 </td>
                 <td className="num">{league.season - p.birthYear}</td>
                 <td>
@@ -77,12 +89,26 @@ export function TradesPage() {
   const [give, setGive] = useState<TradeAsset[]>([]);
   const [get, setGet] = useState<TradeAsset[]>([]);
   const [retain, setRetain] = useState<Record<number, number>>({});
-  const retainList = give.filter((a) => a.kind === 'player' && retain[a.id]).map((a) => ({ playerId: a.id, pct: retain[a.id] }));
+  // Retention on either side: yours from the selector, the partner's when its asking price or counter includes it.
+  const retainList = [...give, ...get].filter((a) => a.kind === 'player' && retain[a.id]).map((a) => ({ playerId: a.id, pct: retain[a.id] }));
   const proposal: TradeProposal = { from: me, to: partner, give, get, retain: retainList };
   const ev = useMemo(() => (give.length || get.length ? evaluateTrade(league, proposal) : null), [league, version, partner, give, get, retain]);
   const chk = useMemo(() => (give.length || get.length ? checkTrade(league, proposal) : null), [league, version, partner, give, get, retain]);
   const toggle = (list: TradeAsset[], set: (l: TradeAsset[]) => void) => (a: TradeAsset) => set(list.some((x) => key(x) === key(a)) ? list.filter((x) => key(x) !== key(a)) : [...list, a]);
   const partnerTeam = league.teams[partner];
+  const [counter, setCounter] = useState<Counter | null>(null);
+  const [shop, setShop] = useState<{ playerId: number; offers: UserOffer[] } | null>(null);
+  const block = tradeBlock(league);
+  const patience = gmPatience(league, partner);
+  const execute = (p: TradeProposal) => {
+    mutate((l) => {
+      executeTrade(l, p);
+      for (const id of [p.from, p.to]) {
+        trimRoster(l, id);
+        ensureDressable(l, id);
+      }
+    });
+  };
   const ratio = ev ? ev.valueIn / Math.max(1, ev.valueOut * 1.08) : 0;
   const recent = league.transactions.filter((t) => t.kind === 'trade').slice(0, 12);
   const offers = league.tradeOffers;
@@ -108,18 +134,44 @@ export function TradesPage() {
   };
 
   const propose = () => {
+    if (!patience.open) return toast(`${partnerTeam.gm.name} has heard enough offers today — try again tomorrow.`, 'bad');
     const r = evaluateTrade(league, proposal);
-    if (!r.accept) return toast(r.reason, 'bad');
-    mutate((l) => {
-      executeTrade(l, proposal);
-      for (const id of [me, partner]) {
-        trimRoster(l, id);
-        ensureDressable(l, id);
-      }
-    });
+    if (!r.accept) {
+      const c = r.errors.length ? null : counterOffer(league, proposal);
+      mutate((l) => recordRejection(l, partner));
+      setCounter(c);
+      return toast(c ? `${r.reason} They came back with a counteroffer.` : r.reason, 'bad');
+    }
+    execute(proposal);
     toast('Trade accepted!', 'good');
     setGive([]);
     setGet([]);
+    setCounter(null);
+  };
+  const acceptCounter = () => {
+    if (!counter) return;
+    const r = evaluateTrade(league, counter.proposal);
+    if (!r.accept) return toast(r.reason, 'bad');
+    execute(counter.proposal);
+    toast('Trade accepted!', 'good');
+    setGive([]);
+    setGet([]);
+    setRetain({});
+    setCounter(null);
+  };
+  const loadProposal = (p: TradeProposal) => {
+    setPartner(p.from === me ? p.to : p.from);
+    setGive(p.from === me ? p.give : p.get);
+    setGet(p.from === me ? p.get : p.give);
+    setRetain(Object.fromEntries((p.retain ?? []).map((r) => [r.playerId, r.pct])));
+    setCounter(null);
+  };
+  const acceptShopOffer = (o: UserOffer) => {
+    const errs = validateTrade(league, o.proposal);
+    if (errs.length) return toast(errs[0], 'bad');
+    execute(o.proposal);
+    toast('Trade completed.', 'good');
+    setShop(null);
   };
 
   return (
@@ -150,13 +202,52 @@ export function TradesPage() {
           </div>
         </Card>
       )}
-      <div className="card row" style={{ marginBottom: 12, marginTop: offers.length ? 12 : 0 }}>
+      <Card title={`Your trade block (${block.length})`} className="" >
+        {block.length ? (
+          <div className="list">
+            {block.map((p) => (
+              <div className="item" key={p.id} style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <PlayerLink p={p} />
+                <span className="muted">{p.pos} · {league.season - p.birthYear} yrs{p.contract ? ` · ${fmtMoney(p.contract.salary)}×${p.contract.years}` : ''}</span>
+                <span style={{ flex: 1 }} />
+                <button className="btn small primary" onClick={() => setShop({ playerId: p.id, offers: shopPlayer(league, p.id) })}>Shop him</button>
+                <button className="btn small ghost" onClick={() => mutate((l) => toggleTradeBlock(l, p.id))}>Remove</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="muted">Put players on the block with “+ block” in your asset list or on a player's page. Teams that need them will call with offers, and you can shop them to every GM at once.</div>
+        )}
+        {shop && (
+          <div className="stack" style={{ marginTop: 10, gap: 6 }}>
+            <h3>Best offers for {league.players[shop.playerId] ? `${league.players[shop.playerId].first} ${league.players[shop.playerId].last}` : 'him'}</h3>
+            {shop.offers.length ? (
+              shop.offers.map((o) => (
+                <div className="item" key={o.proposal.from} style={{ alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <TeamLogo team={league.teams[o.proposal.from]} size={20} />
+                  <span style={{ flex: 1, minWidth: 220 }}>
+                    <b>{league.teams[o.proposal.from].abbr}</b> offer {o.proposal.give.map((a) => describeAsset(league, a)).join(', ')}
+                    {o.proposal.retain?.length ? <span className="muted"> (with retention)</span> : null}
+                  </span>
+                  <button className="btn small primary" onClick={() => acceptShopOffer(o)}>Accept</button>
+                  <button className="btn small" onClick={() => { loadProposal(o.proposal); setShop(null); }}>Negotiate…</button>
+                </div>
+              ))
+            ) : (
+              <div className="muted">No team is willing to meet your price right now.</div>
+            )}
+            <div><button className="btn small ghost" onClick={() => setShop(null)}>Close</button></div>
+          </div>
+        )}
+      </Card>
+      <div className="card row" style={{ marginBottom: 12, marginTop: 12 }}>
         <span className="muted">Trade partner</span>
         <select
           value={partner}
           onChange={(e) => {
             setPartner(Number(e.target.value));
             setGet([]);
+            setCounter(null);
           }}
         >
           {league.teams.filter((t) => t.id !== me).map((t) => (
@@ -166,12 +257,13 @@ export function TradesPage() {
           ))}
         </select>
         <span className="muted">
+          {!patience.open ? <b className="bad">Not taking calls today · </b> : patience.rejected >= 2 ? <b className="warn">Losing patience · </b> : null}
           GM {partnerTeam.gm.name} · {partnerTeam.strategy === 'rebuild' ? 'Rebuilding — values youth, prospects and picks' : partnerTeam.strategy === 'contend' ? 'Contending — wants proven, current help' : 'Balanced approach'}
         </span>
       </div>
       <div className="grid trade-grid">
         <Card title={<div className="row"><TeamLogo team={league.teams[me]} size={20} /><h3>You give</h3></div>} tight>
-          <AssetList league={league} teamId={me} selected={give} toggle={toggle(give, setGive)} />
+          <AssetList league={league} teamId={me} selected={give} toggle={toggle(give, setGive)} onBlock={(id) => mutate((l) => toggleTradeBlock(l, id))} />
         </Card>
         <Card title="Deal">
           <div className="stack" style={{ gap: 10 }}>
@@ -181,7 +273,7 @@ export function TradesPage() {
             </div>
             <div>
               <h3 style={{ marginBottom: 4 }}>You receive</h3>
-              {get.length ? get.map((a) => <div key={key(a)}>{describeAsset(league, a)}</div>) : <span className="dim">Nothing selected</span>}
+              {get.length ? get.map((a) => <div key={key(a)}>{describeAsset(league, a)}{a.kind === 'player' && retain[a.id] ? <span className="muted"> ({Math.round(retain[a.id] * 100)}% retained by {partnerTeam.abbr})</span> : null}</div>) : <span className="dim">Nothing selected</span>}
             </div>
             {give.some((a) => a.kind === 'player' && league.players[a.id]?.contract) && (
               <div className="stack" style={{ gap: 4 }}>
@@ -251,6 +343,25 @@ export function TradesPage() {
                 ))}
               </>
             )}
+            {counter && (
+              <div className="card" style={{ background: 'var(--panel-2, rgba(255,255,255,0.04))', padding: 10 }}>
+                <div className="row" style={{ gap: 6, marginBottom: 6 }}>
+                  <TeamLogo team={partnerTeam} size={18} />
+                  <b>Counteroffer</b>
+                </div>
+                <div style={{ fontSize: 13, marginBottom: 6 }}>{counter.note}</div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  You send: <b>{counter.proposal.give.map((a) => describeAsset(league, a)).join(', ') || 'nothing'}</b>
+                  <br />
+                  You get: <b>{counter.proposal.get.map((a) => describeAsset(league, a)).join(', ') || 'nothing'}</b>
+                </div>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button className="btn small primary" onClick={acceptCounter}>Accept counter</button>
+                  <button className="btn small" onClick={() => loadProposal(counter.proposal)}>Edit</button>
+                  <button className="btn small ghost" onClick={() => setCounter(null)}>Dismiss</button>
+                </div>
+              </div>
+            )}
             <div className="row">
               <button className="btn primary" disabled={!ev} onClick={propose}>
                 Propose trade
@@ -259,13 +370,15 @@ export function TradesPage() {
                 className="btn"
                 disabled={!get.length}
                 onClick={() => {
-                  const b = balanceTrade(league, proposal);
+                  const b = askingPrice(league, partner, get, give) ?? balanceTrade(league, proposal);
                   if (!b) return toast(`${partnerTeam.abbr} can't find a combination of your assets that works.`, 'bad');
                   setGive(b.give);
-                  toast(`${partnerTeam.abbr} would do it with these assets added.`);
+                  setRetain(Object.fromEntries((b.retain ?? []).map((r) => [r.playerId, r.pct])));
+                  setCounter(null);
+                  toast(`${partnerTeam.gm.name}'s asking price is loaded — propose it to make the deal.`);
                 }}
               >
-                What would it take?
+                Ask their price
               </button>
               <button className="btn ghost" onClick={() => { setGive([]); setGet([]); setRetain({}); }}>
                 Clear

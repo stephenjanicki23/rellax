@@ -8,7 +8,7 @@ import type { Coach, League, Team } from '../types';
 import { addNews, addTransaction, isCpu, playersOf, teamName, withRng, points } from '../league/helpers';
 import { enforceCap, ensureDressable, promoteReadyProspects, trimProspects, trimRoster } from '../economy/roster';
 import { executeTrade, findAiGoalieTrade, validateTrade } from '../economy/trade';
-import { marketDay, offerForUser, offseasonMarket } from './tradeMarket';
+import { marketDay, offerForUser, offseasonMarket, tradeBlock } from './tradeMarket';
 import { weeklyScouting } from '../economy/scouting';
 import { teamStrength } from '../team/strength';
 import { coachOverall, tacticsForRoster } from '../team/coaching';
@@ -238,7 +238,9 @@ function manageUserOffers(league: League, daysToDeadline: number): void {
     (o) => o.season === league.season && league.day - o.day <= 6 && validateTrade(league, { from: o.from, to: league.userTeamId, give: o.give, get: o.get }).length === 0,
   );
   if (daysToDeadline < 0 || league.settings.autoManageUser || league.tradeOffers.length >= 3) return;
-  const p = daysToDeadline <= 3 ? 0.45 : daysToDeadline <= 14 ? 0.28 : league.day < 15 ? 0.04 : 0.1;
+  let p = daysToDeadline <= 3 ? 0.45 : daysToDeadline <= 14 ? 0.28 : league.day < 15 ? 0.04 : 0.1;
+  // Shopping players gets the phone ringing.
+  if (tradeBlock(league).length) p = Math.max(p, 0.3);
   if (!withRng(league, (rng) => rng.chance(p))) return;
   const found = offerForUser(league);
   if (!found) return;
