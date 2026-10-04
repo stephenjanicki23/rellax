@@ -12,6 +12,7 @@ import { fullCapHit, remainingYears } from '../cba/contract';
 import { capSeason } from '../cba/capManager';
 import { retentionErrors } from '../cba/tradeRules';
 import { financialPlan } from '../ai/finance';
+import { fitNorm, playerSystemFit } from '../team/fit';
 import type { DraftPick, League, Player, Team } from '../types';
 import { playersOf, withRng } from '../league/helpers';
 import { aiPerceivedPA } from './scouting';
@@ -89,6 +90,8 @@ export function playerTradeValue(league: League, teamId: number, p: Player): num
   if (team.strategy === 'contend') v *= 1 + p.playoffRep * 0.08;
   if (p.pos === 'G') v *= 0.85;
   if (p.injury && p.injury.daysRemaining > 30) v *= team.strategy === 'contend' ? 0.4 : 0.7;
+  // Players who suit the team's systems are worth more to it (and less to a team whose system they don't fit).
+  v *= 1 + clamp(playerSystemFit(fitNorm(league), p, team.tactics).overall, -1, 1) * 0.1;
   // Positional need.
   const same = playersOf(league, teamId, ['active']).filter((x) => (p.pos === 'G' ? x.pos === 'G' : p.pos === 'D' ? x.pos === 'D' : isForward(x.pos)));
   const rank = same.filter((x) => x.ca > p.ca && x.id !== p.id).length;

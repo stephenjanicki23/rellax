@@ -34,6 +34,7 @@ import { processWaivers } from '../cba/waivers';
 import { applyElcSlides, pruneLedger, rolloverLtir, settlePerformanceBonuses, thirtyFivePlusRetirement } from '../cba/capActions';
 import { rulesFor } from '../cba/rules';
 import { aiBuyouts } from '../ai/finance';
+import { trainingCamp } from '../team/fit';
 
 export function endRegularSeasonHooks(league: League): void {
   if (!league.draftCombineDone) runCombine(league);
@@ -299,6 +300,8 @@ export function startNewSeason(league: League): void {
   }
   updateStrategies(league);
   aiPreseason(league);
+  // Training camp: everyone gets reps in the system.
+  for (const t of league.teams) trainingCamp(t);
   league.projections = Object.fromEntries(league.teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   league.ratingBaseline = ratingBaselineFor(league);
   league.phase = 'preseason';

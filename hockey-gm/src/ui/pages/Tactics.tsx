@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { useGame, mutate } from '../store';
-import { Card } from '../components/common';
+import { Card, PlayerLink, Pos } from '../components/common';
+import { FIT_AREAS, SYSTEM_DEMANDS, allOptionFits, fitLabel, fitNorm, fullFamiliarity, playerSystemFit, regulars, type FitArea } from '../../engine/team/fit';
 import type { Tactics } from '../../engine/types';
-import { PHILOSOPHY_LABEL, coachOverall } from '../../engine/team/coaching';
+import { PHILOSOPHY_LABEL, coachOverall, tacticsForPhilosophy } from '../../engine/team/coaching';
 import { href } from '../router';
 
 type Opt<K extends keyof Tactics> = { id: Tactics[K]; label: string; desc: string };
@@ -48,31 +50,61 @@ const PULL: Opt<'pullGoalie'>[] = [
   { id: 'aggressive', label: 'Aggressive', desc: 'Pull early for the extra attacker.' },
 ];
 
+const AREA_OF: Partial<Record<keyof Tactics, FitArea>> = { offense: 'offense', defense: 'defense', forecheck: 'forecheck', pp: 'pp', pk: 'pk' };
+const AREA_LABEL: Record<FitArea, string> = { offense: 'Offence', defense: 'Defence', forecheck: 'Forecheck', pp: 'Power play', pk: 'Penalty kill' };
+
+function FitBadge({ v }: { v: number }) {
+  const l = fitLabel(v);
+  return (
+    <span className={`pill ${l.cls}`} title={`Team fit ${v >= 0 ? '+' : ''}${v.toFixed(2)} (−1 to +1)`} style={{ whiteSpace: 'nowrap' }}>
+      {l.text} {v >= 0 ? '+' : ''}
+      {v.toFixed(2)}
+    </span>
+  );
+}
+
 export function TacticsPage() {
-  const { league } = useGame();
+  const { league, version } = useGame();
   const team = league.teams[league.userTeamId];
   const hc = team.staff.headCoach !== null ? league.coaches[team.staff.headCoach] : undefined;
+  const roster = useMemo(() => Object.values(league.players).filter((p) => p.teamId === team.id && p.status === 'active'), [league, version, team.id]);
+  const norm = fitNorm(league);
+  const fits = useMemo(() => allOptionFits(norm, roster, team.lines), [norm, roster, team.lines]);
+  const fam = team.familiarity ?? fullFamiliarity();
+  const coachPref = { ...(hc ? tacticsForPhilosophy(hc.philosophy) : {}), ...(hc?.system ?? {}) } as Partial<Tactics>;
+  const regs = regulars(roster);
+  const sysFit = regs.map((p) => ({ p, f: playerSystemFit(norm, p, team.tactics).overall })).sort((a, b) => b.f - a.f);
   const set = <K extends keyof Tactics>(k: K, v: Tactics[K]) => mutate((l) => (l.teams[l.userTeamId].tactics = { ...l.teams[l.userTeamId].tactics, [k]: v }));
-  const group = <K extends keyof Tactics>(title: string, k: K, opts: Opt<K>[]) => (
-    <Card title={title}>
+  const group = <K extends keyof Tactics>(title: string, k: K, opts: Opt<K>[]) => {
+    const area = AREA_OF[k];
+    const best = area ? Object.entries(fits[area]).sort((a, b) => b[1] - a[1])[0]?.[0] : undefined;
+    return (
+    <Card title={title} right={area ? <span className="muted" style={{ fontSize: 12 }}>Familiarity {Math.round(fam[area] * 100)}%</span> : undefined}>
       <div className="stack" style={{ gap: 6 }}>
         {opts.map((o) => (
           <label key={String(o.id)} className="row" style={{ alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '6px 8px', borderRadius: 6, background: team.tactics[k] === o.id ? 'var(--panel2)' : 'transparent', border: `1px solid ${team.tactics[k] === o.id ? 'var(--accent)' : 'transparent'}` }}>
             <input type="radio" checked={team.tactics[k] === o.id} onChange={() => set(k, o.id)} style={{ marginTop: 3 }} />
-            <span className="stack" style={{ gap: 1 }}>
-              <b>{o.label}</b>
+            <span className="stack" style={{ gap: 2, flex: 1 }}>
+              <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <b>{o.label}</b>
+                {area && SYSTEM_DEMANDS[area][String(o.id)] && <FitBadge v={fits[area][String(o.id)] ?? 0} />}
+                {area && best === String(o.id) && (fits[area][best] ?? 0) > 0.15 && <span className="pill accent">Best fit</span>}
+                {coachPref[k] === o.id && <span className="pill" title="Your head coach's preferred system">Coach's system</span>}
+              </span>
               <span className="muted" style={{ fontSize: 12 }}>{o.desc}</span>
+              {area && SYSTEM_DEMANDS[area][String(o.id)] && <span className="dim" style={{ fontSize: 11 }}>Needs {SYSTEM_DEMANDS[area][String(o.id)]!.why}</span>}
             </span>
           </label>
         ))}
       </div>
     </Card>
-  );
+    );
+  };
   return (
     <>
       <div className="page-head">
         <h1>Tactics</h1>
-        <span className="sub">Every setting changes the probabilities inside the game engine — trade-offs, not free boosts.</span>
+        <span className="sub">Every setting is a trade-off inside the game engine. Systems that suit your players work better; new systems take games to learn.</span>
       </div>
       {hc && (
         <div className="banner">
@@ -80,13 +112,39 @@ export function TacticsPage() {
             Head coach {hc.first} {hc.last}
           </b>
           <span className="muted">
-            {PHILOSOPHY_LABEL[hc.philosophy]} · Overall {coachOverall(hc)} · Tactical knowledge {hc.ratings.tactics} (better coaches get more out of any system)
+            {PHILOSOPHY_LABEL[hc.philosophy]}{hc.styleNote ? ` — ${hc.styleNote}` : ''} · Overall {coachOverall(hc)} · Tactics {hc.ratings.tactics} (better tacticians get more out of any system and install it faster)
           </span>
           <a href={href(`team/${team.id}?tab=staff`)} style={{ marginLeft: 'auto' }}>
             Coaching staff →
           </a>
         </div>
       )}
+      <div className="grid g-main" style={{ marginBottom: 14 }}>
+        <Card title="System familiarity" right={<span className="muted" style={{ fontSize: 12 }}>Grows each game · halves when you change a system · resets with a new coach</span>}>
+          <div className="stack" style={{ gap: 6 }}>
+            {FIT_AREAS.map((a) => (
+              <div key={a} className="row" style={{ gap: 8 }}>
+                <span style={{ width: 92 }}>{AREA_LABEL[a]}</span>
+                <div className="bar" style={{ flex: 1, height: 8 }}>
+                  <i style={{ width: `${Math.round(fam[a] * 100)}%`, background: fam[a] > 0.8 ? 'var(--good)' : fam[a] > 0.5 ? 'var(--warn)' : 'var(--bad)' }} />
+                </div>
+                <span className="num" style={{ width: 36, textAlign: 'right' }}>{Math.round(fam[a] * 100)}%</span>
+                <FitBadge v={fits[a][String(team.tactics[a])] ?? 0} />
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card title="Who fits your systems">
+          <div className="list" style={{ fontSize: 13 }}>
+            {[...sysFit.slice(0, 4), ...sysFit.slice(-3)].map(({ p, f }, i) => (
+              <div className="item" key={p.id} style={i === 4 ? { borderTop: '1px solid var(--line)', paddingTop: 6 } : undefined}>
+                <Pos pos={p.pos} /> <PlayerLink p={p} />
+                <span className={`pill ${fitLabel(f).cls}`} style={{ marginLeft: 'auto' }}>{fitLabel(f).text}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
       <div className="grid g3">
         {group('Offensive style', 'offense', OFFENSE)}
         {group('Defensive style', 'defense', DEFENSE)}

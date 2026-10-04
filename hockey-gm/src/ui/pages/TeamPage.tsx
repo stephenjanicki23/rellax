@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { coachChangeFamiliarity } from '../../engine/team/fit';
 import { useGame, mutate, toast } from '../store';
 import { useRoute } from '../router';
 import { Card, Table, TeamLogo, TeamLink, Tabs, Stat, LineChart, type Column } from '../components/common';
@@ -44,6 +45,8 @@ export function TeamPage({ id }: { id: number }) {
       c.hiredSeason = l.season;
       c.contract = { salary: 1000 + c.reputation * 25, years: 3 };
       t.staff[slot] = c.id;
+      // A new head coach means a new system to learn.
+      if (slot === 'headCoach') coachChangeFamiliarity(t);
     });
     toast(`${c.first} ${c.last} hired.`, 'good');
   };
@@ -51,7 +54,7 @@ export function TeamPage({ id }: { id: number }) {
   const coachCols: Column<Coach>[] = [
     { key: 'name', label: 'Coach', render: (c) => `${c.first} ${c.last}`, sort: (c) => c.last, defaultDesc: false },
     { key: 'role', label: 'Role', render: (c) => c.role },
-    { key: 'ph', label: 'Philosophy', render: (c) => <span className="muted">{PHILOSOPHY_LABEL[c.philosophy]}</span> },
+    { key: 'ph', label: 'Philosophy', render: (c) => <span className="muted" title={c.styleNote ?? ''}>{PHILOSOPHY_LABEL[c.philosophy]}{c.styleNote ? ` — ${c.styleNote}` : ''}</span> },
     { key: 'ovr', label: 'Ovr', num: true, render: (c) => attr20(coachOverall(c)), sort: (c) => coachOverall(c) },
     { key: 'off', label: 'Off', num: true, render: (c) => attr20(c.ratings.offense) },
     { key: 'def', label: 'Def', num: true, render: (c) => attr20(c.ratings.defense) },

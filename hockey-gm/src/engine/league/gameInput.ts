@@ -4,6 +4,7 @@ import type { GameInput, GamePlayerInput, GameTeamInput } from '../sim/gameTypes
 import { injuryRisk, severityShift } from '../player/injuries';
 import { dressedIds, repairLines, autoLines } from '../team/lines';
 import { enforcePlayoffCap } from '../cba/capActions';
+import { fitNorm, syncFamiliarity, teamFit } from '../team/fit';
 import { addNews } from './helpers';
 import { effectiveCoachRatings } from '../team/coaching';
 import { pairChemistry, pairKey } from '../team/chemistry';
@@ -75,6 +76,9 @@ export function teamGameInput(league: League, team: Team, day: number, playoff: 
   }
   const ids = dressedIds(lines);
   const dressed = ids.map((id) => league.players[id]).filter((p): p is Player => !!p);
+  // Tactical fit of the dressed lineup and how well the team knows its system.
+  const fit = teamFit(fitNorm(league), dressed, team.tactics, lines);
+  const familiarity = { ...syncFamiliarity(team) };
   const head = team.staff.headCoach !== null ? league.coaches[team.staff.headCoach] : undefined;
   const gk = team.staff.goalieCoach !== null ? league.coaches[team.staff.goalieCoach] : undefined;
   const asst = team.staff.assistant !== null ? league.coaches[team.staff.assistant] : undefined;
@@ -100,6 +104,8 @@ export function teamGameInput(league: League, team: Team, day: number, playoff: 
     coach: effectiveCoachRatings(head, gk, asst),
     chemistry,
     morale: team.morale,
+    fit,
+    familiarity,
   };
 }
 

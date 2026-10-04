@@ -15,6 +15,7 @@ import { rulesFor } from './rules';
 import { contractValue } from './market';
 import { isForward } from '../player/ability';
 import { emptyStatLine } from '../core/statline';
+import { rosterChangeFamiliarity } from '../team/fit';
 
 const name = (p: Player) => `${p.first} ${p.last}`;
 const grp = (p: Player) => (p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : isForward(p.pos) ? 'F' : 'F');
@@ -138,6 +139,7 @@ export function processWaivers(league: League, force = false): void {
       p.rightsTeamId = null;
       w.status = 'claimed';
       w.claimedBy = winner;
+      rosterChangeFamiliarity(league.teams[winner], 1);
       if (!league.seasonStats[p.id]) league.seasonStats[p.id] = { reg: emptyStatLine(), po: emptyStatLine(), teamId: winner };
       league.seasonStats[p.id].teamId = winner;
       const desc = `${teamName(league, winner)} claim ${name(p)} off waivers from ${teamName(league, w.fromTeamId)}`;
