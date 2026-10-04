@@ -16,6 +16,7 @@ import { offerContract, makeOffer } from '../../engine/economy/freeAgency';
 import { demote, promote, releasePlayer } from '../../engine/economy/roster';
 import { isUnsignedPick, signByLabel, signDraftPick } from '../../engine/economy/draftRights';
 import { toggleTradeBlock } from '../../engine/ai/tradeMarket';
+import { agentOf, AGENT_STYLES } from '../../engine/cba/agents';
 import { heightLabel, weightLabel, seasonLabel, sv } from '../format';
 import { countryLabel } from '../../engine/data/names';
 import { attrLabel as label } from '../attrLabels';
@@ -218,6 +219,14 @@ export function PlayerPage({ id }: { id: number }) {
               <span>{p.injuryHistory.length} ({p.injuryHistory.reduce((s, h) => s + h.days, 0)} days)</span>
               <span className="k">Draft</span>
               <span>{p.draft ? `${p.draft.season + 1} · Round ${p.draft.round}, #${p.draft.pick} by ${league.teams[p.draft.teamId].abbr}` : 'Undrafted'}</span>
+              <span className="k">Agent</span>
+              <span>{agentOf(league, p).name} <span className="muted">· {agentOf(league, p).agency} ({AGENT_STYLES[agentOf(league, p).style].label})</span></span>
+              {p.holdout && (
+                <>
+                  <span className="k">Status</span>
+                  <span className="warn">Holding out — refuses his qualifying offer</span>
+                </>
+              )}
               {isUnsignedPick(p) && (
                 <>
                   <span className="k">Rights</span>
@@ -258,10 +267,10 @@ export function PlayerPage({ id }: { id: number }) {
       {neg && (
         <NegotiationModal
           player={p}
-          freeAgent={p.status === 'fa'}
+          freeAgent={p.status === 'fa' && !(p.rfa && p.rightsTeamId === league.userTeamId)}
           title={p.status === 'fa' ? `Offer to ${p.first} ${p.last}` : `New contract for ${p.first} ${p.last}`}
           onClose={() => setNeg(false)}
-          submit={(salary, years) => mutate((l) => (p.status === 'fa' ? makeOffer(l, l.userTeamId, p, salary, years) : offerContract(l, p, salary, years)))}
+          submit={(salary, years, x) => mutate((l) => (p.status === 'fa' ? makeOffer(l, l.userTeamId, p, salary, years, x) : offerContract(l, p, salary, years, x)))}
         />
       )}
     </>

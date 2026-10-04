@@ -114,7 +114,7 @@ describe('negotiation', () => {
     const p = rfas[0];
     const first = respondToOffer(league, p, p.teamId!, { aav: 300, years: 3 });
     expect(first.accepted).toBe(false);
-    expect(first.message).toMatch(/Too low/);
+    expect(first.message).toMatch(/not a serious offer/);
     let r = first;
     for (let i = 0; i < 10 && !r.walkedAway; i++) r = respondToOffer(league, p, p.teamId!, { aav: 300, years: 3 });
     expect(r.walkedAway).toBe(true);

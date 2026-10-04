@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import type { Player } from '../../engine/types';
+import type { ClauseKind, Player } from '../../engine/types';
+import type { OfferExtras } from '../../engine/economy/freeAgency';
+import { agentOf, AGENT_STYLES } from '../../engine/cba/agents';
+import { demandedClause, describeAsk, stanceFor, STANCE_LABEL } from '../../engine/cba/negotiation';
+import { clauseStartSeason } from '../../engine/cba/contractService';
+
+const CLAUSE_NAME: Record<ClauseKind, string> = { 'M-NTC': 'modified no-trade', NTC: 'no-trade clause', NMC: 'no-movement clause' };
 import { Modal } from './common';
 import { useGame } from '../store';
 import { askingSalary, fmtMoney, marketValue } from '../../engine/economy/contracts';
@@ -28,7 +34,7 @@ export function NegotiationModal({
   player: Player;
   title: string;
   onClose: () => void;
-  submit: (salary: number, years: number) => { ok: boolean; message: string };
+  submit: (salary: number, years: number, extras: OfferExtras) => { ok: boolean; message: string };
   freeAgent?: boolean;
   offerSheet?: boolean;
 }) {
@@ -41,12 +47,21 @@ export function NegotiationModal({
   const ask = askingSalary(player, league, freeAgent || offerSheet ? null : player.teamId, years);
   const [salary, setSalary] = useState(ask);
   const [msg, setMsg] = useState<{ ok: boolean; message: string } | null>(null);
+  const [clause, setClause] = useState<ClauseKind | null>(null);
+  const [bonusShare, setBonusShare] = useState(0);
+  const agent = agentOf(league, player);
+  const agentStyle = AGENT_STYLES[agent.style];
   const [, bump] = useState(0);
   const mv = marketValue(player, league);
   const value = contractValue(player, league);
-  const interest = freeAgent ? offerUtility(league, player, { teamId: me, salary, years }) : null;
+  const interest = freeAgent ? offerUtility(league, player, { teamId: me, salary, years, clause }) : null;
   const neg = league.negotiations[player.id];
   const talks = neg && neg.season === league.season && neg.teamId === me && !freeAgent && !offerSheet ? neg : null;
+  // Before the first offer, show the stance and demand he'd open with.
+  const ownTalks = !freeAgent && !offerSheet;
+  const stance = talks?.stance ?? (ownTalks ? stanceFor(league, player, me) : null);
+  const wantClause = talks ? (talks.demand.clause ?? null) : demandedClause(league, player, years);
+  const canClause = clauseStartSeason(player, season + 1, years) !== null;
   // Extensions start next season, so judge them against next season's books.
   const extension = player.teamId === me && contractFor(player, season) !== null;
   const capYear = extension ? season + 1 : season;
@@ -62,8 +77,22 @@ export function NegotiationModal({
             {fmtMoney(mv)} / yr
             {value.comparableMedian !== null && <span className="muted" style={{ fontSize: 12 }}> · comparables median {fmtMoney(value.comparableMedian)}</span>}
           </span>
+          <span className="k">Agent</span>
+          <span>
+            {agent.name} <span className="muted">· {agent.agency}</span>
+            <br />
+            <span className="muted" style={{ fontSize: 12 }}>
+              <b>{agentStyle.label}</b> — {agentStyle.blurb}
+            </span>
+          </span>
+          {stance && (
+            <>
+              <span className="k">Stance</span>
+              <span className={stance === 'open' ? 'good' : 'warn'}>{STANCE_LABEL[stance]}</span>
+            </>
+          )}
           <span className="k">{talks ? 'His demand' : `Agent's ask (${years} yrs)`}</span>
-          <span>{talks ? `${fmtMoney(talks.demand.aav)} × ${talks.demand.years} yrs` : `${fmtMoney(ask)} / yr`}</span>
+          <span>{talks ? describeAsk(talks.demand) : `${fmtMoney(ask)} / yr${wantClause ? ` + ${CLAUSE_NAME[wantClause]}` : ''}`}</span>
           {player.contract && (
             <>
               <span className="k">Current deal</span>
@@ -106,9 +135,41 @@ export function NegotiationModal({
           Salary per season: <b>{fmtMoney(salary)}</b>
           <input type="range" min={r.minimumSalary} max={Math.round(r.maxSalary)} step={25} value={salary} onChange={(e) => setSalary(Number(e.target.value))} />
         </label>
+        {!offerSheet && (
+          <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
+            <label className="field" style={{ flex: 1, minWidth: 180 }}>
+              Trade protection
+              <select value={clause ?? ''} disabled={!canClause} onChange={(e) => setClause((e.target.value || null) as ClauseKind | null)}>
+                <option value="">None</option>
+                <option value="M-NTC">Modified no-trade (10-team list)</option>
+                <option value="NTC">Full no-trade</option>
+                <option value="NMC">No-movement</option>
+              </select>
+              {!canClause && <span className="muted" style={{ fontSize: 11 }}>Not UFA-eligible during this term — clauses not allowed.</span>}
+            </label>
+            {ownTalks && (
+              <label className="field" style={{ flex: 1, minWidth: 180 }}>
+                Signing bonus: <b>{Math.round(bonusShare * 100)}%</b> of pay
+                <input type="range" min={0} max={0.8} step={0.1} value={bonusShare} onChange={(e) => setBonusShare(Number(e.target.value))} />
+              </label>
+            )}
+          </div>
+        )}
         <div className="row">
           <button className="btn small" onClick={() => setSalary(Math.round((ask * 0.95) / 5) * 5)}>Ask −5%</button>
-          <button className="btn small" onClick={() => setSalary(talks ? talks.demand.aav : ask)}>Match {talks ? 'demand' : 'ask'}</button>
+          <button
+            className="btn small"
+            onClick={() => {
+              setSalary(talks ? talks.demand.aav : ask);
+              if (talks) {
+                setYears(talks.demand.years);
+                setClause(canClause ? (talks.demand.clause ?? null) : null);
+                setBonusShare(talks.demand.bonusShare ?? 0);
+              } else if (wantClause && canClause) setClause(wantClause);
+            }}
+          >
+            Match {talks ? 'demand' : 'ask'}
+          </button>
           <button className="btn small" onClick={() => setSalary(Math.round((ask * 1.1) / 5) * 5)}>Ask +10%</button>
           {interest !== null && (
             <span className={interest >= 1.03 ? 'good' : interest >= 0.95 ? 'warn' : 'bad'} style={{ marginLeft: 'auto' }}>
@@ -130,7 +191,7 @@ export function NegotiationModal({
             className="btn primary"
             disabled={!!talks && talks.patience <= 0}
             onClick={() => {
-              const res = submit(salary, years);
+              const res = submit(salary, years, { clause: canClause ? clause : null, bonusShare: ownTalks ? bonusShare : 0 });
               setMsg(res);
               bump((x) => x + 1);
               if (res.ok) setTimeout(onClose, 900);

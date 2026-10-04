@@ -12,13 +12,15 @@ import { marketDay, offerForUser, offseasonMarket, tradeBlock } from './tradeMar
 import { weeklyScouting } from '../economy/scouting';
 import { teamStrength } from '../team/strength';
 import { coachOverall, tacticsForRoster } from '../team/coaching';
-import { extensionEligible, offerContract, resignAsk, willingness } from '../economy/freeAgency';
+import { demandedExtras, extensionEligible, offerContract, resignAsk, willingness } from '../economy/freeAgency';
 import { autoLines } from '../team/lines';
 import { fullName } from '../player/ability';
 import { aiCapHousekeeping } from './finance';
+import { holdoutDay } from '../cba/holdouts';
 import { coachChangeFamiliarity, fitNorm } from '../team/fit';
 
 export function aiDaily(league: League): void {
+  holdoutDay(league);
   for (const t of league.teams) ensureDressable(league, t.id);
   if (league.day % 7 === 3) weeklyScouting(league);
   if (league.phase !== 'regular') return;
@@ -65,7 +67,7 @@ function aiExtensions(league: League): void {
       if (t.strategy === 'rebuild' && age >= 29) continue;
       if (willingness(league, p) < 0.55) continue;
       const ask = resignAsk(league, p);
-      offerContract(league, p, ask.salary, ask.years);
+      offerContract(league, p, ask.salary, ask.years, demandedExtras(league, p, t.id));
     }
   }
 }

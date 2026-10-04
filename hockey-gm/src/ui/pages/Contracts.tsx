@@ -3,7 +3,7 @@ import { useGame, mutate, toast } from '../store';
 import { Card, PlayerLink, Pos, Table, Stars, type Column } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
 import { playersOf } from '../../engine/league/helpers';
-import { expiringPlayers, extensionEligible, offerContract, arbitrate, resignAsk, willingness } from '../../engine/economy/freeAgency';
+import { expiringPlayers, extensionEligible, makeOffer, offerContract, arbitrate, resignAsk, willingness } from '../../engine/economy/freeAgency';
 import { fmtMoney, futureCommitments, isRFA, payroll } from '../../engine/economy/contracts';
 import { releasePlayer } from '../../engine/economy/roster';
 import type { Player } from '../../engine/types';
@@ -20,6 +20,7 @@ export function ContractsPage() {
   const all = useMemo(() => playersOf(league, teamId, ['active', 'prospect']).filter((p) => p.contract).sort((a, b) => (b.contract?.salary ?? 0) - (a.contract?.salary ?? 0)), [league, version, teamId]);
   const commits = futureCommitments(league, teamId, 5);
   const resign = league.phase === 'resign';
+  const holdouts = Object.values(league.players).filter((p) => p.holdout && p.rightsTeamId === teamId && p.status === 'fa');
 
   const expCols: Column<Player>[] = [
     { key: 'pos', label: 'Pos', render: (p) => <Pos pos={p.pos} /> },
@@ -69,6 +70,21 @@ export function ContractsPage() {
         </span>
       </div>
       <OffseasonPanel league={league} />
+      {holdouts.length > 0 && (
+        <Card title={`Holdouts (${holdouts.length})`} className="" right={<span className="muted" style={{ fontSize: 12 }}>Restricted free agents must sign by December 1 to play this season.</span>}>
+          <div className="list">
+            {holdouts.map((p) => (
+              <div className="item" key={p.id} style={{ alignItems: 'center' }}>
+                <PlayerLink p={p} />
+                <span className="pill warn">Holdout</span>
+                <span className="muted">since {p.holdout!.sinceDay <= 0 ? 'training camp' : `day ${p.holdout!.sinceDay}`}</span>
+                <span style={{ flex: 1 }} />
+                <button className="btn small primary" onClick={() => setNeg(p)}>Negotiate</button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       <Card
         title={resign ? `Expiring contracts (${expiring.length})` : `Extension candidates — final year (${expiring.length})`}
         right={<span className="muted" style={{ fontSize: 12 }}>{resign ? 'Unsigned players become free agents when free agency opens.' : 'Extensions take effect next season.'}</span>}
@@ -108,7 +124,7 @@ export function ContractsPage() {
           player={neg}
           title={`${resign ? 'Re-sign' : 'Extend'} ${neg.first} ${neg.last}`}
           onClose={() => setNeg(null)}
-          submit={(salary, years) => mutate((l) => offerContract(l, neg, salary, years))}
+          submit={(salary, years, x) => mutate((l) => (neg.status === 'fa' ? makeOffer(l, l.userTeamId, neg, salary, years, x) : offerContract(l, neg, salary, years, x)))}
         />
       )}
     </>
