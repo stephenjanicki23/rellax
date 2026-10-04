@@ -167,8 +167,12 @@ export function releaseCoach(league: League, team: Team, slot: StaffSlot, fired:
 
 /** Best available coach for a CPU club (or a fallback when nobody is open). */
 export function hireBest(league: League, team: Team, role: Coach['role']): Coach | null {
-  const pool = candidatesFor(league, team.id, role)
-    .filter((c) => c.teamId === null && !coachRefusal(league, c, team.id, role))
+  const room = staffBudget(team) - staffSpend(league, team, team.staff[ROLE_SLOT[role]] ?? undefined);
+  const open = candidatesFor(league, team.id, role).filter((c) => c.teamId === null && !coachRefusal(league, c, team.id, role));
+  const affordable = open.filter((c) => coachAsk(league, c, role, team.id).salary <= room);
+  // If nobody fits the budget, the cheapest coach available takes the job.
+  const cheapest = [...open].sort((a, b) => coachAsk(league, a, role, team.id).salary - coachAsk(league, b, role, team.id).salary).slice(0, 1);
+  const pool = (affordable.length ? affordable : cheapest)
     .map((c) => ({ c, s: coachOverall({ ...c, role }) + c.reputation * 0.35 + (c.real ? 4 : 0) + withRng(league, (rng) => rng.normal(0, 6)) }))
     .sort((a, b) => b.s - a.s);
   const c = pool[0]?.c;

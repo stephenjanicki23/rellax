@@ -6,7 +6,7 @@ import { ROLE_LABEL } from '../../engine/team/staffMarket';
 import { attr20 } from '../../engine/player/ability';
 import { fmtMoney } from '../../engine/economy/contracts';
 import { coachRecordsInfo } from '../../engine/data/nhl/coachRecords';
-import type { CoachSeasonLine } from '../../engine/types';
+import type { CoachSeasonLine, League } from '../../engine/types';
 import { seasonLabel } from '../format';
 import { href } from '../router';
 
@@ -127,6 +127,7 @@ export function CoachPage({ id }: { id: number }) {
           )}
         </Card>
         <div className="stack" style={{ gap: 14 }}>
+          {team && c.role === 'head' && league.standings[team.id]?.gp ? <TeamUnderCoach league={league} teamId={team.id} /> : null}
           <Card title={<h3>Strengths and weaknesses</h3>}>
             <div className="stack" style={{ gap: 6 }}>
               {strengths.map((s) => (
@@ -162,5 +163,37 @@ export function CoachPage({ id }: { id: number }) {
         </div>
       </div>
     </>
+  );
+}
+
+/** How his team plays this season, measured against the league (where a coach's strengths show up). */
+function TeamUnderCoach({ league, teamId }: { league: League; teamId: number }) {
+  const recs = league.teams.map((t) => league.standings[t.id]).filter((r) => r?.gp);
+  const r = league.standings[teamId];
+  const stats: { k: string; v: (x: typeof r) => number; fmt: (v: number) => string; low?: boolean }[] = [
+    { k: 'Goals for / game', v: (x) => x.gf / x.gp, fmt: (v) => v.toFixed(2) },
+    { k: 'Goals against / game', v: (x) => x.ga / x.gp, fmt: (v) => v.toFixed(2), low: true },
+    { k: 'Power play', v: (x) => (x.ppOpp ? x.ppg / x.ppOpp : 0), fmt: (v) => `${(v * 100).toFixed(1)}%` },
+    { k: 'Penalty kill', v: (x) => (x.tsh ? 1 - x.ppga / x.tsh : 0), fmt: (v) => `${(v * 100).toFixed(1)}%` },
+    { k: 'Penalty minutes / game', v: (x) => x.pim / x.gp, fmt: (v) => v.toFixed(1), low: true },
+    { k: 'Shots for / game', v: (x) => x.sf / x.gp, fmt: (v) => v.toFixed(1) },
+  ];
+  const ord = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
+  return (
+    <Card title={<h3>His team this season</h3>}>
+      <div className="stack" style={{ gap: 4, fontSize: 12 }}>
+        {stats.map((s) => {
+          const mine = s.v(r);
+          const rank = 1 + recs.filter((x) => (s.low ? s.v(x) < mine : s.v(x) > mine)).length;
+          return (
+            <div key={s.k} className="row">
+              <span className="muted" style={{ flex: 1 }}>{s.k}</span>
+              <b>{s.fmt(mine)}</b>
+              <span className={rank <= 8 ? 'pill good' : rank > recs.length - 8 ? 'pill bad' : 'pill'} style={{ minWidth: 38, textAlign: 'center' }}>{ord(rank)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }

@@ -37,12 +37,24 @@ export function aiDaily(league: League): void {
     marketDay(league);
     if (daysToDeadline <= 14 && league.day % 4 === 0) maybeRumor(league);
   }
+  if (daysToDeadline === 0) remindExpiringCoaches(league);
   if (daysToDeadline === 0) {
     addNews(league, { category: 'league', headline: 'Trade deadline passes — rosters are set for the stretch run', teamIds: [], playerIds: [], importance: 3 });
   }
   if (league.day > 30 && league.day % 15 === 0) midseasonCoachReview(league);
   manageUserOffers(league, daysToDeadline);
   if (league.day % 30 === 15) aiExtensions(league);
+}
+
+/** Remind the GM which staff contracts run out after the season (they can be extended until then). */
+function remindExpiringCoaches(league: League): void {
+  if (league.settings.autoManageUser) return;
+  const t = league.teams[league.userTeamId];
+  const names = (['headCoach', 'assistant', 'goalieCoach'] as const)
+    .map((s) => coachOf(league, t, s))
+    .filter((c) => c?.contract && c.contract.years <= 1 && !c.interim)
+    .map((c) => `${c!.first} ${c!.last}`);
+  if (names.length) addNews(league, { category: 'coach', headline: `Contracts expiring after this season: ${names.join(', ')}. Extend them on the Coaching Staff page or they will leave.`, teamIds: [t.id], playerIds: [], importance: 3 });
 }
 
 function maybeRumor(league: League): void {
@@ -149,7 +161,7 @@ export function offseasonCoaching(league: League): void {
     c.contract.years--;
   }
   for (const t of league.teams) {
-    const user = t.id === league.userTeamId;
+    const user = t.id === league.userTeamId && !league.settings.autoManageUser;
     // Expired deals: CPU clubs decide below; the user's coaches leave unless extended.
     for (const slot of ['headCoach', 'assistant', 'goalieCoach'] as const) {
       const c = coachOf(league, t, slot);
@@ -163,7 +175,7 @@ export function offseasonCoaching(league: League): void {
         addNews(league, { category: 'coach', headline: `${c.first} ${c.last}'s contract with the ${teamName(league, t.id)} expires; he is free to join another club`, teamIds: [t.id], playerIds: [], importance: user ? 3 : 1 });
       }
     }
-    if (user) continue;
+    if (t.id === league.userTeamId) continue;
     const r = league.standings[t.id];
     const hc = coachOf(league, t, 'headCoach');
     if (!hc || !r) {
