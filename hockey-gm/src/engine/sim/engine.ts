@@ -1312,7 +1312,7 @@ export class GameSim {
     let dist: number;
     if (reboundCtx) {
       danger = 'high';
-      dist = rng.float(3, 12);
+      dist = rng.float(4, 14);
     } else {
       const r = rng.next();
       if (r < pHD) {
@@ -1326,12 +1326,12 @@ export class GameSim {
         dist = rng.float(20, 36);
       }
     }
-    const angle = danger === 'high' ? rng.float(0, 45) : rng.float(0, 72);
+    let angle = danger === 'high' ? rng.float(0, 45) : rng.float(0, 72);
     // ── shot type
     let type: ShotType;
     if (reboundCtx) type = 'rebound';
     else if (this.oneTimerSetup && danger !== 'low' && rng.chance(0.55)) type = 'oneTimer';
-    else if (danger === 'low') type = !shooter.isF && rng.chance(0.55) ? 'slap' : rng.chance(0.25) ? 'snap' : 'wrist';
+    else if (danger === 'low') type = rng.chance(shooter.isF ? 0.15 : 0.6) ? 'slap' : rng.chance(0.25) ? 'snap' : 'wrist';
     else if (danger === 'high') type = rng.chance(0.2) ? 'backhand' : rng.chance(0.04) ? 'wraparound' : rng.chance(0.25) ? 'snap' : 'wrist';
     else type = rng.chance(0.1) ? 'slap' : rng.chance(0.25) ? 'snap' : rng.chance(0.06) ? 'backhand' : 'wrist';
     // Point shots can be tipped by a net-front forward.
@@ -1339,13 +1339,15 @@ export class GameSim {
       const tippers = A.onIce.filter((p) => p !== shooter && p.isF);
       if (tippers.length) {
         const tipper = this.pickW(tippers, (p) => p.style.netFront);
-        const pTip = 0.09 * tipper.style.netFront + (pp === 'netFront' ? 0.06 : 0);
+        const pTip = 0.11 * tipper.style.netFront + (pp === 'netFront' ? 0.06 : 0);
         if (rng.chance(pTip)) {
           this.addChain(shooter);
           shooter = tipper;
           type = 'tip';
-          danger = 'high';
-          dist = rng.float(4, 12);
+          // Deflections happen anywhere from the crease to the high slot.
+          dist = rng.float(5, 22);
+          danger = dist < 20 ? 'high' : 'medium';
+          angle = rng.float(0, 35);
         }
       }
     }
@@ -1371,7 +1373,7 @@ export class GameSim {
       B.stats.blocks++;
       shooter.stat.blockedAtt++;
       A.stats.blockedAtt++;
-      this.ev('blocked', B.idx, blocker.id, shooter.id, undefined, { dist: Math.round(dist) });
+      this.ev('blocked', B.idx, blocker.id, shooter.id, undefined, { dist: Math.round(dist), angle: Math.round(angle) });
       if (rng.chance(TUNING.injuryBlock * blocker.injuryRisk * (type === 'slap' ? 1.5 : 1))) this.injure(blocker, 'block');
       if (rng.chance(0.42)) {
         this.setupQ *= 0.55;
@@ -1401,7 +1403,7 @@ export class GameSim {
     if (rng.chance(logistic(lMiss))) {
       shooter.stat.missed++;
       A.stats.missed++;
-      this.ev('missed', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), shotType: type, xg, danger });
+      this.ev('missed', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), angle: Math.round(angle), shotType: type, xg, danger });
       if (rng.chance(0.42)) {
         this.setupQ *= 0.5;
         this.oneTimerSetup = false;
@@ -1420,14 +1422,14 @@ export class GameSim {
     if (hd) A.stats.hdShots++;
     const g = B.goalie;
     if (!g) {
-      this.ev('shot', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), shotType: type, xg, danger, en: true });
+      this.ev('shot', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), angle: Math.round(angle), shotType: type, xg, danger, en: true });
       this.scoreGoal(A, B, shooter, xg, type, true);
       return;
     }
     g.stat.sa++;
     g.stat.gxga += xgOnNet;
     if (hd) g.stat.hdsa++;
-    this.ev('shot', A.idx, shooter.id, g.id, undefined, { dist: Math.round(dist), shotType: type, xg, danger });
+    this.ev('shot', A.idx, shooter.id, g.id, undefined, { dist: Math.round(dist), angle: Math.round(angle), shotType: type, xg, danger });
     const shooterSkill = this.shooterSkill(shooter, type);
     const gSkill = this.goalieSkill(g, B, danger, type, screened);
     const late = this.period >= 3 && this.periodLength - this.clock < 300 && Math.abs(this.score[0] - this.score[1]) <= 1;

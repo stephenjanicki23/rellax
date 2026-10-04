@@ -110,6 +110,8 @@ export interface GameEvent {
   data?: {
     xg?: number;
     dist?: number;
+    /** Shot angle from the centre line, degrees (0 = straight on). */
+    angle?: number;
     shotType?: string;
     danger?: 'high' | 'medium' | 'low';
     zone?: 'D' | 'N' | 'O';
