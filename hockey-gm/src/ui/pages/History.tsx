@@ -5,10 +5,13 @@ import { seasonLabel, sv } from '../format';
 import type { Player, RecordEntry } from '../../engine/types';
 import { careerSum } from '../../engine/league/records';
 import { points, savePct } from '../../engine/core/statline';
+import type { Coach } from '../../engine/types';
+import { coachTotals } from '../../engine/team/coaching';
+import { CoachLink, recordText } from '../components/CoachBits';
 
 export function HistoryPage() {
   const { league, version } = useGame();
-  const [tab, setTab] = useState<'champions' | 'awards' | 'records' | 'leaders' | 'halloffame'>('champions');
+  const [tab, setTab] = useState<'champions' | 'awards' | 'records' | 'leaders' | 'coaches' | 'halloffame'>('champions');
   const history = [...league.history].reverse();
   const awardNames = useMemo(() => [...new Set(league.history.flatMap((h) => h.awards.map((a) => a.award)))], [league.history.length]);
   const careers = useMemo(() => {
@@ -34,7 +37,8 @@ export function HistoryPage() {
         <h1>History</h1>
         <span className="sub">{league.history.length} completed season{league.history.length === 1 ? '' : 's'}. The league writes its own story.</span>
       </div>
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'champions', label: 'Champions' }, { id: 'awards', label: 'Awards' }, { id: 'records', label: 'Record book' }, { id: 'leaders', label: 'All-time leaders' }, { id: 'halloffame', label: 'Legends' }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'champions', label: 'Champions' }, { id: 'awards', label: 'Awards' }, { id: 'records', label: 'Record book' }, { id: 'leaders', label: 'All-time leaders' }, { id: 'coaches', label: 'Coaches' }, { id: 'halloffame', label: 'Legends' }]} />
+      {tab === 'coaches' && <CoachRecords />}
       {tab === 'champions' && (
         <Card tight>
           {history.length === 0 ? (
@@ -82,7 +86,7 @@ export function HistoryPage() {
                         const w = h.awards.find((x) => x.award === a);
                         return (
                           <td key={a} title={w?.value}>
-                            {w?.playerId !== undefined ? <PlayerLink p={league.players[w.playerId]} full={false} /> : w?.coachId !== undefined ? `${league.coaches[w.coachId]?.last}` : w ? <TeamLink league={league} id={w.teamId} short /> : '—'}
+                            {w?.playerId !== undefined ? <PlayerLink p={league.players[w.playerId]} full={false} /> : w?.coachId !== undefined ? <CoachLink c={league.coaches[w.coachId]} full={false} /> : w ? <TeamLink league={league} id={w.teamId} short /> : '—'}
                           </td>
                         );
                       })}
@@ -165,5 +169,38 @@ function Legends({ players }: { players: Player[] }) {
         </Card>
       ))}
     </div>
+  );
+}
+
+/** All-time coaching leaders among every coach the league knows (real NHL records plus this save). */
+function CoachRecords() {
+  const { league, version } = useGame();
+  const rows = useMemo(
+    () => Object.values(league.coaches).map((c) => ({ c, t: coachTotals(c) })).filter((x) => x.t.gp > 0),
+    [league, version], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  type R = (typeof rows)[number];
+  const status = (c: Coach) => (c.retired ? <span className="dim">Retired</span> : c.teamId !== null ? <TeamLink league={league} id={c.teamId} short /> : <span className="dim">Available</span>);
+  return (
+    <Card tight right={<span className="muted" style={{ fontSize: 12 }}>Real NHL head-coaching records plus every game in this league</span>}>
+      <Table<R>
+        rows={rows}
+        rowKey={(x) => x.c.id}
+        initialSort={{ key: 'w' }}
+        limit={50}
+        columns={[
+          { key: 'name', label: 'Coach', render: (x) => <CoachLink c={x.c} />, sort: (x) => x.c.last, defaultDesc: false },
+          { key: 'now', label: 'Now', render: (x) => status(x.c) },
+          { key: 'seasons', label: 'Seasons', num: true, render: (x) => x.t.seasons, sort: (x) => x.t.seasons },
+          { key: 'gp', label: 'GP', num: true, render: (x) => x.t.gp, sort: (x) => x.t.gp },
+          { key: 'w', label: 'W', num: true, render: (x) => <b>{x.t.w}</b>, sort: (x) => x.t.w },
+          { key: 'rec', label: 'Record', num: true, render: (x) => recordText(x.t) },
+          { key: 'pct', label: 'Pts%', num: true, render: (x) => x.t.ptsPct.toFixed(3).replace(/^0/, ''), sort: (x) => (x.t.gp >= 164 ? x.t.ptsPct : 0) },
+          { key: 'pw', label: 'Playoff W', num: true, render: (x) => x.t.pw, sort: (x) => x.t.pw },
+          { key: 'cups', label: 'Cups', num: true, render: (x) => x.t.cups || '', sort: (x) => x.t.cups },
+          { key: 'adams', label: 'Jack Adams', num: true, render: (x) => x.c.awards?.filter((a) => a.award === 'Jack Adams Award').length || '', sort: (x) => x.c.awards?.filter((a) => a.award === 'Jack Adams Award').length ?? 0 },
+        ]}
+      />
+    </Card>
   );
 }

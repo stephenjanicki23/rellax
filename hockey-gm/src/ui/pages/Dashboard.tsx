@@ -1,3 +1,4 @@
+import { CoachLink } from '../components/CoachBits';
 import { useMemo } from 'react';
 import { useGame, runSim, nextPhase } from '../store';
 import { href, navigate } from '../router';
@@ -128,7 +129,7 @@ export function Dashboard() {
             {team.city} {team.name}
           </h1>
           <div className="sub">
-            {PHASE_LABEL[league.phase]} · {team.arena} · Coach {league.coaches[team.staff.headCoach ?? -1]?.last ?? '—'}
+            {PHASE_LABEL[league.phase]} · {team.arena} · Coach <CoachLink c={league.coaches[team.staff.headCoach ?? -1]} full={false} />
           </div>
         </div>
       </div>

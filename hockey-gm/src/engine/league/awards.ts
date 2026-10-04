@@ -142,6 +142,8 @@ export function announceAwards(league: League, awards: SeasonAwardResult[]): voi
     } else if (a.coachId != null) {
       const c = league.coaches[a.coachId];
       c.reputation = Math.min(100, c.reputation + 10);
+      c.awards ??= [];
+      c.awards.push({ season: league.season, award: 'Jack Adams Award' });
       addNews(league, { category: 'award', headline: `${c.first} ${c.last} of the ${teamName(league, a.teamId)} wins the ${a.award}`, teamIds: [a.teamId], playerIds: [], importance: 3 });
     } else {
       addNews(league, { category: 'award', headline: `${teamName(league, a.teamId)} claim the ${a.award} (${a.value})`, teamIds: [a.teamId], playerIds: [], importance: 3 });

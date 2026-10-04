@@ -7,7 +7,8 @@ import type { Coach, GmPhilosophy, League, Player, Position, Scout, Team } from 
 import { generatePlayer } from '../player/generate';
 import { generateProspect } from '../player/prospects';
 import { autoLines, emptyLines } from '../team/lines';
-import { generateCoach, tacticsForRoster, DEFAULT_TACTICS } from '../team/coaching';
+import { tacticsForRoster, DEFAULT_TACTICS } from '../team/coaching';
+import { buildRealCoach, generateCandidate, realCandidateNames } from '../team/coachPool';
 import { marketValue, typicalTerm, teamBudget } from '../economy/contracts';
 import { rulesFor, STATIC } from '../cba/rules';
 import { contractDbInfo, emptyFinancialState, estimateContract, estimateFirstSpcAge, estimatePriorExperience, importedDeadCap, importedPlayer, importedPlayers, parseBorn, playerContractsFromImport, type ImportedPlayer } from '../cba/import';
@@ -25,7 +26,7 @@ import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
 import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
 import type { NhlSnapshot } from '../data/nhl/types';
-import { COACH_PROFILES, COACH_QUALITY, NHL_GMS, splitName } from '../data/nhl/staff';
+import { NHL_GMS } from '../data/nhl/staff';
 import NHL_SNAPSHOT from '../data/nhl/rosters.json';
 
 /**
@@ -404,27 +405,43 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   const firstTimers = isReentryClass() ? realClass.filter((p) => p.boardRank).length : realClass.length;
   for (let i = firstTimers; i < draftClassSize; i++) addPlayer(generateProspect(rng, ids.player++, season));
 
-  // ── Coaches
+  // ── Coaches: real head coaches (with their real NHL records), generated assistants and goalie coaches.
   const realStaff = !!snap && snapshotHasRosters(snap, abbrs);
+  const teamIdOf = (abbr: string) => teams.find((t) => t.abbr === abbr)?.id ?? null;
+  const employed = new Set<string>();
   for (const t of teams) {
     const realCoach = realStaff ? snap.staff?.[t.abbr]?.headCoach : null;
-    const quality = realCoach && COACH_QUALITY[realCoach] ? COACH_QUALITY[realCoach] : clamp(rng.normal(108, 18), 60, 170);
-    const head = generateCoach(rng, ids.coach++, season, quality, 'head', realCoach ? COACH_PROFILES[realCoach] : undefined);
-    if (realCoach) Object.assign(head, splitName(realCoach));
+    let head: Coach;
+    if (realCoach) {
+      head = buildRealCoach(rng, ids.coach++, season, realCoach, teamIdOf);
+      employed.add(realCoach);
+    } else head = generateCandidate(rng, ids.coach++, season, 'head', clamp(rng.normal(108, 18), 60, 170));
     if (realStaff && NHL_GMS[t.abbr]) t.gm.name = NHL_GMS[t.abbr];
-    const asst = generateCoach(rng, ids.coach++, season, clamp(rng.normal(95, 15), 50, 150), 'assistant');
-    const gk = generateCoach(rng, ids.coach++, season, clamp(rng.normal(100, 18), 50, 160), 'goalie');
+    const asst = generateCandidate(rng, ids.coach++, season, 'assistant', clamp(rng.normal(95, 15), 50, 150));
+    const gk = generateCandidate(rng, ids.coach++, season, 'goalie', clamp(rng.normal(100, 18), 50, 160));
     for (const c of [head, asst, gk]) {
       c.teamId = t.id;
-      c.hiredSeason = season - rng.int(0, 4);
-      c.contract = { salary: c.role === 'head' ? rng.int(1200, 4500) : rng.int(400, 1200), years: rng.int(1, 4) };
+      c.hiredSeason = c.real ? tenureStart(c, t.abbr, season) : season - rng.int(0, 4);
+      c.contract = { salary: c.role === 'head' ? clamp(Math.round((900 + c.reputation * 45) / 25) * 25, 1200, 6000) : rng.int(16, 48) * 25, years: rng.int(1, 4) };
       coaches[c.id] = c;
     }
     t.staff = { headCoach: head.id, assistant: asst.id, goalieCoach: gk.id };
   }
-  for (let i = 0; i < 18; i++) {
-    const c = generateCoach(rng, ids.coach++, season, clamp(rng.normal(95, 20), 50, 160), rng.chance(0.75) ? 'head' : 'goalie');
-    coaches[c.id] = c;
+  // The market: real former NHL head coaches plus generated candidates.
+  if (realStaff) {
+    for (const name of realCandidateNames(season, employed)) {
+      const c = buildRealCoach(rng, ids.coach++, season, name, teamIdOf);
+      c.background = `Former NHL head coach (${[...new Set(c.career.map((l) => l.team))].join(', ')})`;
+      coaches[c.id] = c;
+    }
+  }
+  const want: Record<Coach['role'], number> = { head: 10, assistant: 6, goalie: 5 };
+  for (const role of ['head', 'assistant', 'goalie'] as const) {
+    const have = Object.values(coaches).filter((c) => c.teamId === null && c.role === role).length;
+    for (let i = have; i < want[role]; i++) {
+      const c = generateCandidate(rng, ids.coach++, season, role);
+      coaches[c.id] = c;
+    }
   }
 
   // ── Lines, tactics, captains, strategy
@@ -521,4 +538,15 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   updateStrategies(league, true);
   league.projections = Object.fromEntries(teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   return league;
+}
+
+/** A real coach's tenure: the first season of his current, unbroken run behind this team's bench. */
+function tenureStart(c: Coach, abbr: string, season: number): number {
+  let start = season;
+  for (let i = c.career.length - 1; i >= 0; i--) {
+    const l = c.career[i];
+    if (l.team !== abbr || l.season < start - 1) break;
+    start = l.season;
+  }
+  return start;
 }

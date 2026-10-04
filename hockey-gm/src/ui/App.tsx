@@ -30,6 +30,8 @@ import { HistoryPage } from './pages/History';
 import { AnalyticsPage } from './pages/Analytics';
 import { PlayerPage } from './pages/PlayerPage';
 import { TeamPage } from './pages/TeamPage';
+import { CoachingPage } from './pages/Coaching';
+import { CoachPage } from './pages/CoachPage';
 import { LiveGame } from './pages/LiveGame';
 import { SettingsPage } from './pages/Settings';
 import { ContractsPage } from './pages/Contracts';
@@ -44,6 +46,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'roster', label: 'Roster', icon: '☰' },
       { id: 'lines', label: 'Lines', icon: '≡' },
       { id: 'tactics', label: 'Tactics', icon: '⚑' },
+      { id: 'coaching', label: 'Coaching Staff', icon: '♟' },
       { id: 'prospects', label: 'Prospects', icon: '✦' },
       { id: 'contracts', label: 'Contracts', icon: '✎' },
     ],
@@ -154,6 +157,8 @@ function Routes() {
     roster: <RosterPage />,
     lines: <LinesPage />,
     tactics: <TacticsPage />,
+    coaching: <CoachingPage />,
+    coach: <CoachPage id={Number(r.param)} />,
     players: <PlayersPage />,
     prospects: <ProspectsPage />,
     contracts: <ContractsPage />,
@@ -189,6 +194,8 @@ function useBadges(): Record<string, string | null> {
     }
     if (league.phase === 'freeAgency') badges.freeagency = `D${league.faDay + 1}`;
     if (league.tradeOffers?.length) badges.trades = String(league.tradeOffers.length);
+    const staff = league.teams[league.userTeamId].staff;
+    if (staff.headCoach === null || league.coaches[staff.headCoach]?.interim) badges.coaching = '!';
   }
   return badges;
 }

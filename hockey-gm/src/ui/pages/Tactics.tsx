@@ -113,7 +113,7 @@ export function TacticsPage() {
           <span className="muted">
             {PHILOSOPHY_LABEL[hc.philosophy]}{hc.styleNote ? ` — ${hc.styleNote}` : ''} · Overall {coachOverall(hc)} · Tactics {hc.ratings.tactics} (better tacticians get more out of any system and install it faster)
           </span>
-          <a href={href(`team/${team.id}?tab=staff`)} style={{ marginLeft: 'auto' }}>
+          <a href={href("coaching")} style={{ marginLeft: "auto" }}>
             Change coach →
           </a>
         </div>

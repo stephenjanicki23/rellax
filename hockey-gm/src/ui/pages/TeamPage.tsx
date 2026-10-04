@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
-import { coachChangeFamiliarity, fitNorm } from '../../engine/team/fit';
-import { tacticsForRoster } from '../../engine/team/coaching';
-import { withRng } from '../../engine/league/helpers';
-import { useGame, mutate, toast } from '../store';
-import { useRoute } from '../router';
+import { useGame } from '../store';
+import { useRoute, href } from '../router';
+import { CoachLink, TraitChips, careerRecord } from '../components/CoachBits';
+import { ROLE_LABEL } from '../../engine/team/staffMarket';
 import { Card, Table, TeamLogo, TeamLink, Tabs, Stat, LineChart, type Column } from '../components/common';
 import { playerColumns } from '../playerCells';
 import { playersOf, points } from '../../engine/league/helpers';
@@ -32,43 +31,14 @@ export function TeamPage({ id }: { id: number }) {
     { role: 'Goaltending coach', c: team.staff.goalieCoach !== null ? league.coaches[team.staff.goalieCoach] : undefined },
   ];
   const history = league.history.map((h) => ({ season: h.season, row: h.standings.find((s) => s.teamId === team.id)! })).filter((x) => x.row);
-  const available = Object.values(league.coaches).filter((c) => c.teamId === null && !c.retired);
-
-  const hire = (c: Coach) => {
-    mutate((l) => {
-      const t = l.teams[team.id];
-      const slot = c.role === 'head' ? 'headCoach' : c.role === 'goalie' ? 'goalieCoach' : 'assistant';
-      const old = t.staff[slot];
-      if (old !== null) {
-        l.coaches[old].teamId = null;
-        l.coaches[old].contract = null;
-      }
-      c.teamId = t.id;
-      c.hiredSeason = l.season;
-      c.contract = { salary: 1000 + c.reputation * 25, years: 3 };
-      t.staff[slot] = c.id;
-      // A new head coach installs his own systems, which the players have to learn.
-      if (slot === 'headCoach') {
-        const roster = Object.values(l.players).filter((p) => p.teamId === t.id && p.status === 'active');
-        withRng(l, (rng) => (t.tactics = tacticsForRoster(c.philosophy, roster, c.ratings.tactics, rng, t.lines, c.system, fitNorm(l))));
-        coachChangeFamiliarity(t);
-      }
-    });
-    toast(`${c.first} ${c.last} hired.`, 'good');
-  };
 
   const coachCols: Column<Coach>[] = [
-    { key: 'name', label: 'Coach', render: (c) => `${c.first} ${c.last}`, sort: (c) => c.last, defaultDesc: false },
-    { key: 'role', label: 'Role', render: (c) => c.role },
-    { key: 'ph', label: 'Philosophy', render: (c) => <span className="muted" title={c.styleNote ?? ''}>{PHILOSOPHY_LABEL[c.philosophy]}{c.styleNote ? ` — ${c.styleNote}` : ''}</span> },
-    { key: 'ovr', label: 'Ovr', num: true, render: (c) => attr20(coachOverall(c)), sort: (c) => coachOverall(c) },
-    { key: 'off', label: 'Off', num: true, render: (c) => attr20(c.ratings.offense) },
-    { key: 'def', label: 'Def', num: true, render: (c) => attr20(c.ratings.defense) },
-    { key: 'dev', label: 'Dev', num: true, render: (c) => attr20(c.ratings.development) },
-    { key: 'gk', label: 'GK', num: true, render: (c) => attr20(c.ratings.goaltending) },
-    { key: 'mot', label: 'Mot', num: true, render: (c) => attr20(c.ratings.motivation) },
-    { key: 'tac', label: 'Tac', num: true, render: (c) => attr20(c.ratings.tactics) },
-    ...(mine ? [{ key: 'h', label: '', render: (c: Coach) => <button className="btn small primary" onClick={() => hire(c)}>Hire</button> }] : []),
+    { key: 'role', label: 'Role', render: (c) => <span className="muted">{ROLE_LABEL[c.role]}{c.interim ? ' (interim)' : ''}</span> },
+    { key: 'name', label: 'Coach', render: (c) => <CoachLink c={c} /> },
+    { key: 'ph', label: 'Style', render: (c) => <span className="muted" title={c.styleNote ?? ''}>{PHILOSOPHY_LABEL[c.philosophy]}</span> },
+    { key: 'ovr', label: 'Ovr', num: true, render: (c) => <b>{attr20(coachOverall(c))}</b> },
+    { key: 'traits', label: 'Strengths / weaknesses', render: (c) => <TraitChips c={c} max={3} /> },
+    { key: 'rec', label: 'NHL record', num: true, render: (c) => (c.role === 'head' ? careerRecord(c) : '') },
   ];
 
   return (
@@ -103,14 +73,9 @@ export function TeamPage({ id }: { id: number }) {
       )}
       {tab === 'staff' && (
         <div className="grid">
-          <Card title="Coaching staff" tight>
-            <Table rows={staff.filter((s) => s.c).map((s) => s.c!)} columns={coachCols.filter((c) => c.key !== 'h')} rowKey={(c) => c.id} />
+          <Card title="Coaching staff" right={mine ? <a href={href('coaching')}>Hire or fire coaches →</a> : null} tight>
+            <Table rows={staff.filter((s) => s.c).map((s) => s.c!)} columns={coachCols} rowKey={(c) => c.id} />
           </Card>
-          {mine && (
-            <Card title="Available coaches" right={<span className="muted">Hiring replaces the current coach in that role.</span>} tight>
-              <Table rows={available} columns={coachCols} rowKey={(c) => c.id} initialSort={{ key: 'ovr' }} />
-            </Card>
-          )}
           <Card title="Rivals">
             <div className="row">
               {Object.entries(team.rivals)
