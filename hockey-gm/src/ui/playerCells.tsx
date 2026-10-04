@@ -8,10 +8,11 @@ import { fmtMoney } from '../engine/economy/contracts';
 import { points, savePct, gaa, fmtToi, gsax } from '../engine/core/statline';
 import { injuryLabel } from '../engine/player/injuries';
 import { sv } from './format';
+import { fitLabel, fitNorm, fitScore, playerSystemFit } from '../engine/team/fit';
 
 type C = Column<Player>;
 
-export function playerColumns(league: League, opts: { team?: boolean; stats?: boolean; contract?: boolean; potential?: boolean; morale?: boolean; status?: boolean } = {}): C[] {
+export function playerColumns(league: League, opts: { team?: boolean; stats?: boolean; contract?: boolean; potential?: boolean; morale?: boolean; status?: boolean; fit?: boolean } = {}): C[] {
   const st = (p: Player) => league.seasonStats[p.id]?.reg;
   const cols: C[] = [
     { key: 'pos', label: 'Pos', render: (p) => <Pos pos={p.pos} />, sort: (p) => ['C', 'LW', 'RW', 'D', 'G'].indexOf(p.pos), defaultDesc: false },
@@ -39,6 +40,24 @@ export function playerColumns(league: League, opts: { team?: boolean; stats?: bo
       },
       sort: (p) => estimate(league, p).pa,
     });
+  if (opts.fit) {
+    // Fit to the user's team systems (offence, defence, forecheck).
+    const mine = league.teams[league.userTeamId];
+    const norm = fitNorm(league);
+    const z = (p: Player) => (p.pos === 'G' ? null : playerSystemFit(norm, p, mine.tactics).overall);
+    cols.push({
+      key: 'fit',
+      label: 'Fit',
+      title: `Fit to ${mine.abbr}'s systems (${mine.tactics.offense} / ${mine.tactics.defense} / ${mine.tactics.forecheck})`,
+      render: (p) => {
+        const v = z(p);
+        if (v === null) return <span className="dim">—</span>;
+        const l = fitLabel(v);
+        return <span className={`pill ${l.cls}`} title={`${l.text} (${fitScore(v)}/100) for ${mine.abbr}'s systems`}>{fitScore(v)}</span>;
+      },
+      sort: (p) => z(p) ?? -9,
+    });
+  }
   if (opts.status)
     cols.push({
       key: 'status',

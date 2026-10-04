@@ -4,7 +4,7 @@ import { navigate } from '../router';
 import { Card, Headshot, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg, Tabs } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
 import { ContractDetails } from '../components/ContractDetails';
-import { SystemFit } from '../components/SystemFit';
+import { SystemFit, SystemFitStrip } from '../components/SystemFit';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
 import { attr20, roleForAbility } from '../../engine/player/ability';
 import { ARCHETYPES } from '../../engine/player/archetypes';
@@ -73,6 +73,7 @@ export function PlayerPage({ id }: { id: number }) {
         </div>
       </div>
       <Tabs value={view} onChange={setView} tabs={[{ id: 'card', label: 'Player card' }, { id: 'details', label: 'Stats, contract & scouting' }]} />
+      {view === 'card' && <SystemFitStrip league={league} p={p} />}
       {view === 'card' ? (
         <PlayerCardView
           p={p}
@@ -85,7 +86,15 @@ export function PlayerPage({ id }: { id: number }) {
           traits={know >= 50 ? p.traits.map((t) => TRAITS[t].label) : null}
           footnote={!e.exact && e.caLow !== e.caHigh ? `Scouting estimate (${Math.round(know)}% known). Ranges narrow as your scouts watch him.` : undefined}
         />
-      ) : (
+      ) : null}
+      {view === 'card' && p.pos !== 'G' && (
+        <div style={{ marginTop: 14, maxWidth: 720 }}>
+          <Card title={p.teamId === league.userTeamId || p.teamId === null ? 'System fit' : `System fit (${team?.abbr ?? ''})`}>
+            <SystemFit league={league} p={p} />
+          </Card>
+        </div>
+      )}
+      {view === 'card' ? null : (
       <div className="grid g-main">
         <div className="grid">
           <div className="grid g3">
