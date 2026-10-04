@@ -4,6 +4,7 @@ import { navigate } from '../router';
 import { Card, Headshot, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineChart, moraleLabel, Seg, Tabs } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
 import { ContractDetails } from '../components/ContractDetails';
+import { SystemFit } from '../components/SystemFit';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
 import { attr20, roleForAbility } from '../../engine/player/ability';
 import { ARCHETYPES } from '../../engine/player/archetypes';
@@ -202,6 +203,9 @@ export function PlayerPage({ id }: { id: number }) {
           </Card>
           <Card title="Contract">
             <ContractDetails league={league} p={p} />
+          </Card>
+          <Card title="System fit">
+            <SystemFit league={league} p={p} />
           </Card>
           {p.caHistory?.length > 0 && (
             <Card title="Development">

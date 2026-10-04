@@ -19,6 +19,7 @@ import { capSeason } from '../cba/capManager';
 import { signPlayer, releasePlayer, rosterSize, rosterCounts, ensureDressable, trimRoster } from './roster';
 import { executeTrade, validateTrade } from './trade';
 import { fitsPlan, planContext } from '../ai/finance';
+import { fitNorm, playerSystemFit } from '../team/fit';
 import { fullName, isForward } from '../player/ability';
 import { PERSONALITIES } from '../player/personality';
 
@@ -203,6 +204,7 @@ export function aiOffers(league: League, rng: Rng): void {
   const offerCount = new Map<number, number>();
   for (const o of league.faOffers) offerCount.set(o.playerId, (offerCount.get(o.playerId) ?? 0) + 1);
   const teams = rng.shuffle(league.teams.filter((t) => isCpu(league, t.id)));
+  const norm = fitNorm(league);
   for (const team of teams) {
     const roster = playersOf(league, team.id).filter((p) => !(p.injury && p.injury.daysRemaining > 7));
     const pay = payroll(league, team.id);
@@ -228,6 +230,8 @@ export function aiOffers(league: League, rng: Rng): void {
         const weakest = grp === 'G' && bestG < 138 ? bestG : (groups[grp][0]?.ca ?? 90);
         const age = league.season - p.birthYear;
         let score = p.ca - weakest + (need ? 12 : 0) - (offerCount.get(p.id) ?? 0) * 5 + rng.normal(0, 6);
+        // GMs target free agents who fit their coach's systems.
+        score += playerSystemFit(norm, p, team.tactics).overall * 5;
         // A team without a real starting goalie makes him the priority.
         if (grp === 'G' && bestG < 128 && p.ca > bestG + 5) score += 25;
         if (team.strategy === 'rebuild' && age >= 31) score -= 14;

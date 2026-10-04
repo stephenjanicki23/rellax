@@ -39,6 +39,10 @@ export const TUNING = {
   momentumWeight: 0.1,
   chemWeight: 0.1,
   coachWeight: 0.07,
+  /** Contest edge for a perfectly suited roster (team fit +1, fully familiar). */
+  fitWeight: 0.09,
+  /** Contest penalty for a completely new system. */
+  unfamiliarity: 0.08,
   moraleWeight: 0.04,
   finishOffset: 0.06,
   shooterWeight: 0.24,
@@ -153,6 +157,10 @@ interface ST {
   coachTac: number;
   coachMot: number;
   coachGk: number;
+  /** System fit × familiarity: additive edge in contests for each area (0 when balanced/neutral). */
+  sys: { off: number; def: number; fc: number; pp: number; pk: number };
+  /** How strongly each area's tactical effects apply (coach tactics × fit × familiarity). */
+  tacMult: { off: number; def: number; fc: number; pp: number; pk: number };
   morale: number;
   lineChem: number;
   goalieConf: number;
@@ -282,6 +290,30 @@ function coachZ(v: number | undefined): number {
   return v === undefined ? 0 : (v - 100) / 50;
 }
 
+/**
+ * Tactical fit and system familiarity. A roster that suits its system gains
+ * an edge in that area's contests and gets more out of the system's
+ * trade-offs; an ill-suited one is penalised. Unfamiliar systems cost a
+ * little everywhere until the players learn them.
+ */
+function systemEffects(inp: GameTeamInput, coachTac: number): Pick<ST, 'sys' | 'tacMult'> {
+  const fit = inp.fit ?? { offense: 0, defense: 0, forecheck: 0, pp: 0, pk: 0 };
+  const fam = inp.familiarity ?? { offense: 1, defense: 1, forecheck: 1, pp: 1, pk: 1 };
+  const area = (f: number, m: number) => ({
+    sys: f * TUNING.fitWeight * (0.5 + 0.5 * m) - (1 - m) * TUNING.unfamiliarity,
+    mult: coachTac * (1 + 0.3 * f) * (0.8 + 0.2 * m),
+  });
+  const o = area(fit.offense, fam.offense);
+  const d = area(fit.defense, fam.defense);
+  const fc = area(fit.forecheck, fam.forecheck);
+  const pp = area(fit.pp, fam.pp);
+  const pk = area(fit.pk, fam.pk);
+  return {
+    sys: { off: o.sys, def: d.sys, fc: fc.sys, pp: pp.sys, pk: pk.sys },
+    tacMult: { off: o.mult, def: d.mult, fc: fc.mult, pp: pp.mult, pk: pk.mult },
+  };
+}
+
 export class GameSim {
   readonly rng: Rng;
   readonly input: GameInput;
@@ -369,6 +401,7 @@ export class GameSim {
       coachTac: clamp(1 + coachZ(c?.tactics) * 0.25, 0.6, 1.4),
       coachMot: coachZ(c?.motivation),
       coachGk: coachZ(c?.goaltending) * 0.04,
+      ...systemEffects(inp, clamp(1 + coachZ(c?.tactics) * 0.25, 0.6, 1.4)),
       morale: ((inp.morale - 55) / 45) * TUNING.moraleWeight,
       lineChem: 0,
       goalieConf: 0,
@@ -542,7 +575,7 @@ export class GameSim {
     const fc = t.tactics.forecheck;
     f *= fc === '2-1-2' ? 1.07 : fc === '1-3-1' ? 0.93 : 1;
     if (this.isPK(t.idx)) f *= t.tactics.pk === 'aggressive' ? 0.9 : 0.55;
-    return 1 + (f - 1) * t.coachTac;
+    return 1 + (f - 1) * (this.isPK(t.idx) ? t.tacMult.pk : t.tacMult.fc);
   }
 
   private resetPossession(): void {
@@ -999,7 +1032,7 @@ export class GameSim {
       }
     }
     const mover = this.pickW(A.onIce, (p) => (p.isF ? 0.7 : 1.3) * p.style.carry * Math.exp(0.4 * p.pass));
-    const skill = 0.5 * this.val(mover, 'pass') + 0.3 * this.val(mover, 'hands') + 0.2 * this.avg(A, (p) => this.val(p, 'skate')) + A.coachOff;
+    const skill = 0.5 * this.val(mover, 'pass') + 0.3 * this.val(mover, 'hands') + 0.2 * this.avg(A, (p) => this.val(p, 'skate')) + A.coachOff + A.sys.off - (this.isPK(B.idx) ? B.sys.pk : B.sys.fc);
     const fc = this.forecheckIntensity(B);
     const forecheckers = B.onIce.filter((p) => p.isF);
     const fl = forecheckers.length ? forecheckers : B.onIce;
@@ -1073,8 +1106,8 @@ export class GameSim {
     if (rng.chance(clamp(pCarry, 0.12, 0.92))) {
       const trap = B.tactics.defense === 'trap' ? 0.25 : B.tactics.defense === 'passive' ? 0.07 : 0;
       const sys = B.tactics.forecheck === '1-3-1' ? 0.14 : 0;
-      const defNZ = this.avg(B, (p) => 0.45 * this.val(p, 'defIQ') + 0.3 * this.val(p, 'skate') + 0.25 * this.val(p, 'stickD')) + (trap + sys) * B.coachTac + B.coachDef;
-      const skill = (this.val(carrier, 'skate') + this.val(carrier, 'hands')) / 2 + A.coachOff;
+      const defNZ = this.avg(B, (p) => 0.45 * this.val(p, 'defIQ') + 0.3 * this.val(p, 'skate') + 0.25 * this.val(p, 'stickD')) + trap * B.tacMult.def + sys * B.tacMult.fc + B.coachDef + B.sys.def;
+      const skill = (this.val(carrier, 'skate') + this.val(carrier, 'hands')) / 2 + A.coachOff + A.sys.off;
       const l = 0.62 + TUNING.contest * (skill - defNZ) + this.ctx(A.idx) - this.ctx(B.idx) + 0.4 * strDiff + 0.5 * (open - 1) + (this.transition ? 0.35 : 0);
       this.advance(rng.float(3.5, 7));
       if (rng.chance(logistic(l))) {
@@ -1129,7 +1162,7 @@ export class GameSim {
     const l =
       -0.5 +
       TUNING.contest * (0.4 * this.val(f, 'skate') + 0.35 * this.val(f, 'phys') + 0.25 * this.val(f, 'stickD') - (0.35 * this.val(d, 'skate') + 0.35 * this.val(d, 'phys') + 0.3 * this.val(d, 'hands'))) +
-      tac * A.coachTac +
+      tac * A.tacMult.off + A.sys.fc +
       this.ctx(A.idx) - this.ctx(B.idx) + 0.35 * strDiff;
     const won = rng.chance(logistic(l));
     if (rng.chance(0.2 * (won ? f.hitProp : d.hitProp))) {
@@ -1164,17 +1197,17 @@ export class GameSim {
     const open = this.openIce();
     const attack =
       this.avg(A, (p) => 0.35 * this.val(p, 'offIQ') + 0.25 * this.val(p, 'hands') + 0.25 * this.val(p, 'pass') + 0.15 * this.val(p, 'skate')) +
-      A.coachOff + this.ctx(A.idx);
+      A.coachOff + (sitA === 'PP' ? A.sys.pp : A.sys.off) + this.ctx(A.idx);
     let defense =
       this.avg(B, (p) => 0.45 * this.val(p, 'defIQ') + 0.25 * this.val(p, 'stickD') + 0.15 * this.val(p, 'skate') + 0.15 * this.val(p, 'phys')) +
-      B.coachDef + this.ctx(B.idx);
+      B.coachDef + (sitA === 'PP' ? B.sys.pk : B.sys.def) + this.ctx(B.idx);
     const dStyle = B.tactics.defense;
     let pressure = dStyle === 'aggressive' ? 0.12 : dStyle === 'physical' ? 0.06 : dStyle === 'passive' ? -0.14 : dStyle === 'trap' ? -0.03 : 0;
     if (sitA === 'PP') {
       const pk = B.tactics.pk;
       pressure = pk === 'aggressive' ? 0.18 : pk === 'diamond' ? 0.06 : pk === 'passive' ? -0.18 : 0;
     }
-    pressure *= B.coachTac;
+    pressure *= sitA === 'PP' ? B.tacMult.pk : B.tacMult.def;
     if (B.goalie === null && !B.pulled) defense -= 0.5;
     const oStyle = A.tactics.offense;
     let lTurn = -2.05 + TUNING.contest * (defense - attack) - 0.32 * strDiff + pressure * 0.9 - (oStyle === 'possession' ? 0.15 : oStyle === 'cycle' ? 0.06 : 0);

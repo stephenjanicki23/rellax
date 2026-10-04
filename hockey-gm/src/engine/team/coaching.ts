@@ -2,7 +2,7 @@ import type { Rng } from '../core/rng';
 import { clamp } from '../core/math';
 import type { Coach, CoachPhilosophy, CoachRatings, Player, Tactics } from '../types';
 import { NAME_POOLS, COACH_FIRST } from '../data/names';
-import { offenseScore, defenseScore } from './lines';
+import { allOptionFits, type FitArea, type FitNorm } from './fit';
 
 export const DEFAULT_TACTICS: Tactics = {
   offense: 'balanced',
@@ -41,29 +41,38 @@ export function tacticsForPhilosophy(ph: CoachPhilosophy): Tactics {
 }
 
 /**
- * CPU coaches adapt their philosophy to the roster: a skilled, fast team leans
- * to the rush; a heavy team leans physical; a weak defence leans structured.
+ * CPU coaches pick systems from their philosophy and their roster: each
+ * option scores its team fit plus a bonus for the coach's preferred system.
+ * Better tacticians read their roster more accurately (less noise).
  */
-export function tacticsForRoster(ph: CoachPhilosophy, roster: Player[], tacticalRating: number, rng: Rng): Tactics {
-  const t = tacticsForPhilosophy(ph);
+export function tacticsForRoster(ph: CoachPhilosophy, roster: Player[], tacticalRating: number, rng: Rng, lines?: { pp: number[][]; pk: number[][] }, system?: Partial<Tactics>, norm?: FitNorm): Tactics {
+  const t = { ...tacticsForPhilosophy(ph), ...(system ?? {}) };
+  // A coach's signature system is part of his identity; a philosophy default is a softer preference.
+  const bonus = (area: FitArea) => (system && (system as Record<string, unknown>)[area] !== undefined ? 0.8 : 0.45);
   const active = roster.filter((p) => p.status === 'active' && p.pos !== 'G');
-  if (!active.length) return t;
-  const avg = (f: (p: Player) => number) => active.reduce((s, p) => s + f(p), 0) / active.length;
-  const speed = avg((p) => p.attrs.speed);
-  const phys = avg((p) => p.attrs.strength + p.attrs.bodyChecking) / 2;
-  const off = avg(offenseScore);
-  const def = avg(defenseScore);
-  // Smarter coaches adapt more often.
-  if (rng.chance(clamp((tacticalRating - 70) / 100, 0.1, 0.9))) {
-    if (speed > 135 && t.offense === 'balanced') t.offense = 'rush';
-    if (phys > 135 && t.defense === 'balanced') t.defense = 'physical';
-    if (def < off - 12 && t.defense === 'aggressive') t.defense = 'balanced';
-    const snipers = active.filter((p) => p.archetype === 'sniper').length;
-    const pf = active.filter((p) => p.archetype === 'powerForward').length;
-    if (snipers >= 3 && t.pp === 'umbrella') t.pp = 'shooting';
-    if (pf >= 3 && t.pp === 'umbrella') t.pp = 'netFront';
-  }
-  return t;
+  if (active.length < 10 || !norm) return t;
+  const fits = allOptionFits(norm, active, lines && lines.pp.length ? lines : undefined);
+  const noise = clamp((165 - tacticalRating) / 220, 0.05, 0.5);
+  const pick = <K extends FitArea>(area: K, preferred: string): string => {
+    let best = preferred;
+    let bestScore = -Infinity;
+    for (const [opt, fit] of Object.entries(fits[area])) {
+      const score = fit + (opt === preferred ? bonus(area) : 0) + rng.normal(0, noise);
+      if (score > bestScore) {
+        bestScore = score;
+        best = opt;
+      }
+    }
+    return best;
+  };
+  return {
+    ...t,
+    offense: pick('offense', t.offense) as Tactics['offense'],
+    defense: pick('defense', t.defense) as Tactics['defense'],
+    forecheck: pick('forecheck', t.forecheck) as Tactics['forecheck'],
+    pp: pick('pp', t.pp) as Tactics['pp'],
+    pk: pick('pk', t.pk) as Tactics['pk'],
+  };
 }
 
 const PHILOSOPHIES: [CoachPhilosophy, number][] = [
@@ -75,9 +84,10 @@ const PHILOSOPHIES: [CoachPhilosophy, number][] = [
   ['physical', 1],
 ];
 
-export function generateCoach(rng: Rng, id: number, season: number, quality: number, role: Coach['role'] = 'head'): Coach {
+export function generateCoach(rng: Rng, id: number, season: number, quality: number, role: Coach['role'] = 'head', profile?: { philosophy: CoachPhilosophy; system?: Partial<Tactics>; lean?: Partial<Record<keyof CoachRatings, number>>; note?: string }): Coach {
   const pool = rng.weighted(NAME_POOLS.slice(0, 6), (p) => p.weight);
-  const philosophy = PHILOSOPHIES[rng.weightedIndex(PHILOSOPHIES.map((p) => p[1]))][0];
+  const rolled = PHILOSOPHIES[rng.weightedIndex(PHILOSOPHIES.map((p) => p[1]))][0];
+  const philosophy = profile?.philosophy ?? rolled;
   const r = (bias = 0) => Math.round(clamp(quality + bias + rng.normal(0, 16), 30, 195));
   const ratings: CoachRatings = {
     offense: r(philosophy === 'offensive' ? 14 : philosophy === 'defensive' ? -8 : 0),
@@ -87,8 +97,11 @@ export function generateCoach(rng: Rng, id: number, season: number, quality: num
     motivation: r(philosophy === 'physical' ? 6 : 0),
     tactics: r(philosophy === 'structured' ? 14 : 0),
   };
+  for (const [k, v] of Object.entries(profile?.lean ?? {})) ratings[k as keyof CoachRatings] = Math.round(clamp(ratings[k as keyof CoachRatings] + (v ?? 0), 30, 195));
   const age = rng.int(36, 66);
   return {
+    ...(profile?.system ? { system: profile.system } : {}),
+    ...(profile?.note ? { styleNote: profile.note } : {}),
     id,
     first: rng.pick(COACH_FIRST),
     last: rng.pick(pool.last),

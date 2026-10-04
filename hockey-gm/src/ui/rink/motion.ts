@@ -110,6 +110,8 @@ const PASS_SPEED = 62;
 const SHOT_SPEED = 115;
 
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
+/** Keep a puck position on the ice surface. */
+const onIce = (p: Pt): Pt => ({ x: Math.min(RINK.w - 2, Math.max(2, p.x)), y: Math.min(RINK.h - 2, Math.max(2, p.y)) });
 
 export class RinkMotion {
   P = 0;
@@ -176,7 +178,7 @@ export class RinkMotion {
       const flyTime = Math.min(0.9, Math.max(0.1, dist(this.puck.pos, target.puck) / (target.motion === 'shot' ? SHOT_SPEED : PASS_SPEED)));
       if (target.s - this.P <= flyTime) {
         // Never faster than the pass/shot speed: a late start lands just after the keyframe.
-        this.puck.mode = { kind: 'flying', from: { ...this.puck.pos }, to: { ...target.puck }, t0: this.P, t1: Math.max(target.s, this.P + flyTime) };
+        this.puck.mode = { kind: 'flying', from: { ...this.puck.pos }, to: onIce(target.puck), t0: this.P, t1: Math.max(target.s, this.P + flyTime) };
         this.flightFor = this.k;
       }
     }
@@ -217,7 +219,7 @@ export class RinkMotion {
       const gap = dist(this.puck.pos, cb.pos);
       if (gap > 5) {
         // A new carrier away from the puck: it gets there by a pass, not by magic.
-        const to = { x: cb.pos.x + cb.vel.x * (gap / PASS_SPEED), y: cb.pos.y + cb.vel.y * (gap / PASS_SPEED) };
+        const to = onIce({ x: cb.pos.x + cb.vel.x * (gap / PASS_SPEED), y: cb.pos.y + cb.vel.y * (gap / PASS_SPEED) });
         this.puck.mode = { kind: 'flying', from: { ...this.puck.pos }, to, t0: this.P, t1: this.P + Math.min(0.8, Math.max(0.1, dist(this.puck.pos, to) / PASS_SPEED)) };
         this.pendingCarrier = carrier;
         return;
@@ -232,8 +234,11 @@ export class RinkMotion {
       const v = key.motion === 'shot' ? 18 : 10;
       this.puck.vel = { x: ((mode.to.x - mode.from.x) / d) * v * (hash(key.s, 3) < 0.5 ? -0.6 : 0.4), y: ((mode.to.y - mode.from.y) / d) * v * 0.5 + (hash(key.s, 4) - 0.5) * 8 };
     } else if (key.motion === 'carry') {
-      // Nobody has it: slide toward the spot.
-      this.puck.vel = { x: (key.puck.x - this.puck.pos.x) * 1.2, y: (key.puck.y - this.puck.pos.y) * 1.2 };
+      // Nobody has it: slide toward the spot (never faster than a hard pass).
+      const v = { x: (key.puck.x - this.puck.pos.x) * 1.2, y: (key.puck.y - this.puck.pos.y) * 1.2 };
+      const sp = Math.hypot(v.x, v.y);
+      const k = sp > PASS_SPEED ? PASS_SPEED / sp : 1;
+      this.puck.vel = { x: v.x * k, y: v.y * k };
     }
     this.puck.mode = { kind: 'loose' };
   }
@@ -259,8 +264,12 @@ export class RinkMotion {
         // The carrier skates the puck to where the next keyframe wants it.
         if (this.puck.mode.kind === 'carried' && this.puck.mode.carrier === b.id && target.carrier === b.id) tgt = { ...w };
       } else {
-        // Line change: head for the bench and disappear.
+        // Line change: head for the bench and disappear (leaving the puck behind).
         b.leaving += dt;
+        if (this.puck.mode.kind === 'carried' && this.puck.mode.carrier === b.id) {
+          this.puck.mode = { kind: 'loose' };
+          this.puck.vel = { x: 0, y: 0 };
+        }
         tgt = { x: RINK.cx + (attackDir(b.team, this.period) > 0 ? -18 : 18), y: RINK.h + 2 };
         T = 1.2;
       }
@@ -304,7 +313,9 @@ export class RinkMotion {
     if (m.kind === 'carried') {
       const b = this.bodies.get(m.carrier);
       if (!b) {
+        // The carrier left the ice (line change): the puck stays where he left it.
         this.puck.mode = { kind: 'loose' };
+        this.puck.vel = { x: 0, y: 0 };
         return;
       }
       const sp = Math.hypot(b.vel.x, b.vel.y);
@@ -322,7 +333,8 @@ export class RinkMotion {
         mx *= cap / ml;
         my *= cap / ml;
       }
-      this.puck.pos = { x: this.puck.pos.x + mx, y: this.puck.pos.y + my };
+      // The puck never leaves the ice surface, even if its carrier heads off over the boards.
+      this.puck.pos = { x: Math.min(RINK.w - 2, Math.max(2, this.puck.pos.x + mx)), y: Math.min(RINK.h - 2, Math.max(2, this.puck.pos.y + my)) };
       return;
     }
     // Loose: slide with friction, bounce off the boards.

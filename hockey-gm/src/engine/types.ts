@@ -393,6 +393,10 @@ export interface Coach {
   role: 'head' | 'assistant' | 'goalie';
   ratings: CoachRatings;
   philosophy: CoachPhilosophy;
+  /** Signature system: preferred options that override the philosophy's defaults. */
+  system?: Partial<Tactics>;
+  /** Short description of the coach's style. */
+  styleNote?: string;
   teamId: number | null;
   contract: { salary: number; years: number } | null;
   reputation: number; // 0-100
@@ -442,6 +446,10 @@ export interface Team {
   facilities: number; // 0-200
   strategy: TeamStrategy;
   gm: { name: string; philosophy: GmPhilosophy; aggression: number };
+  /** System familiarity per tactical area (0..1). */
+  familiarity?: { offense: number; defense: number; forecheck: number; pp: number; pk: number };
+  /** Tactics the familiarity was built in (to detect system changes). */
+  famTactics?: Tactics;
   owner: string;
   staff: { headCoach: number | null; assistant: number | null; goalieCoach: number | null };
   lines: Lines;

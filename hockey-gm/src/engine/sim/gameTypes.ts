@@ -39,6 +39,10 @@ export interface GameTeamInput {
   /** Pairwise chemistry in [-1, 1] between two player ids. */
   chemistry?: (a: number, b: number) => number;
   morale: number;
+  /** Team fit of the current tactics per area (−1..1); omitted = neutral. */
+  fit?: { offense: number; defense: number; forecheck: number; pp: number; pk: number };
+  /** System familiarity per area (0..1); omitted = fully familiar. */
+  familiarity?: { offense: number; defense: number; forecheck: number; pp: number; pk: number };
 }
 
 export interface GameInput {

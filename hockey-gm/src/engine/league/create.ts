@@ -12,6 +12,7 @@ import { marketValue, typicalTerm, teamBudget } from '../economy/contracts';
 import { rulesFor, STATIC } from '../cba/rules';
 import { contractDbInfo, emptyFinancialState, estimateContract, estimateFirstSpcAge, estimatePriorExperience, importedDeadCap, importedPlayer, importedPlayers, parseBorn, playerContractsFromImport, type ImportedPlayer } from '../cba/import';
 import { placeOnLTIR } from '../cba/capActions';
+import { fitNormFrom, regulars } from '../team/fit';
 import { teamCapSheet } from '../cba/capManager';
 import { scaleContract, yearsOf, aav, termOf, totalValue, endOf } from '../cba/contract';
 import { determineFreeAgentStatus } from '../cba/rulesEngine';
@@ -20,7 +21,7 @@ import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
 import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
 import type { NhlSnapshot } from '../data/nhl/types';
-import { COACH_QUALITY, NHL_GMS, splitName } from '../data/nhl/staff';
+import { COACH_PROFILES, COACH_QUALITY, NHL_GMS, splitName } from '../data/nhl/staff';
 import NHL_SNAPSHOT from '../data/nhl/rosters.json';
 
 /**
@@ -391,7 +392,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   for (const t of teams) {
     const realCoach = realStaff ? snap.staff?.[t.abbr]?.headCoach : null;
     const quality = realCoach && COACH_QUALITY[realCoach] ? COACH_QUALITY[realCoach] : clamp(rng.normal(108, 18), 60, 170);
-    const head = generateCoach(rng, ids.coach++, season, quality, 'head');
+    const head = generateCoach(rng, ids.coach++, season, quality, 'head', realCoach ? COACH_PROFILES[realCoach] : undefined);
     if (realCoach) Object.assign(head, splitName(realCoach));
     if (realStaff && NHL_GMS[t.abbr]) t.gm.name = NHL_GMS[t.abbr];
     const asst = generateCoach(rng, ids.coach++, season, clamp(rng.normal(95, 15), 50, 150), 'assistant');
@@ -410,11 +411,13 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   }
 
   // ── Lines, tactics, captains, strategy
+  const norm = fitNormFrom(regulars(Object.values(players).filter((p) => p.status === 'active' && p.teamId !== null)));
   for (const t of teams) {
     const roster = Object.values(players).filter((p) => p.teamId === t.id && p.status === 'active');
     t.lines = autoLines(roster);
     const hc = coaches[t.staff.headCoach!];
-    t.tactics = tacticsForRoster(hc.philosophy, roster, hc.ratings.tactics, rng);
+    t.tactics = tacticsForRoster(hc.philosophy, roster, hc.ratings.tactics, rng, t.lines, hc.system, norm);
+    t.famTactics = { ...t.tactics };
     const cap = [...roster].sort((a, b) => b.attrs.leadership + b.ca * 0.5 - (a.attrs.leadership + a.ca * 0.5));
     t.captain = cap[0]?.id ?? null;
     t.alternates = cap.slice(1, 3).map((p) => p.id);

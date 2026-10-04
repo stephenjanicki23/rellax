@@ -15,6 +15,7 @@ import { makeInjury, injuryLabel } from '../player/injuries';
 import { developPlayer } from '../player/development';
 import { newsFromGame } from './news';
 import { processWaivers } from '../cba/waivers';
+import { learnSystem } from '../team/fit';
 import { dailyLtir } from '../cba/capActions';
 import { enforceCap, trimRoster } from '../economy/roster';
 import { startPlayoffs, playoffGamesForToday, applyPlayoffResult } from './playoffs';
@@ -74,6 +75,7 @@ export function applyGameResult(league: League, g: ScheduledGame, r: GameResult)
   const playoff = !!g.playoff;
   if (!playoff) applyToStandings(league, g.home, g.away, r);
   const teams = [g.home, g.away];
+  for (const id of teams) learnSystem(league, league.teams[id]);
   const prevAway = league.schedule.find((x) => x.day === g.day - 1 && x.played && x.away === g.away);
   const roadTrip: [boolean, boolean] = [false, !!prevAway];
   for (const [idStr, s] of Object.entries(r.players)) {

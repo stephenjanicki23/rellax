@@ -13,6 +13,7 @@ import { rulesFor } from './rules';
 import { fmtCap } from './rulesEngine';
 import { onWaivers } from './waivers';
 import { emptyStatLine } from '../core/statline';
+import { rosterChangeFamiliarity } from '../team/fit';
 
 export type TradeAsset = { kind: 'player'; id: number } | { kind: 'pick'; id: number };
 
@@ -248,6 +249,7 @@ export function executeMoves(league: League, moves: TradeMove[]): void {
     }
   }
   for (const tid of teams) {
+    rosterChangeFamiliarity(league.teams[tid], moves.filter((m) => m.to === tid && m.asset.kind === 'player' && league.players[m.asset.id]?.status === 'active').length);
     league.teams[tid].autoLines = tid === league.userTeamId ? league.teams[tid].autoLines : true;
     league.aiMemory[tid] = { ...league.aiMemory[tid], lastTradeDay: league.day };
   }

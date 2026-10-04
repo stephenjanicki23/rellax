@@ -15,6 +15,7 @@ import { extensionEligible, offerContract, resignAsk, willingness } from '../eco
 import { autoLines } from '../team/lines';
 import { fullName } from '../player/ability';
 import { aiCapHousekeeping } from './finance';
+import { coachChangeFamiliarity, fitNorm } from '../team/fit';
 
 export function aiDaily(league: League): void {
   for (const t of league.teams) ensureDressable(league, t.id);
@@ -99,7 +100,9 @@ export function hireCoach(league: League, team: Team, role: Coach['role']): Coac
   else team.staff.assistant = c.id;
   if (role === 'head') {
     const roster = playersOf(league, team.id);
-    withRng(league, (rng) => (team.tactics = tacticsForRoster(c.philosophy, roster, c.ratings.tactics, rng)));
+    withRng(league, (rng) => (team.tactics = tacticsForRoster(c.philosophy, roster, c.ratings.tactics, rng, team.lines, c.system, fitNorm(league))));
+    // A new coach installs his own system: the players have to learn it.
+    coachChangeFamiliarity(team);
   }
   return c;
 }
@@ -229,7 +232,7 @@ export function aiPreseason(league: League): void {
     if (t.autoLines || isCpu(league, t.id)) t.lines = autoLines(roster);
     if (isCpu(league, t.id)) {
       const hc = t.staff.headCoach !== null ? league.coaches[t.staff.headCoach] : undefined;
-      if (hc) withRng(league, (rng) => (t.tactics = tacticsForRoster(hc.philosophy, roster, hc.ratings.tactics, rng)));
+      if (hc) withRng(league, (rng) => (t.tactics = tacticsForRoster(hc.philosophy, roster, hc.ratings.tactics, rng, t.lines, hc.system, fitNorm(league))));
       const cap = [...roster].sort((a, b) => b.attrs.leadership + b.ca * 0.5 + (league.season - b.birthYear) * 2 - (a.attrs.leadership + a.ca * 0.5 + (league.season - a.birthYear) * 2));
       if (!t.captain || !roster.some((p) => p.id === t.captain)) t.captain = cap[0]?.id ?? null;
       t.alternates = cap.filter((p) => p.id !== t.captain).slice(0, 2).map((p) => p.id);
