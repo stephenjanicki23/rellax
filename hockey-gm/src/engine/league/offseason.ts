@@ -22,6 +22,7 @@ import { aiResign, startFreeAgency, processFADay, expiringPlayers } from '../eco
 import { generateDraftClass } from '../player/prospects';
 import { generateSchedule } from './schedule';
 import { aiPreseason, offseasonCoaching, updateStrategies } from '../ai/gm';
+import { offseasonMarket } from '../ai/tradeMarket';
 import { projectedPoints } from '../team/strength';
 import { teamBudget } from '../economy/contracts';
 import { expectedToiFor } from '../player/generate';
@@ -228,6 +229,8 @@ export function startResignPhase(league: League): void {
     aiResign(league, t.id);
     aiQualifyingDecisions(league, t.id);
   }
+  // Draft weekend is one of the busiest trade windows of the year.
+  offseasonMarket(league, 6);
   const mine = expiringPlayers(league, league.userTeamId);
   if (mine.length) {
     addNews(league, { category: 'signing', headline: `${mine.length} of your players have expiring contracts — re-sign them before free agency opens`, teamIds: [league.userTeamId], playerIds: mine.map((p) => p.id), importance: 3 });

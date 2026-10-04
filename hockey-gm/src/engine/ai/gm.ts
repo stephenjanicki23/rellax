@@ -7,7 +7,8 @@ import { clamp } from '../core/math';
 import type { Coach, League, Team } from '../types';
 import { addNews, addTransaction, isCpu, playersOf, teamName, withRng, points } from '../league/helpers';
 import { enforceCap, ensureDressable, promoteReadyProspects, trimProspects, trimRoster } from '../economy/roster';
-import { executeTrade, findAiGoalieTrade, findAiTrade, findOfferForUser, validateTrade } from '../economy/trade';
+import { executeTrade, findAiGoalieTrade, validateTrade } from '../economy/trade';
+import { marketDay, offerForUser, offseasonMarket } from './tradeMarket';
 import { weeklyScouting } from '../economy/scouting';
 import { teamStrength } from '../team/strength';
 import { coachOverall, tacticsForRoster } from '../team/coaching';
@@ -24,8 +25,7 @@ export function aiDaily(league: League): void {
   if (league.day % 7 === 1) aiCapHousekeeping(league);
   const daysToDeadline = league.tradeDeadlineDay - league.day;
   if (daysToDeadline >= 0) {
-    const pTrade = daysToDeadline <= 10 ? 0.3 : league.day < 20 ? 0.02 : 0.06;
-    withRng(league, (rng) => rng.chance(pTrade)) && tryAiTrade(league);
+    marketDay(league);
     if (daysToDeadline <= 14 && league.day % 4 === 0) maybeRumor(league);
   }
   if (daysToDeadline === 0) {
@@ -34,20 +34,6 @@ export function aiDaily(league: League): void {
   if (league.day > 30 && league.day % 15 === 0) midseasonCoachReview(league);
   manageUserOffers(league, daysToDeadline);
   if (league.day % 30 === 15) aiExtensions(league);
-}
-
-function tryAiTrade(league: League): void {
-  for (let i = 0; i < 3; i++) {
-    const t = (i === 0 ? findAiGoalieTrade(league) : null) ?? findAiTrade(league);
-    if (t) {
-      executeTrade(league, t);
-      for (const id of [t.from, t.to]) {
-        trimRoster(league, id);
-        ensureDressable(league, id);
-      }
-      return;
-    }
-  }
 }
 
 function maybeRumor(league: League): void {
@@ -148,27 +134,30 @@ function midseasonCoachReview(league: League): void {
 }
 
 /** Offseason: decide contend / balanced / rebuild for every CPU team. */
-export function updateStrategies(league: League): void {
+export function updateStrategies(league: League, quiet = false): void {
   const rows = league.teams.map((t) => {
     const s = teamStrength(league, t.id, true);
     const roster = playersOf(league, t.id);
     const core = [...roster].sort((a, b) => b.ca - a.ca).slice(0, 10);
     const avgAge = core.reduce((x, p) => x + (league.season - p.birthYear), 0) / Math.max(1, core.length);
-    return { t, s: s.overall, avgAge };
+    // A franchise player in his prime keeps a team out of a teardown.
+    const franchise = roster.some((p) => p.ca >= 170 && league.season - p.birthYear <= 31);
+    return { t, s: s.overall, avgAge, franchise };
   });
   const sorted = [...rows].sort((a, b) => b.s - a.s);
+  const leagueAge = rows.reduce((x, r) => x + r.avgAge, 0) / Math.max(1, rows.length);
   for (const r of rows) {
     if (r.t.id === league.userTeamId) continue;
     const rank = sorted.indexOf(r);
     const n = rows.length;
     const ph = r.t.gm.philosophy;
     const contendCut = ph === 'winNow' ? 0.4 : ph === 'youth' ? 0.2 : 0.3;
-    const rebuildCut = ph === 'youth' ? 0.65 : ph === 'winNow' ? 0.85 : 0.75;
+    const rebuildCut = ph === 'youth' ? 0.7 : ph === 'winNow' ? 0.88 : 0.8;
     const prev = r.t.strategy;
     if (rank < n * contendCut) r.t.strategy = 'contend';
-    else if (rank >= n * rebuildCut || (r.avgAge >= 30.5 && rank >= n * 0.5)) r.t.strategy = 'rebuild';
+    else if (!r.franchise && (rank >= n * rebuildCut || (r.avgAge >= leagueAge + 2 && rank >= n * 0.6))) r.t.strategy = 'rebuild';
     else r.t.strategy = 'balanced';
-    if (prev !== r.t.strategy && (r.t.strategy === 'rebuild' || prev === 'rebuild')) {
+    if (!quiet && prev !== r.t.strategy && (r.t.strategy === 'rebuild' || prev === 'rebuild')) {
       addNews(league, {
         category: 'league',
         headline: r.t.strategy === 'rebuild' ? `${teamName(league, r.t.id)} signal a rebuild` : `${teamName(league, r.t.id)} declare their rebuild over — time to compete`,
@@ -216,10 +205,12 @@ export function offseasonCoaching(league: League): void {
 
 /** Preseason roster tidy-up for CPU teams. */
 export function aiPreseason(league: League): void {
-  for (let i = 0; i < 6; i++) {
-    const t = findAiGoalieTrade(league) ?? (i < 3 ? findAiTrade(league) : null);
+  // Training-camp trades: goalie fixes first (a team without a starter), then the open market.
+  for (let i = 0; i < 2; i++) {
+    const t = findAiGoalieTrade(league);
     if (t) executeTrade(league, t);
   }
+  offseasonMarket(league, 8);
   for (const t of league.teams) {
     if (isCpu(league, t.id)) {
       promoteReadyProspects(league, t.id);
@@ -247,9 +238,9 @@ function manageUserOffers(league: League, daysToDeadline: number): void {
     (o) => o.season === league.season && league.day - o.day <= 6 && validateTrade(league, { from: o.from, to: league.userTeamId, give: o.give, get: o.get }).length === 0,
   );
   if (daysToDeadline < 0 || league.settings.autoManageUser || league.tradeOffers.length >= 3) return;
-  const p = daysToDeadline <= 14 ? 0.18 : 0.06;
+  const p = daysToDeadline <= 3 ? 0.45 : daysToDeadline <= 14 ? 0.28 : league.day < 15 ? 0.04 : 0.1;
   if (!withRng(league, (rng) => rng.chance(p))) return;
-  const found = findOfferForUser(league);
+  const found = offerForUser(league);
   if (!found) return;
   const id = league.nextId.tx++;
   league.tradeOffers.push({ id, from: found.proposal.from, give: found.proposal.give, get: found.proposal.get, day: league.day, season: league.season, note: found.note });

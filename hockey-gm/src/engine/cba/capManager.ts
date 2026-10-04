@@ -115,7 +115,32 @@ function rowStatus(p: Player, season: number): CapRow['status'] {
 }
 
 /** Full cap sheet for a team in a season (defaults to the current books). */
+/** Cap sheets memoised while a read-only evaluation runs (see withCapCache). */
+let sheetCache: Map<string, CapSheet> | null = null;
+
+/**
+ * Run `fn` with cap sheets cached. Only for code that evaluates the league
+ * without changing it (e.g. a GM weighing dozens of trade ideas).
+ */
+export function withCapCache<T>(fn: () => T): T {
+  if (sheetCache) return fn();
+  sheetCache = new Map();
+  try {
+    return fn();
+  } finally {
+    sheetCache = null;
+  }
+}
+
 export function teamCapSheet(league: League, teamId: number, season = capSeason(league)): CapSheet {
+  if (!sheetCache) return buildCapSheet(league, teamId, season);
+  const key = `${teamId}:${season}:${league.phase}`;
+  let sheet = sheetCache.get(key);
+  if (!sheet) sheetCache.set(key, (sheet = buildCapSheet(league, teamId, season)));
+  return sheet;
+}
+
+function buildCapSheet(league: League, teamId: number, season: number): CapSheet {
   const r = rulesFor(season);
   const rows: CapRow[] = [];
   const dead: DeadRow[] = [];
