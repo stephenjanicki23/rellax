@@ -70,7 +70,7 @@ export function RosterPage() {
     ),
   };
   const cols = [
-    ...playerColumns(league, { stats: view === 'stats', contract: view === 'contract', morale: view === 'overview', status: true }),
+    ...playerColumns(league, { stats: view === 'stats', contract: view === 'contract', morale: view === 'overview', status: true, fit: true }),
     ...(view === 'overview'
       ? [
           { key: 'fat', label: 'Fatigue', num: true, render: (p: Player) => <span className={p.fatigue > 45 ? 'bad' : p.fatigue > 25 ? 'warn' : 'muted'}>{Math.round(p.fatigue)}</span>, sort: (p: Player) => p.fatigue },

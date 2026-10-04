@@ -87,7 +87,7 @@ export function TeamPage({ id }: { id: number }) {
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'roster', label: 'Roster' }, { id: 'prospects', label: `Prospects (${prospects.length})` }, { id: 'staff', label: 'Staff' }, { id: 'history', label: 'History' }]} />
       {tab === 'roster' && (
         <Card tight>
-          <Table rows={roster} columns={playerColumns(league, { stats: true, contract: true })} rowKey={(p) => p.id} initialSort={{ key: 'ca' }} />
+          <Table rows={roster} columns={playerColumns(league, { stats: true, contract: true, fit: true })} rowKey={(p) => p.id} initialSort={{ key: 'ca' }} />
         </Card>
       )}
       {tab === 'prospects' && (

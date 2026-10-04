@@ -114,7 +114,7 @@ export function FreeAgencyPage() {
         <input placeholder="Search name" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 160 }} />
       </div>
       <Card tight>
-        <Table rows={pool} columns={[...playerColumns(league, { potential: true }), ...extra]} rowKey={(p) => p.id} initialSort={{ key: 'ca' }} limit={200} empty="The free-agent pool is empty." />
+        <Table rows={pool} columns={[...playerColumns(league, { potential: true, fit: true }), ...extra]} rowKey={(p) => p.id} initialSort={{ key: 'ca' }} limit={200} empty="The free-agent pool is empty." />
       </Card>
       {sheet && (
         <NegotiationModal

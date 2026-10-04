@@ -60,7 +60,7 @@ export function PlayersPage() {
         </label>
       </div>
       <Card tight>
-        <Table rows={rows} columns={playerColumns(league, { team: true, stats: true })} rowKey={(p) => p.id} initialSort={{ key: 'ca' }} limit={300} />
+        <Table rows={rows} columns={playerColumns(league, { team: true, stats: true, fit: true })} rowKey={(p) => p.id} initialSort={{ key: 'ca' }} limit={300} />
       </Card>
     </>
   );
