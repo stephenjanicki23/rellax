@@ -124,7 +124,8 @@ export function valueScore(rec: NhlPlayerRecord, group: Group): number {
 const CA_CURVES: Record<Group, [number, number][]> = {
   F: [[0, 181], [0.01, 171], [0.05, 160], [0.12, 152], [0.25, 143], [0.5, 130], [0.75, 118], [0.9, 110], [1, 98]],
   D: [[0, 175], [0.02, 163], [0.08, 153], [0.2, 143], [0.4, 135], [0.6, 127], [0.8, 117], [1, 104]],
-  G: [[0, 172], [0.05, 162], [0.15, 155], [0.33, 148], [0.5, 140], [0.7, 126], [0.85, 119], [1, 108]],
+  // Lower tail compressed: even the weakest NHL goalies stop ~.880 over a season.
+  G: [[0, 172], [0.05, 162], [0.15, 155], [0.33, 148], [0.5, 140], [0.7, 131], [0.85, 125], [1, 116]],
 };
 
 export function caForPercentile(group: Group, p: number): number {

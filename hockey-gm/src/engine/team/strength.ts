@@ -34,7 +34,11 @@ export function strengthOf(players: Player[], includeInjured = false): TeamStren
   const goalie = weightedTop(g, [1, 0.15]);
   const depth = weightedTop(f.slice(6), [1, 1, 1, 1, 1, 1]) * 0.6 + weightedTop(d.slice(4), [1, 1]) * 0.4;
   const top = weightedTop(f, [1, 1, 1]) * 0.6 + weightedTop(d, [1, 1]) * 0.4;
-  const overall = forwards * 0.45 + defense * 0.3 + goalie * 0.25;
+  // Weights follow what the game engine actually rewards: a regression of
+  // simulated standings points on these components gave roughly 3.2 : 1.0 : 0.8
+  // per rating point (forwards : defence : goalie). Goalie ratings spread far
+  // wider than lineup averages, so a small weight still makes the crease matter.
+  const overall = forwards * 0.62 + defense * 0.2 + goalie * 0.18;
   return { overall, forwards, defense, goalie, depth, top };
 }
 
@@ -48,7 +52,8 @@ export function projectedPoints(league: League, teamId: number): number {
   const all = league.teams.map((t) => teamStrength(league, t.id, true).overall);
   const avg = all.reduce((a, b) => a + b, 0) / all.length;
   const mine = teamStrength(league, teamId, true).overall;
-  return Math.round(92 + (mine - avg) * 3.2);
+  // ~5 points per unit in simulated seasons; regressed toward the mean as real projections are.
+  return Math.round(92 + (mine - avg) * 4);
 }
 
 export function powerRankings(league: League): { teamId: number; score: number }[] {

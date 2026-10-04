@@ -176,6 +176,20 @@ export function agePlayer(p: Player, season: number, leagueSeed: string): number
       else if (age >= 34) d(k, -(age - 33) * 0.6);
     }
   }
+  // Careers don't follow the average curve: some players find another gear in
+  // their mid-twenties, and veterans can fall off a cliff in a single summer.
+  const peakAge = isG ? age - 2 : age;
+  if (peakAge >= 23 && peakAge <= 28 && rng.chance(0.06)) {
+    const boost = rng.float(3, 8);
+    p.pa = Math.max(p.pa, p.ca + boost + rng.float(0, 4));
+    applyAbilityChange(p, boost, rng, age);
+  }
+  if (peakAge >= 30 && rng.chance(Math.min(0.35, (peakAge - 29) * 0.035))) {
+    // The legs go first: a sudden drop in skating and physical tools, hockey sense intact.
+    const hit = rng.float(7, 14);
+    const legs: AttrKey[] = isG ? ['reflexes', 'athleticism', 'lateral', 'endurance'] : ['speed', 'acceleration', 'agility', 'endurance', 'balance', 'strength'];
+    for (const k of legs) d(k, -hit);
+  }
   // Mental maturation.
   if (age >= 24) d('leadership', rng.float(0, 1.5));
   if (age <= 30) d('composure', rng.float(0, 1.2));
