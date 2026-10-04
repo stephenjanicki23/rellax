@@ -31,12 +31,13 @@ export function draftColumns(league: League): Column<Player>[] {
       render: (p) => {
         const r = centralRank(league, p);
         if (r) return <span title={`${r.stage === 'final' ? 'Final' : 'Midterm'} ranking`}>{SHORT[r.category]} #{r.rank}{r.stage === 'midterm' ? <span className="dim"> mid</span> : null}</span>;
+        if (p.boardRank) return <span className="muted" title="Rank on the imported pre-season big board">Big board #{p.boardRank}</span>;
         if (p.csRank) return <span className="muted" title={`Ranked on last year's ${p.csRank.category} list and went undrafted`}>'{String(league.season % 100).padStart(2, '0')} {SHORT[p.csRank.category]} #{p.csRank.rank} · re-entry</span>;
         return <span className="dim">—</span>;
       },
       sort: (p) => {
         const r = centralRank(league, p);
-        return r ? -r.rank : p.csRank ? -500 - p.csRank.rank : -9999;
+        return r ? -r.rank : p.boardRank ? -200 - p.boardRank : p.csRank ? -500 - p.csRank.rank : -9999;
       },
     },
     {

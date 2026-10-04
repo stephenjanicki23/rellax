@@ -29,19 +29,21 @@ export interface ImportedProspect {
   league: string | null;
   category: CsCategory;
   rank: number;
-  stage: 'midterm' | 'final';
+  stage: 'midterm' | 'final' | 'board';
   reentry?: boolean;
+  /** Overall rank on an imported big board (npm run import:draftboard). */
+  boardRank?: number;
 }
 
-const DATA = CLASS_JSON as { draftYear: number; asOf: string; source: string; prospects: ImportedProspect[] };
+const DATA = CLASS_JSON as { draftYear: number; asOf: string; source: string; prospects: ImportedProspect[]; board?: { file: string; count: number; importedOn: string } };
 
 /** True while the data holds only undrafted re-entries (the year's own rankings aren't out yet). */
 export function isReentryClass(): boolean {
-  return DATA.prospects.length > 0 && DATA.prospects.every((p) => p.reentry);
+  return DATA.prospects.length > 0 && DATA.prospects.every((p) => p.reentry || p.boardRank);
 }
 
-export function draftClassInfo(): { draftYear: number; asOf: string; source: string; count: number } {
-  return { draftYear: DATA.draftYear, asOf: DATA.asOf, source: DATA.source, count: DATA.prospects.length };
+export function draftClassInfo(): { draftYear: number; asOf: string; source: string; count: number; board: number } {
+  return { draftYear: DATA.draftYear, asOf: DATA.asOf, source: DATA.source, count: DATA.prospects.length, board: DATA.board?.count ?? 0 };
 }
 
 /** Approximate overall draft slot for a list rank (North American skaters make up most of a draft). */
@@ -71,7 +73,7 @@ export function buildRealDraftClass(rng: Rng, season: number, existing: Iterable
     known.add(key);
     const pos = POS[r.pos] ?? 'C';
     const age = season - birthYear;
-    const slot = slotFor(r.category, r.rank, !!r.reentry);
+    const slot = r.boardRank ?? slotFor(r.category, r.rank, !!r.reentry);
     const pa = Math.round(clamp(182 - 9.6 * Math.log(Math.max(1, slot)) + rng.normal(0, 7), 95, 192));
     const frac = clamp(0.56 + (age - 18) * 0.05 + rng.normal(0, 0.03), 0.48, 0.8);
     const ca = Math.round(clamp(pa * frac, 45, pa));
@@ -91,8 +93,10 @@ export function buildRealDraftClass(rng: Rng, season: number, existing: Iterable
     p.proSeasons = 0;
     p.junior = r.league ?? p.junior;
     p.amateurClub = r.club ?? undefined;
-    p.csRank = { category: r.category, rank: r.rank };
-    p.reputation = Math.round(clamp((pa - 100) * 0.6, 1, 80));
+    if (r.boardRank) p.boardRank = r.boardRank;
+    else p.csRank = { category: r.category, rank: r.rank };
+    // A big-board ranking is public: the consensus follows it until Central Scouting publishes.
+    p.reputation = r.boardRank ? Math.round(clamp(88 - r.boardRank * 0.6, 20, 88)) : Math.round(clamp((pa - 100) * 0.6, 1, 80));
     out.push(p);
   }
   return out;

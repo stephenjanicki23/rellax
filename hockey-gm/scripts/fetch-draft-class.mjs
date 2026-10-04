@@ -14,7 +14,7 @@
  * Re-run once Central Scouting publishes the year's rankings (preliminary
  * list in the fall, midterm in January, final in April).
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -76,5 +76,18 @@ if (prospects?.length) {
 
 mkdirSync(join(ROOT, 'data/draft'), { recursive: true });
 const asOf = new Date().toISOString().slice(0, 10);
-writeFileSync(join(ROOT, 'data/draft/class.json'), JSON.stringify({ schemaVersion: 1, draftYear: year, asOf, source, prospects }, null, 1) + '\n');
+// Keep a big board imported with `npm run import:draftboard` (for the same draft year).
+const path = join(ROOT, 'data/draft/class.json');
+let board = [];
+let boardInfo;
+if (existsSync(path)) {
+  const prev = JSON.parse(readFileSync(path, 'utf8'));
+  if (prev.draftYear === year) {
+    board = (prev.prospects ?? []).filter((p) => p.boardRank);
+    boardInfo = prev.board;
+  }
+}
+const onBoard = new Set(board.map((p) => `${norm(p.first)}|${norm(p.last)}`));
+prospects = [...board, ...prospects.filter((p) => !onBoard.has(`${norm(p.first)}|${norm(p.last)}`))];
+writeFileSync(path, JSON.stringify({ schemaVersion: 1, draftYear: year, asOf, source, ...(boardInfo ? { board: boardInfo } : {}), prospects }, null, 1) + '\n');
 console.log(`${prospects.length} prospects for the ${year} draft · ${source}`);

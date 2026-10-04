@@ -321,6 +321,8 @@ export interface Player {
   /** Draft prospect: last amateur club and NHL Central Scouting list rank (real prospects). */
   amateurClub?: string;
   csRank?: { category: CsCategory; rank: number };
+  /** Rank on an imported public big board (real prospects). */
+  boardRank?: number;
   /** Agent representing him (see cba/agents). */
   agentId?: number;
   /** Restricted free agent refusing his qualifying offer (sits out until he signs). */

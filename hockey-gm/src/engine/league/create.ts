@@ -397,7 +397,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   const realClass = real ? buildRealDraftClass(rng, season, Object.values(players), () => ids.player++) : [];
   for (const p of realClass) addPlayer(p);
   // Re-entries alone are a late-round crop: the first-time-eligible class is generated until Central Scouting publishes it.
-  const firstTimers = realClass.length - realClass.filter((p) => p.csRank && isReentryClass()).length;
+  const firstTimers = isReentryClass() ? realClass.filter((p) => p.boardRank).length : realClass.length;
   for (let i = firstTimers; i < draftClassSize; i++) addPlayer(generateProspect(rng, ids.player++, season));
 
   // ── Coaches
