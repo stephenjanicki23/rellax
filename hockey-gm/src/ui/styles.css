@@ -179,6 +179,13 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
 .stat .v { font-size: 18px; font-weight: 700; }
+.rank-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.rank-tile { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--text, #fff) 3%, transparent); }
+.rank-tile .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.rank-tile .v { font-size: 20px; font-weight: 700; }
+.rank-tile .sub { color: var(--muted); font-size: 11px; }
+@media (max-width: 1100px) { .rank-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .rank-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
 .kv .k { color: var(--muted); }
 .list { display: flex; flex-direction: column; }
