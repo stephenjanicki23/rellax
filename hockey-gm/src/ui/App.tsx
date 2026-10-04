@@ -110,6 +110,7 @@ export function App() {
       <main className="main">
         <Routes />
       </main>
+      <MobileNav />
       {busy && (
         <div className="busy">
           <div className="box stack">
@@ -177,8 +178,7 @@ function Routes() {
   return <>{pages[r.page] ?? <Dashboard />}</>;
 }
 
-function Sidebar() {
-  const r = useRoute();
+function useBadges(): Record<string, string | null> {
   const { league } = useStore();
   const badges: Record<string, string | null> = {};
   if (league) {
@@ -190,6 +190,93 @@ function Sidebar() {
     if (league.phase === 'freeAgency') badges.freeagency = `D${league.faDay + 1}`;
     if (league.tradeOffers?.length) badges.trades = String(league.tradeOffers.length);
   }
+  return badges;
+}
+
+const MOBILE_TABS: { id: string; label: string; icon: string }[] = [
+  { id: 'dashboard', label: 'Home', icon: '◉' },
+  { id: 'roster', label: 'Roster', icon: '☰' },
+  { id: 'lines', label: 'Lines', icon: '≡' },
+  { id: 'standings', label: 'Standings', icon: '▤' },
+];
+
+/** Phone navigation: a bottom tab bar plus a full-screen menu with every screen grouped by section. */
+function MobileNav() {
+  const r = useRoute();
+  const { lastSaved } = useStore();
+  const badges = useBadges();
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [r.page, r.param]);
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+  const anyBadge = NAV.some((sec) => sec.items.some((it) => badges[it.id] && !MOBILE_TABS.some((t) => t.id === it.id)));
+  return (
+    <>
+      {open && (
+        <div className="m-sheet" role="dialog" aria-modal="true" aria-label="Menu">
+          <div className="m-sheet-head">
+            <b>Menu</b>
+            <button className="btn ghost" onClick={() => setOpen(false)} aria-label="Close menu">
+              ✕
+            </button>
+          </div>
+          <div className="m-sheet-body">
+            {NAV.map((sec) => (
+              <section key={sec.section}>
+                <div className="m-sheet-section">{sec.section}</div>
+                <div className="m-sheet-grid">
+                  {sec.items.map((it) => (
+                    <a key={it.id} href={href(it.id)} className={`m-tile ${r.page === it.id ? 'active' : ''}`} onClick={() => setOpen(false)}>
+                      <span className="m-tile-icon" aria-hidden>
+                        {it.icon}
+                      </span>
+                      <span className="m-tile-label">{it.label}</span>
+                      {badges[it.id] && <span className="badge-dot">{badges[it.id]}</span>}
+                    </a>
+                  ))}
+                </div>
+              </section>
+            ))}
+            <div className="m-sheet-actions">
+              <button className="btn" onClick={() => void saveNow().then(() => toast('Game saved', 'good'))}>
+                💾 Save{lastSaved ? ` (${new Date(lastSaved).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}
+              </button>
+              <button className="btn" onClick={quitToMenu}>
+                Main menu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <nav className="m-tabbar" aria-label="Main">
+        {MOBILE_TABS.map((t) => (
+          <a key={t.id} href={href(t.id)} className={r.page === t.id && !open ? 'active' : ''}>
+            <span className="m-tab-icon" aria-hidden>
+              {t.icon}
+            </span>
+            <span>{t.label}</span>
+            {badges[t.id] && <span className="badge-dot">{badges[t.id]}</span>}
+          </a>
+        ))}
+        <button className={open || !MOBILE_TABS.some((t) => t.id === r.page) ? 'active' : ''} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          <span className="m-tab-icon" aria-hidden>
+            ☷
+          </span>
+          <span>Menu</span>
+          {anyBadge && <span className="m-dot" />}
+        </button>
+      </nav>
+    </>
+  );
+}
+
+function Sidebar() {
+  const r = useRoute();
+  const badges = useBadges();
   return (
     <nav className="sidebar">
       {NAV.map((s) => (
@@ -336,10 +423,10 @@ function TopBar() {
             )}
           </div>
         )}
-        <button className="btn ghost" title="Save and return to the main menu" onClick={quitToMenu}>
+        <button className="btn ghost desk-only" title="Save and return to the main menu" onClick={quitToMenu}>
           Main menu
         </button>
-        <button className="btn ghost" title={lastSaved ? `Last saved ${new Date(lastSaved).toLocaleTimeString()}` : 'Save'} onClick={() => void saveNow().then(() => toast('Game saved', 'good'))}>
+        <button className="btn ghost desk-only" title={lastSaved ? `Last saved ${new Date(lastSaved).toLocaleTimeString()}` : 'Save'} onClick={() => void saveNow().then(() => toast('Game saved', 'good'))}>
           💾
         </button>
       </div>

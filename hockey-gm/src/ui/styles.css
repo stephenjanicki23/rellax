@@ -62,15 +62,58 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .g-main { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 @media (max-width: 1100px) { .g3, .g4, .g-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+/* ── phone navigation (bottom tab bar + full-screen menu) ── */
+.m-tabbar, .m-sheet { display: none; }
 @media (max-width: 760px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
-  .sidebar { display: flex; overflow-x: auto; padding: 6px; gap: 2px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .sidebar .section { display: none; }
-  .sidebar > div { display: contents; }
-  .sidebar a { white-space: nowrap; }
-  .g2, .g3, .g4, .g-main { grid-template-columns: minmax(0, 1fr); }
-  .main { padding: 14px 12px 60px; }
-  .topbar { flex-wrap: wrap; padding: 8px 12px; height: auto; }
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .sidebar { display: none; }
+  .desk-only { display: none !important; }
+  .g2, .g3, .g-main { grid-template-columns: minmax(0, 1fr); }
+  .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .g4 > .card { padding: 10px 12px; }
+  .main { padding: 14px 12px calc(84px + env(safe-area-inset-bottom)); }
+  .topbar { flex-wrap: wrap; padding: 8px 12px; height: auto; row-gap: 6px; }
+  .topbar .brand { min-width: 0; }
+  .topbar .meta { gap: 8px; font-size: 12px; }
+  .topbar .spacer { display: none; }
+  .topbar > .row { width: 100%; flex-wrap: wrap; }
+  .topbar > .row > .btn.primary { flex: 1; justify-content: center; }
+
+  .m-tabbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    background: var(--bg2); border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  .m-tabbar a, .m-tabbar button {
+    flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    min-height: 52px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600;
+    border-radius: 8px; cursor: pointer; text-decoration: none;
+  }
+  .m-tabbar .m-tab-icon { font-size: 18px; line-height: 1; }
+  .m-tabbar a.active, .m-tabbar button.active { color: var(--text); background: var(--panel); box-shadow: inset 0 2px 0 var(--accent); }
+  .m-tabbar .badge-dot { position: absolute; top: 4px; right: calc(50% - 22px); background: var(--accent); color: #001018; border-radius: 9px; font-size: 10px; padding: 0 5px; font-weight: 700; }
+  .m-tabbar .m-dot { position: absolute; top: 8px; right: calc(50% - 14px); width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+  .m-sheet {
+    display: flex; flex-direction: column; position: fixed; inset: 0; z-index: 70; background: var(--bg);
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+  .m-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 17px; }
+  .m-sheet-body { overflow-y: auto; padding: 6px 12px 18px; }
+  .m-sheet-section { margin: 14px 2px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); font-weight: 700; }
+  .m-sheet-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .m-tile {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 76px;
+    padding: 10px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
+    text-align: center; text-decoration: none;
+  }
+  .m-tile:hover { text-decoration: none; border-color: var(--accent); }
+  .m-tile.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .m-tile-icon { font-size: 22px; line-height: 1; opacity: 0.9; }
+  .m-tile-label { font-size: 12.5px; font-weight: 600; line-height: 1.15; }
+  .m-tile .badge-dot { position: absolute; top: 6px; right: 6px; background: var(--accent); color: #001018; border-radius: 9px; font-size: 10px; padding: 0 6px; font-weight: 700; }
+  .m-sheet-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .m-sheet-actions .btn { flex: 1; justify-content: center; min-height: 44px; }
 }
 
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; min-width: 0; }
