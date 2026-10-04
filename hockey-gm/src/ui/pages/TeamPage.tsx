@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { coachChangeFamiliarity } from '../../engine/team/fit';
+import { coachChangeFamiliarity, fitNorm } from '../../engine/team/fit';
+import { tacticsForRoster } from '../../engine/team/coaching';
+import { withRng } from '../../engine/league/helpers';
 import { useGame, mutate, toast } from '../store';
 import { useRoute } from '../router';
 import { Card, Table, TeamLogo, TeamLink, Tabs, Stat, LineChart, type Column } from '../components/common';
@@ -45,8 +47,12 @@ export function TeamPage({ id }: { id: number }) {
       c.hiredSeason = l.season;
       c.contract = { salary: 1000 + c.reputation * 25, years: 3 };
       t.staff[slot] = c.id;
-      // A new head coach means a new system to learn.
-      if (slot === 'headCoach') coachChangeFamiliarity(t);
+      // A new head coach installs his own systems, which the players have to learn.
+      if (slot === 'headCoach') {
+        const roster = Object.values(l.players).filter((p) => p.teamId === t.id && p.status === 'active');
+        withRng(l, (rng) => (t.tactics = tacticsForRoster(c.philosophy, roster, c.ratings.tactics, rng, t.lines, c.system, fitNorm(l))));
+        coachChangeFamiliarity(t);
+      }
     });
     toast(`${c.first} ${c.last} hired.`, 'good');
   };

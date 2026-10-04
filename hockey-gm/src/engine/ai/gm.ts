@@ -230,9 +230,10 @@ export function aiPreseason(league: League): void {
     ensureDressable(league, t.id);
     const roster = playersOf(league, t.id);
     if (t.autoLines || isCpu(league, t.id)) t.lines = autoLines(roster);
+    // Every head coach (the user's included) sets his team's systems for the season.
+    const hc = t.staff.headCoach !== null ? league.coaches[t.staff.headCoach] : undefined;
+    if (hc) withRng(league, (rng) => (t.tactics = tacticsForRoster(hc.philosophy, roster, hc.ratings.tactics, rng, t.lines, hc.system, fitNorm(league))));
     if (isCpu(league, t.id)) {
-      const hc = t.staff.headCoach !== null ? league.coaches[t.staff.headCoach] : undefined;
-      if (hc) withRng(league, (rng) => (t.tactics = tacticsForRoster(hc.philosophy, roster, hc.ratings.tactics, rng, t.lines, hc.system, fitNorm(league))));
       const cap = [...roster].sort((a, b) => b.attrs.leadership + b.ca * 0.5 + (league.season - b.birthYear) * 2 - (a.attrs.leadership + a.ca * 0.5 + (league.season - a.birthYear) * 2));
       if (!t.captain || !roster.some((p) => p.id === t.captain)) t.captain = cap[0]?.id ?? null;
       t.alternates = cap.filter((p) => p.id !== t.captain).slice(0, 2).map((p) => p.id);
