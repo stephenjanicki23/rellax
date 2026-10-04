@@ -74,6 +74,10 @@ export const COACH_BIRTH_YEAR: Record<string, number> = {
   'Bruce Cassidy': 1965, 'John Tortorella': 1958, 'Patrick Roy': 1965, 'Gerard Gallant': 1963, 'Bruce Boudreau': 1955,
   'Darryl Sutter': 1958, 'Claude Julien': 1960, 'Craig Berube': 1965, 'Dan Bylsma': 1970, 'Dave Hakstol': 1968,
   'Barry Trotz': 1962, 'Kris Knoblauch': 1978, 'Dean Evason': 1964, 'Derek Lalonde': 1972, 'Luke Richardson': 1969,
+  'Jim Hiller': 1969, 'Ryan Craig': 1982, 'Mike Yeo': 1973, 'Jay Woodcroft': 1976, 'Greg Cronin': 1963, 'Don Granato': 1967,
+  'Bob Boughner': 1971, 'David Quinn': 1966, 'Dallas Eakins': 1967, 'Todd Reirden': 1971, 'Bill Peters': 1965,
+  'Jeremy Colliton': 1985, 'Ralph Krueger': 1959, 'Dave Lowry': 1965, 'Joe Sacco': 1969, 'Derek King': 1967,
+  'Dominique Ducharme': 1973, 'Adam Foote': 1971, 'Brad Larsen': 1977, 'Brad Shaw': 1964, 'D.J. Smith': 1977,
 };
 
 /**
