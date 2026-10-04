@@ -17,7 +17,7 @@ import { isRestricted, processQualifyingOffers, rfaDay } from '../cba/rfa';
 import { demandedClause, payStructure, respondToOffer, startNegotiation } from '../cba/negotiation';
 import { endHoldout } from '../cba/holdouts';
 import { rulesFor } from '../cba/rules';
-import { capSeason } from '../cba/capManager';
+import { capSeason, contractFor } from '../cba/capManager';
 import { signPlayer, releasePlayer, rosterSize, rosterCounts, ensureDressable, trimRoster } from './roster';
 import { executeTrade, validateTrade } from './trade';
 import { fitsPlan, planContext } from '../ai/finance';
@@ -126,6 +126,13 @@ export function aiResign(league: League, teamId: number): void {
       const fit = fitsPlan(league, teamId, p, ask.salary, ask.years, ctx);
       const core = p.ca >= 150 || (age <= 25 && p.pa >= 155);
       if (!fit.ok && !core) want = false;
+      // Hard cap (no offseason allowance): even a core player only comes back if there is still room to fill out a roster.
+      if (want) {
+        const next = capSeason(league);
+        const signed = playersOf(league, teamId, ['active']).filter((x) => x.id !== p.id && contractFor(x, next)).length;
+        const fill = Math.max(0, 20 - signed - 1) * rulesFor(next).minimumSalary;
+        if (ctx.total + ask.salary + fill > rulesFor(next).upperLimit) want = false;
+      }
     }
     if (!want) continue;
     if (rfa) {

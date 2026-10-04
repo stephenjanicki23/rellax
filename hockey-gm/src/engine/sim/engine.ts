@@ -44,7 +44,7 @@ export const TUNING = {
   /** Contest penalty for a completely new system. */
   unfamiliarity: 0.08,
   moraleWeight: 0.04,
-  finishOffset: 0.06,
+  finishOffset: 0.1,
   shooterWeight: 0.24,
   goalieWeight: 0.25,
   /** Stick/hold penalties per second of play (both teams combined). */
@@ -59,13 +59,15 @@ export const TUNING = {
   scoreEffect: 0.11,
   /** Slope of team-vs-team possession contests (breakouts, entries, battles, turnovers). */
   contest: 0.13,
+  ratingScale: Number(globalThis.process?.env?.HGM_RATING_SCALE ?? 40),
 };
 
 type Zone = 'D' | 'N' | 'O';
 type Side = 0 | 1;
 
 let BASE = 120;
-const zs = (v: number): number => (v - BASE) / 30;
+/** Ratings → engine z-scores; the scale sets how much a talent gap matters on the ice (and so league parity). */
+const zs = (v: number): number => (v - BASE) / TUNING.ratingScale;
 
 interface SP {
   id: number;
