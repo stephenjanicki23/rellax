@@ -44,6 +44,8 @@ export const TUNING = {
   /** Contest penalty for a completely new system. */
   unfamiliarity: 0.08,
   moraleWeight: 0.04,
+  /** Contest edge on special teams per standard deviation of the staff's special-teams rating. */
+  specialTeamsWeight: 0.035,
   finishOffset: 0.1,
   shooterWeight: 0.24,
   goalieWeight: 0.25,
@@ -159,6 +161,8 @@ interface ST {
   coachTac: number;
   coachMot: number;
   coachGk: number;
+  /** Head coach's discipline: scales how often his players are penalised (1 = average). */
+  coachDisc: number;
   /** System fit × familiarity: additive edge in contests for each area (0 when balanced/neutral). */
   sys: { off: number; def: number; fc: number; pp: number; pk: number };
   /** How strongly each area's tactical effects apply (coach tactics × fit × familiarity). */
@@ -317,6 +321,12 @@ function systemEffects(inp: GameTeamInput, coachTac: number): Pick<ST, 'sys' | '
   };
 }
 
+/** The staff's special-teams design adds an edge on the power play and penalty kill. */
+function withSpecialTeams(e: Pick<ST, 'sys' | 'tacMult'>, z: number): Pick<ST, 'sys' | 'tacMult'> {
+  const edge = z * TUNING.specialTeamsWeight;
+  return { ...e, sys: { ...e.sys, pp: e.sys.pp + edge, pk: e.sys.pk + edge } };
+}
+
 export class GameSim {
   readonly rng: Rng;
   readonly input: GameInput;
@@ -404,7 +414,8 @@ export class GameSim {
       coachTac: clamp(1 + coachZ(c?.tactics) * 0.25, 0.6, 1.4),
       coachMot: coachZ(c?.motivation),
       coachGk: coachZ(c?.goaltending) * 0.04,
-      ...systemEffects(inp, clamp(1 + coachZ(c?.tactics) * 0.25, 0.6, 1.4)),
+      coachDisc: clamp(1 - coachZ(c?.discipline) * 0.1, 0.8, 1.2),
+      ...withSpecialTeams(systemEffects(inp, clamp(1 + coachZ(c?.tactics) * 0.25, 0.6, 1.4)), coachZ(c?.specialTeams)),
       morale: ((inp.morale - 55) / 45) * TUNING.moraleWeight,
       lineChem: 0,
       goalieConf: 0,
@@ -1664,7 +1675,7 @@ export class GameSim {
     this.ev('hit', hitter.team, hitter.id, target.id);
     if (this.rng.chance(TUNING.injuryHit * target.injuryRisk * (1 + Math.max(0, hitter.phys) * 0.3))) this.injure(target, 'hit');
     const aggr = hitter.hitProp;
-    if (this.rng.chance(TUNING.hitPenalty * clamp(1 - hitter.disc * 0.35, 0.4, 1.8) * (0.6 + 0.4 * aggr) * this.callFactor(hitter.team))) {
+    if (this.rng.chance(TUNING.hitPenalty * clamp(1 - hitter.disc * 0.35, 0.4, 1.8) * (0.6 + 0.4 * aggr) * this.teams[hitter.team].coachDisc * this.callFactor(hitter.team))) {
       this.callPenalty(hitter, this.rng.weighted(HIT_PENALTIES, (x) => x[1])[0]);
       return;
     }
@@ -1743,7 +1754,7 @@ export class GameSim {
       const defSide = (this.zone === 'O' ? 1 - this.poss : this.zone === 'D' ? this.poss : rng.chance(0.5) ? 0 : 1) as Side;
       const offSide = (rng.chance(0.64) ? defSide : 1 - defSide) as Side;
       const t = this.teams[offSide];
-      const tacMult = (t.tactics.defense === 'physical' ? 1.15 : t.tactics.defense === 'aggressive' ? 1.08 : 1) * (this.isPK(offSide) ? 0.75 : 1);
+      const tacMult = (t.tactics.defense === 'physical' ? 1.15 : t.tactics.defense === 'aggressive' ? 1.08 : 1) * (this.isPK(offSide) ? 0.75 : 1) * t.coachDisc;
       if (rng.chance(clamp(tacMult * 0.8 * this.callFactor(offSide), 0, 1)) && t.onIce.length) {
         const offender = this.pickW(t.onIce, (p) => clamp(1 - p.disc * 0.35, 0.3, 2) * (0.6 + 0.4 * p.hitProp) * (p.fat < 0 ? 1.2 : 1));
         this.callPenalty(offender, rng.weighted(STICK_PENALTIES, (x) => x[1])[0]);

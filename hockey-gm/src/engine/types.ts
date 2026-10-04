@@ -402,6 +402,46 @@ export interface CoachRatings {
   goaltending: number;
   motivation: number;
   tactics: number;
+  /** Power play and penalty kill design. */
+  specialTeams: number;
+  /** How disciplined his teams are (fewer penalties). */
+  discipline: number;
+}
+
+/** One coaching stint in a season (head coaches carry a record). */
+export interface CoachSeasonLine {
+  season: number;
+  /** League team id (null for real history with a franchise no longer in the league). */
+  teamId: number | null;
+  /** Team abbreviation, for real NHL history imported from the feed. */
+  team?: string;
+  role?: 'head' | 'assistant' | 'goalie';
+  gp?: number;
+  w: number;
+  l: number;
+  /** Ties (NHL before 2005-06). */
+  t?: number;
+  otl: number;
+  pw?: number;
+  pl?: number;
+  playoffs: string;
+  cup?: boolean;
+  /** Came from the real NHL record (before this save began). */
+  real?: boolean;
+  interim?: boolean;
+}
+
+/** Current-season tally for a head coach's stint with his team. */
+export interface CoachStint {
+  season: number;
+  teamId: number;
+  gp: number;
+  w: number;
+  l: number;
+  otl: number;
+  pw: number;
+  pl: number;
+  interim?: boolean;
 }
 
 export interface Coach {
@@ -419,9 +459,32 @@ export interface Coach {
   teamId: number | null;
   contract: { salary: number; years: number } | null;
   reputation: number; // 0-100
-  career: { season: number; teamId: number; w: number; l: number; otl: number; playoffs: string }[];
+  career: CoachSeasonLine[];
   hiredSeason: number | null;
   retired?: boolean;
+  /** Where he comes from (e.g. "Former NHL head coach", "AHL head coach"). */
+  background?: string;
+  /** Real NHL head coach (record imported from the NHL feed). */
+  real?: boolean;
+  /** False when the birth year is only estimated (age is not shown). */
+  birthKnown?: boolean;
+  /** Head-coaching stints this season (a mid-season change starts a new one). */
+  stints?: CoachStint[];
+  /** Coaching honours (Jack Adams, Stanley Cups) — real ones are imported. */
+  awards?: { season: number; award: string }[];
+  /** Interim head coach (promoted from the bench after a firing). */
+  interim?: boolean;
+  /** Seasons until he will talk to a club that fired him. */
+  grudge?: Record<number, number>;
+}
+
+/** Salary still owed to a coach who was let go (thousands, per season). */
+export interface DeadStaffMoney {
+  coachId: number;
+  name: string;
+  salary: number;
+  /** Last season (inclusive) the club pays him. */
+  throughSeason: number;
 }
 
 export interface Scout {
@@ -471,6 +534,8 @@ export interface Team {
   famTactics?: Tactics;
   owner: string;
   staff: { headCoach: number | null; assistant: number | null; goalieCoach: number | null };
+  /** Coaches the club fired but is still paying. */
+  deadStaff?: DeadStaffMoney[];
   lines: Lines;
   autoLines: boolean;
   tactics: Tactics;

@@ -4,8 +4,8 @@
  * contending and rebuilding.
  */
 import { clamp } from '../core/math';
-import type { Coach, League, Team } from '../types';
-import { addNews, addTransaction, isCpu, playersOf, teamName, withRng, points } from '../league/helpers';
+import type { League } from '../types';
+import { addNews, isCpu, playersOf, teamName, withRng, points } from '../league/helpers';
 import { enforceCap, ensureDressable, promoteReadyProspects, trimProspects, trimRoster } from '../economy/roster';
 import { executeTrade, findAiGoalieTrade, validateTrade } from '../economy/trade';
 import { marketDay, offerForUser, offseasonMarket, tradeBlock } from './tradeMarket';
@@ -14,14 +14,15 @@ import { publishCentralRankings, weeklyScouting } from '../economy/scouting';
 /** Schedule day of the Central Scouting midterm rankings (about January 15). */
 const CS_MIDTERM_DAY = 99;
 import { teamStrength } from '../team/strength';
-import { coachOverall, tacticsForRoster } from '../team/coaching';
+import { tacticsForRoster } from '../team/coaching';
+import { coachOf, extensionAsk, fireHeadCoach, hireBest, releaseCoach } from '../team/staffMarket';
 import { demandedExtras, extensionEligible, offerContract, resignAsk, willingness } from '../economy/freeAgency';
 import { autoLines } from '../team/lines';
 import { fullName } from '../player/ability';
 import { aiCapHousekeeping } from './finance';
 import { holdoutDay } from '../cba/holdouts';
 import { startNegotiation } from '../cba/negotiation';
-import { coachChangeFamiliarity, fitNorm } from '../team/fit';
+import { fitNorm } from '../team/fit';
 
 export function aiDaily(league: League): void {
   holdoutDay(league);
@@ -81,52 +82,11 @@ function aiExtensions(league: League): void {
   }
 }
 
-function availableCoaches(league: League, role: Coach['role']): Coach[] {
-  return Object.values(league.coaches).filter((c) => c.teamId === null && !c.retired && c.role === role);
-}
-
-export function hireCoach(league: League, team: Team, role: Coach['role']): Coach | null {
-  const pool = availableCoaches(league, role).sort((a, b) => coachOverall(b) + b.reputation * 0.3 - (coachOverall(a) + a.reputation * 0.3));
-  const c = pool[0];
-  if (!c) return null;
-  c.teamId = team.id;
-  c.hiredSeason = league.season;
-  c.contract = { salary: role === 'head' ? 1500 + Math.round(c.reputation * 30) : 600, years: 3 };
-  if (role === 'head') team.staff.headCoach = c.id;
-  else if (role === 'goalie') team.staff.goalieCoach = c.id;
-  else team.staff.assistant = c.id;
-  if (role === 'head') {
-    const roster = playersOf(league, team.id);
-    withRng(league, (rng) => (team.tactics = tacticsForRoster(c.philosophy, roster, c.ratings.tactics, rng, team.lines, c.system, fitNorm(league))));
-    // A new coach installs his own system: the players have to learn it.
-    coachChangeFamiliarity(team);
-  }
-  return c;
-}
-
-export function fireCoach(league: League, team: Team, reason: string): void {
-  const id = team.staff.headCoach;
-  if (id === null) return;
-  const c = league.coaches[id];
-  c.teamId = null;
-  c.contract = null;
-  c.reputation = clamp(c.reputation - 8, 0, 100);
-  team.staff.headCoach = null;
-  const replacement = hireCoach(league, team, 'head');
-  addNews(league, {
-    category: 'coach',
-    headline: `${teamName(league, team.id)} fire head coach ${c.first} ${c.last}${replacement ? `; ${replacement.first} ${replacement.last} takes over` : ''}`,
-    body: reason,
-    teamIds: [team.id],
-    playerIds: [],
-    importance: 3,
-  });
-  addTransaction(league, { kind: 'coach', teamIds: [team.id], playerIds: [], description: `${teamName(league, team.id)} dismiss ${c.first} ${c.last}${replacement ? ` and hire ${replacement.first} ${replacement.last}` : ''}` });
-}
-
 function midseasonCoachReview(league: League): void {
   for (const t of league.teams) {
     if (t.id === league.userTeamId) continue;
+    if (t.staff.assistant === null) hireBest(league, t, 'assistant');
+    if (t.staff.headCoach === null) hireBest(league, t, 'head');
     const r = league.standings[t.id];
     if (!r || r.gp < 25) continue;
     const pace = (points(r) / r.gp) * league.config.season.games;
@@ -137,7 +97,9 @@ function midseasonCoachReview(league: League): void {
     if (mem.coachHotSeat >= 3) {
       const roll = withRng(league, (rng) => rng.next());
       if (roll < 0.35 + t.gm.aggression * 0.3) {
-        fireCoach(league, t, `The team is on pace for ${Math.round(pace)} points against expectations of ${expected}.`);
+        // Most clubs promote an assistant on an interim basis; some go straight to the market.
+        const interim = withRng(league, (rng) => rng.chance(0.6));
+        fireHeadCoach(league, t, `The team is on pace for ${Math.round(pace)} points against expectations of ${expected}.`, { interim });
         mem.coachHotSeat = 0;
       }
     }
@@ -187,30 +149,52 @@ export function offseasonCoaching(league: League): void {
     c.contract.years--;
   }
   for (const t of league.teams) {
-    if (t.id === league.userTeamId) continue;
-    const r = league.standings[t.id];
-    const hc = t.staff.headCoach !== null ? league.coaches[t.staff.headCoach] : undefined;
-    if (!hc || !r) {
-      if (!hc) hireCoach(league, t, 'head');
-      continue;
+    const user = t.id === league.userTeamId;
+    // Expired deals: CPU clubs decide below; the user's coaches leave unless extended.
+    for (const slot of ['headCoach', 'assistant', 'goalieCoach'] as const) {
+      const c = coachOf(league, t, slot);
+      if (!c?.contract || c.contract.years > 0) continue;
+      if (user || slot !== 'headCoach') {
+        if (!user && withRng(league, (rng) => rng.chance(0.75))) {
+          c.contract = { ...extensionAsk(league, c), years: 2 };
+          continue;
+        }
+        releaseCoach(league, t, slot, false);
+        addNews(league, { category: 'coach', headline: `${c.first} ${c.last}'s contract with the ${teamName(league, t.id)} expires; he is free to join another club`, teamIds: [t.id], playerIds: [], importance: user ? 3 : 1 });
+      }
     }
-    const diff = points(r) - (league.projections[t.id] ?? 92);
-    const tenure = league.season - (hc.hiredSeason ?? league.season);
-    const missed = !league.playoffs?.seeds.some((s) => s.teamId === t.id);
-    let pFire = 0;
-    if (diff < -10) pFire += 0.45;
-    if (missed && tenure >= 2) pFire += 0.25;
-    if (hc.contract && hc.contract.years <= 0) pFire += 0.3;
-    if (diff > 8) pFire -= 0.4;
-    if (withRng(league, (rng) => rng.chance(clamp(pFire, 0, 0.9)))) fireCoach(league, t, missed ? 'The team missed the playoffs.' : 'Results fell short of expectations.');
-    else if (hc.contract && hc.contract.years <= 0) hc.contract = { salary: hc.contract.salary + 200, years: 3 };
-    if (t.staff.goalieCoach === null) hireCoach(league, t, 'goalie');
-    if (t.staff.assistant === null) hireCoach(league, t, 'assistant');
+    if (user) continue;
+    const r = league.standings[t.id];
+    const hc = coachOf(league, t, 'headCoach');
+    if (!hc || !r) {
+      if (!hc) hireBest(league, t, 'head');
+    } else {
+      const diff = points(r) - (league.projections[t.id] ?? 92);
+      const tenure = league.season - (hc.hiredSeason ?? league.season);
+      const missed = !league.playoffs?.seeds.some((s) => s.teamId === t.id);
+      let pFire = 0;
+      if (diff < -10) pFire += 0.45;
+      if (missed && tenure >= 2) pFire += 0.25;
+      if (hc.contract && hc.contract.years <= 0) pFire += 0.3;
+      if (hc.interim) pFire += diff > 5 ? 0.1 : 0.6;
+      if (diff > 8) pFire -= 0.4;
+      if (withRng(league, (rng) => rng.chance(clamp(pFire, 0, 0.9)))) {
+        if (hc.interim) {
+          releaseCoach(league, t, 'headCoach', false);
+          hireBest(league, t, 'head');
+        } else fireHeadCoach(league, t, missed ? 'The team missed the playoffs.' : 'Results fell short of expectations.', { interim: false });
+      } else if (hc.interim || (hc.contract && hc.contract.years <= 0)) {
+        hc.interim = undefined;
+        hc.contract = { ...extensionAsk(league, hc), years: 3 };
+      }
+    }
+    if (t.staff.goalieCoach === null) hireBest(league, t, 'goalie');
+    if (t.staff.assistant === null) hireBest(league, t, 'assistant');
   }
   // Coaches age out.
   for (const c of Object.values(league.coaches)) {
     const age = league.season - c.birthYear;
-    if (c.teamId === null && age >= 68) c.retired = true;
+    if (c.teamId === null && (age >= 70 || (age >= 64 && withRng(league, (rng) => rng.chance(0.25))))) c.retired = true;
   }
 }
 
@@ -232,6 +216,11 @@ export function aiPreseason(league: League): void {
     ensureDressable(league, t.id);
     const roster = playersOf(league, t.id);
     if (t.autoLines || isCpu(league, t.id)) t.lines = autoLines(roster);
+    // A club can't open the season without a head coach: the owner fills an empty bench.
+    if (t.staff.headCoach === null) {
+      const c = hireBest(league, t, 'head');
+      if (c && t.id === league.userTeamId) addNews(league, { category: 'coach', headline: `With the bench still empty, ownership hires ${c.first} ${c.last} as head coach`, teamIds: [t.id], playerIds: [], importance: 3 });
+    }
     // Every head coach (the user's included) sets his team's systems for the season.
     const hc = t.staff.headCoach !== null ? league.coaches[t.staff.headCoach] : undefined;
     if (hc) withRng(league, (rng) => (t.tactics = tacticsForRoster(hc.philosophy, roster, hc.ratings.tactics, rng, t.lines, hc.system, fitNorm(league))));

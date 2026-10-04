@@ -72,6 +72,23 @@ export const COACH_PROFILES: Record<string, CoachProfile> = {
   'Lane Lambert': { philosophy: 'defensive', system: { offense: 'dumpChase', defense: 'trap', forecheck: '1-3-1' }, lean: { defense: 12 }, note: 'Defensive structure from the Trotz tree' },
   'Manny Malhotra': { philosophy: 'structured', system: { offense: 'cycle', defense: 'passive', pk: 'box' }, lean: { defense: 8, development: 6 }, note: 'Detail and faceoff-driven structure' },
   'Ryan Craig': { philosophy: 'balanced', system: { defense: 'aggressive' }, lean: { motivation: 6 }, note: 'Balanced, pressure-based system' },
+  // Former NHL head coaches (the candidate pool).
+  'Bruce Cassidy': { philosophy: 'structured', system: { offense: 'possession', defense: 'aggressive' }, lean: { tactics: 12, offense: 6 }, note: 'Demanding and detailed; activates his defencemen' },
+  'John Tortorella': { philosophy: 'physical', system: { offense: 'dumpChase', defense: 'physical', pk: 'aggressive' }, lean: { motivation: 14, defense: 8, discipline: -14 }, note: 'Fiery and demanding; shot-blocking, accountable hockey' },
+  'Patrick Roy': { philosophy: 'physical', system: { offense: 'rush', defense: 'aggressive' }, lean: { motivation: 12, goaltending: 14, discipline: -10 }, note: 'Emotional competitor; aggressive style and a goalie\'s eye' },
+  'Craig Berube': { philosophy: 'physical', system: { offense: 'cycle', defense: 'physical', forecheck: '2-1-2' }, lean: { motivation: 10, defense: 8 }, note: 'Heavy, north-south hockey' },
+  'Kris Knoblauch': { philosophy: 'offensive', system: { offense: 'possession', pp: 'overload' }, lean: { offense: 10, specialTeams: 8 }, note: 'Lets skill drive play; strong special teams' },
+  'Dean Evason': { philosophy: 'structured', system: { offense: 'cycle', defense: 'passive', pk: 'box' }, lean: { defense: 8, discipline: 6 }, note: 'Hard-working, structured team defence' },
+  'Derek Lalonde': { philosophy: 'structured', system: { offense: 'possession', defense: 'balanced' }, lean: { tactics: 8 }, note: 'Detail-oriented structure' },
+  'Dan Bylsma': { philosophy: 'offensive', system: { offense: 'rush', defense: 'aggressive', forecheck: '2-1-2' }, lean: { offense: 8 }, note: 'Up-tempo pressure game' },
+  'Greg Cronin': { philosophy: 'development', system: { offense: 'balanced', defense: 'aggressive' }, lean: { development: 12, motivation: 6 }, note: 'Teacher; hard-working young teams' },
+  'Luke Richardson': { philosophy: 'development', system: { offense: 'balanced', defense: 'balanced' }, lean: { development: 10 }, note: 'Former defenceman; patient with young players' },
+  'Gerard Gallant': { philosophy: 'offensive', system: { offense: 'rush', pp: 'overload' }, lean: { offense: 10, motivation: 10 }, note: "Players' coach who lets skill play" },
+  'Bruce Boudreau': { philosophy: 'offensive', system: { offense: 'possession', pp: 'overload' }, lean: { offense: 14, specialTeams: 6 }, note: 'Offence first; a long run of regular-season success' },
+  'Darryl Sutter': { philosophy: 'defensive', system: { offense: 'dumpChase', defense: 'physical', forecheck: '1-2-2' }, lean: { defense: 14, motivation: 6 }, note: 'Heavy, defensive and demanding' },
+  'Claude Julien': { philosophy: 'defensive', system: { offense: 'cycle', defense: 'passive', forecheck: '1-2-2', pk: 'box' }, lean: { defense: 14, tactics: 6 }, note: 'Defensive structure and accountability' },
+  'Dave Hakstol': { philosophy: 'structured', system: { offense: 'dumpChase', defense: 'balanced' }, lean: { defense: 6, development: 6 }, note: 'Structured and hard-working' },
+  'Don Granato': { philosophy: 'development', system: { offense: 'possession', defense: 'aggressive' }, lean: { development: 14, offense: 6 }, note: 'Development-first, puck-possession style' },
 };
 
 /** Split "Rod Brind'Amour" / "Martin St. Louis" into first and last name. */

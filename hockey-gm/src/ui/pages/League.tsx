@@ -3,7 +3,8 @@ import { useGame } from '../store';
 import { Card, Table, TeamLink, Tabs } from '../components/common';
 import { teamStrength, powerRankings } from '../../engine/team/strength';
 import { payroll, fmtMoney } from '../../engine/economy/contracts';
-import { coachOverall, PHILOSOPHY_LABEL } from '../../engine/team/coaching';
+import { coachOverall, coachTotals, PHILOSOPHY_LABEL } from '../../engine/team/coaching';
+import { CoachLink, careerRecord, coachAge } from '../components/CoachBits';
 import { recordString } from '../../engine/league/standings';
 import type { Coach, Team } from '../../engine/types';
 import { attr20 } from '../../engine/player/ability';
@@ -75,9 +76,9 @@ export function LeaguePage() {
             rowKey={(c) => c.id}
             initialSort={{ key: 'ovr' }}
             columns={[
-              { key: 'name', label: 'Coach', render: (c) => `${c.first} ${c.last}`, sort: (c) => c.last, defaultDesc: false },
+              { key: 'name', label: 'Coach', render: (c) => <CoachLink c={c} />, sort: (c) => c.last, defaultDesc: false },
               { key: 'team', label: 'Team', render: (c) => (c.teamId !== null ? <TeamLink league={league} id={c.teamId} short /> : <span className="dim">Available</span>) },
-              { key: 'age', label: 'Age', num: true, render: (c) => league.season - c.birthYear },
+              { key: 'age', label: 'Age', num: true, render: (c) => coachAge(league, c) },
               { key: 'ph', label: 'Philosophy', render: (c) => <span className="muted">{PHILOSOPHY_LABEL[c.philosophy]}</span> },
               { key: 'ovr', label: 'Ovr', num: true, render: (c) => <b>{attr20(coachOverall(c))}</b>, sort: (c) => coachOverall(c) },
               { key: 'off', label: 'Off', num: true, render: (c) => attr20(c.ratings.offense), sort: (c) => c.ratings.offense },
@@ -86,7 +87,11 @@ export function LeaguePage() {
               { key: 'gk', label: 'GK', num: true, render: (c) => attr20(c.ratings.goaltending), sort: (c) => c.ratings.goaltending },
               { key: 'mot', label: 'Mot', num: true, render: (c) => attr20(c.ratings.motivation), sort: (c) => c.ratings.motivation },
               { key: 'tac', label: 'Tac', num: true, render: (c) => attr20(c.ratings.tactics), sort: (c) => c.ratings.tactics },
-              { key: 'rec', label: 'Career', render: (c) => { const w = c.career.reduce((s, x) => s + x.w, 0); const l = c.career.reduce((s, x) => s + x.l + x.otl, 0); return w + l ? `${w}-${l}` : '—'; } },
+              { key: 'st', label: 'ST', title: 'Special teams', num: true, render: (c) => attr20(c.ratings.specialTeams), sort: (c) => c.ratings.specialTeams },
+              { key: 'dis', label: 'Disc', title: 'Discipline', num: true, render: (c) => attr20(c.ratings.discipline), sort: (c) => c.ratings.discipline },
+              { key: 'gp', label: 'GP', num: true, render: (c) => coachTotals(c).gp, sort: (c) => coachTotals(c).gp },
+              { key: 'rec', label: 'Career', num: true, render: (c) => careerRecord(c), sort: (c) => coachTotals(c).w },
+              { key: 'cups', label: 'Cups', num: true, render: (c) => coachTotals(c).cups || '', sort: (c) => coachTotals(c).cups },
             ]}
           />
         </Card>

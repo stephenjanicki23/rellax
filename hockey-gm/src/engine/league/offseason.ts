@@ -28,7 +28,8 @@ import { aiSignDraftPicks, warnExpiringRights } from '../economy/draftRights';
 import { projectedPoints } from '../team/strength';
 import { teamBudget } from '../economy/contracts';
 import { expectedToiFor } from '../player/generate';
-import { generateCoach } from '../team/coaching';
+import { stockCoachPool } from '../team/coachPool';
+import { closeCoachSeason } from '../team/staffMarket';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
 import { advanceContracts } from '../cba/contractService';
@@ -93,11 +94,7 @@ function recordHistory(league: League, awards: SeasonHistory['awards']): void {
     standings: rows.map((r) => ({ teamId: r.team.id, w: r.rec.w, l: r.rec.l, otl: r.rec.otl, pts: r.pts, gf: r.rec.gf, ga: r.rec.ga, playoff: playoffResultFor(league, r.team.id) })),
     leaders: seasonLeaders(league),
   });
-  for (const c of Object.values(league.coaches)) {
-    if (c.teamId === null || c.role !== 'head') continue;
-    const r = league.standings[c.teamId];
-    if (r) c.career.push({ season: league.season, teamId: c.teamId, w: r.w, l: r.l, otl: r.otl, playoffs: playoffResultFor(league, c.teamId) });
-  }
+  closeCoachSeason(league);
 }
 
 /** Rivalries intensify with playoff meetings and division battles. */
@@ -292,11 +289,7 @@ export function startNewSeason(league: League): void {
       if (!league.draftPicks.some((d) => d.season === league.season + 2 && d.round === r && d.originalTeamId === t.id))
         league.draftPicks.push({ id: league.nextId.pick++, season: league.season + 2, round: r, originalTeamId: t.id, ownerId: t.id });
   // Keep the coaching pool stocked.
-  const unemployed = Object.values(league.coaches).filter((c) => c.teamId === null && !c.retired).length;
-  for (let i = unemployed; i < 16; i++) {
-    const c = generateCoach(dRng, league.nextId.coach++, league.season, clamp(dRng.normal(95, 18), 50, 160), dRng.chance(0.7) ? 'head' : dRng.chance(0.5) ? 'goalie' : 'assistant');
-    league.coaches[c.id] = c;
-  }
+  stockCoachPool(league, dRng);
   // Prune chemistry for pairs who are no longer teammates; decay the rest.
   const teamOf = new Map(Object.values(league.players).map((p) => [p.id, p.teamId]));
   for (const k of Object.keys(league.chemistry)) {

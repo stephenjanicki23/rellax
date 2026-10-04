@@ -56,6 +56,14 @@ function migrate(league: League): League {
   for (const t of league.teams) league.aiMemory[t.id] ??= { lastTradeDay: -100, coachHotSeat: 0 };
   for (const p of Object.values(league.players)) p.caHistory ??= [];
   league.tradeOffers ??= [];
+  // Coaches: special-teams and discipline ratings arrived later.
+  for (const c of Object.values(league.coaches)) {
+    const r = c.ratings;
+    const base = Math.round((r.offense + r.defense + r.tactics + r.motivation) / 4);
+    r.specialTeams ??= base;
+    r.discipline ??= base;
+    c.birthKnown ??= true;
+  }
   league.ahl ??= newAhlState(league.teams, league.season);
   // v2: NHL contract & cap system.
   const fin = emptyFinancialState();

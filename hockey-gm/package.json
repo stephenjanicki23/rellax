@@ -15,6 +15,7 @@
     "fetch:contracts": "node scripts/fetch-contracts.mjs",
     "build:draft": "node scripts/build-draft.mjs",
     "build:ahl": "node scripts/build-ahl.mjs",
+    "fetch:coaches": "node scripts/fetch-coaches.mjs",
     "fetch:draftclass": "node scripts/fetch-draft-class.mjs",
     "import:draftboard": "node scripts/import-draft-board.mjs",
     "fetch:nhl": "node scripts/fetch-nhl.mjs"

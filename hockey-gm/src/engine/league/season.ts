@@ -11,6 +11,7 @@ import type { GameResult } from '../sim/gameTypes';
 import { simulateGame } from '../sim/engine';
 import { buildGameInput } from './gameInput';
 import { applyToStandings } from './standings';
+import { tallyCoachGame } from '../team/staffMarket';
 import { addNews, isCpu, playersOf, teamName } from './helpers';
 import { makeInjury, injuryLabel } from '../player/injuries';
 import { developPlayer } from '../player/development';
@@ -76,6 +77,9 @@ export function applyGameResult(league: League, g: ScheduledGame, r: GameResult)
   const playoff = !!g.playoff;
   if (!playoff) applyToStandings(league, g.home, g.away, r);
   const teams = [g.home, g.away];
+  const homeWon = r.homeGoals > r.awayGoals;
+  tallyCoachGame(league, g.home, homeWon, !!r.ot, playoff);
+  tallyCoachGame(league, g.away, !homeWon, !!r.ot, playoff);
   for (const id of teams) learnSystem(league, league.teams[id]);
   const prevAway = league.schedule.find((x) => x.day === g.day - 1 && x.played && x.away === g.away);
   const roadTrip: [boolean, boolean] = [false, !!prevAway];
