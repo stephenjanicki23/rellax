@@ -46,7 +46,8 @@ export function chooseStarter(league: League, team: Team, lines: Lines, day: num
   const backup = league.players[b];
   if (!starter || !backup) return lines;
   const b2b = playedYesterday(league, team.id, day);
-  let pBackup = 0.06;
+  // Modern starters play ~55-62 games: rest on back-to-backs plus the odd regular night off.
+  let pBackup = 0.1;
   if (b2b) pBackup = 0.8;
   if (starter.fatigue > 55) pBackup = Math.max(pBackup, 0.45);
   if (backup.ca > starter.ca - 4) pBackup = Math.max(pBackup, 0.35);

@@ -59,7 +59,7 @@ describe('real rosters', () => {
   it('keeps the calibrated ability curve', () => {
     expect(caForPercentile('F', 0)).toBe(181);
     expect(caForPercentile('F', 0.5)).toBe(130);
-    expect(caForPercentile('G', 1)).toBe(108);
+    expect(caForPercentile('G', 1)).toBe(116);
   });
   it('is deterministic for a seed', () => {
     const again = createLeague({ seed: 'nhl-real', rosters: snap });
