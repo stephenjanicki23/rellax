@@ -1,0 +1,36 @@
+# Tests and builds hockey-gm/ on every push and pull request.
+# (The game is hosted on Vercel, which deploys from master on its own.)
+name: Hockey GM CI
+
+on:
+  push:
+    branches: [master]
+    paths: ['hockey-gm/**', '.github/workflows/hockey-gm-ci.yml']
+  pull_request:
+    paths: ['hockey-gm/**', '.github/workflows/hockey-gm-ci.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hockey-gm-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hockey-gm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hockey-gm/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit -p .
+      - run: npm test
+      - run: npm run build
