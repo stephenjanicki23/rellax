@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ClauseKind, Player } from '../../engine/types';
 import type { OfferExtras } from '../../engine/economy/freeAgency';
 import { agentOf, AGENT_STYLES } from '../../engine/cba/agents';
-import { demandedClause, describeAsk, stanceFor, STANCE_LABEL } from '../../engine/cba/negotiation';
+import { demandedClause, describeAsk, previewNegotiation, STANCE_LABEL } from '../../engine/cba/negotiation';
 import { clauseStartSeason } from '../../engine/cba/contractService';
 
 const CLAUSE_NAME: Record<ClauseKind, string> = { 'M-NTC': 'modified no-trade', NTC: 'no-trade clause', NMC: 'no-movement clause' };
@@ -55,11 +55,10 @@ export function NegotiationModal({
   const mv = marketValue(player, league);
   const value = contractValue(player, league);
   const interest = freeAgent ? offerUtility(league, player, { teamId: me, salary, years, clause }) : null;
-  const neg = league.negotiations[player.id];
-  const talks = neg && neg.season === league.season && neg.teamId === me && !freeAgent && !offerSheet ? neg : null;
-  // Before the first offer, show the stance and demand he'd open with.
   const ownTalks = !freeAgent && !offerSheet;
-  const stance = talks?.stance ?? (ownTalks ? stanceFor(league, player, me) : null);
+  // Own-team talks: the agent's real demand, shown from the start (before the first offer too).
+  const talks = ownTalks ? previewNegotiation(league, player, me) : null;
+  const stance = talks?.stance ?? null;
   const wantClause = talks ? (talks.demand.clause ?? null) : demandedClause(league, player, years);
   const canClause = clauseStartSeason(player, season + 1, years) !== null;
   // Extensions start next season, so judge them against next season's books.

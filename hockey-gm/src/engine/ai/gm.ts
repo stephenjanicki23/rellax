@@ -17,6 +17,7 @@ import { autoLines } from '../team/lines';
 import { fullName } from '../player/ability';
 import { aiCapHousekeeping } from './finance';
 import { holdoutDay } from '../cba/holdouts';
+import { startNegotiation } from '../cba/negotiation';
 import { coachChangeFamiliarity, fitNorm } from '../team/fit';
 
 export function aiDaily(league: League): void {
@@ -66,8 +67,11 @@ function aiExtensions(league: League): void {
       if (p.ca < 135 || age >= 33) continue;
       if (t.strategy === 'rebuild' && age >= 29) continue;
       if (willingness(league, p) < 0.55) continue;
+      // CPU clubs meet the agent's demand when it's within reach of what the player is worth to them.
       const ask = resignAsk(league, p);
-      offerContract(league, p, ask.salary, ask.years, demandedExtras(league, p, t.id));
+      const demand = startNegotiation(league, p, t.id).demand;
+      if (demand.aav > ask.salary * 1.12) continue;
+      offerContract(league, p, demand.aav, demand.years, demandedExtras(league, p, t.id));
     }
   }
 }

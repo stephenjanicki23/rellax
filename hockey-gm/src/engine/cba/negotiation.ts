@@ -76,6 +76,19 @@ export function stanceFor(league: League, p: Player, teamId: number): Negotiatio
 export function startNegotiation(league: League, p: Player, teamId: number): NegotiationState {
   const existing = league.negotiations[p.id];
   if (existing && existing.season === league.season && existing.teamId === teamId) return existing;
+  const state = openingState(league, p, teamId);
+  league.negotiations[p.id] = state;
+  return state;
+}
+
+/** Where talks would open, without starting them (the dialog shows this before the first offer). */
+export function previewNegotiation(league: League, p: Player, teamId: number): NegotiationState {
+  const existing = league.negotiations[p.id];
+  if (existing && existing.season === league.season && existing.teamId === teamId) return existing;
+  return openingState(league, p, teamId);
+}
+
+function openingState(league: League, p: Player, teamId: number): NegotiationState {
   const prof = freeAgentProfile(p, league);
   const agent = agentOf(league, p);
   const style = AGENT_STYLES[agent.style];
@@ -87,9 +100,7 @@ export function startNegotiation(league: League, p: Player, teamId: number): Neg
   const aav = Math.round((prof.askingAav * leverage(league, p) * style.demand * premium) / 5) * 5;
   const demand: ContractAsk = { aav, years, clause: demandedClause(league, p, years), bonusShare: demandedBonus(league, p, years, aav) };
   const patience = Math.round(clamp(55 + p.prefs.loyalty * 20 + (p.morale - 50) * 0.4 + style.patience - (stance === 'open' ? 0 : 10), 20, 100));
-  const state: NegotiationState = { playerId: p.id, teamId, season: league.season, patience, demand, stance, history: [] };
-  league.negotiations[p.id] = state;
-  return state;
+  return { playerId: p.id, teamId, season: league.season, patience, demand, stance, history: [] };
 }
 
 /** Value of an offer relative to the demand, accounting for term, trade protection and bonus structure. */
@@ -148,7 +159,7 @@ export function respondToOffer(league: League, p: Player, teamId: number, offer:
     else if (fit < 0.95) message = `${who} "We're getting closer." ${counter}`;
     else message = `${who} "Close — a little more and we have a deal." ${counter}`;
     // Media-savvy agents take insulting offers to the press, and the player hears about it.
-    if (agent.style === 'media' && fit < 0.85) {
+    if (agent.style === 'media' && fit < 0.85 && teamId === league.userTeamId) {
       p.morale = clamp(p.morale - 4, 0, 100);
       addNews(league, { category: 'rumor', headline: `${name}'s camp calls ${league.teams[teamId].city}'s contract offer "disrespectful"`, teamIds: [teamId], playerIds: [p.id], importance: 2 });
     }

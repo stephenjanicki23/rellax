@@ -93,7 +93,7 @@ describe('holdouts', () => {
     const p = Object.values(l.players).find((x) => x.status === 'active' && x.teamId !== null && x.ca >= 140 && l.season - x.birthYear <= 24 && agentOf(l, x).style === 'hardball')
       ?? Object.values(l.players).find((x) => x.status === 'active' && x.teamId !== null && x.ca >= 140 && agentOf(l, x).style !== 'friendly')!;
     const teamId = p.teamId!;
-    const q: QualifyingOfferRecord = { playerId: p.id, teamId, season: l.season, amount: 900, previousSalary: 900, oneWay: true, arbitrationEligible: false, status: 'submitted', reason: 'test' } as QualifyingOfferRecord;
+    const q: QualifyingOfferRecord = { playerId: p.id, teamId, season: l.season, amount: 900, previousSalary: 900, previousAav: 900, oneWay: true, arbitrationEligible: false, status: 'submitted', explanation: 'test' };
     l.qualifyingOffers.push(q);
     // The hash decides whether a given player holds out; force the decision path either way.
     if (!wantsToHoldOut(l, p, q)) expect(['friendly']).not.toContain(agentOf(l, p).style);
