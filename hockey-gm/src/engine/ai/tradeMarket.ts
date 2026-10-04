@@ -22,7 +22,7 @@ import { fullName, isForward } from '../player/ability';
 import { assetValue, checkTrade, evaluateTrade, executeTrade, findOfferForUser, playerTradeValue, teamTradeValue, proposalMoves, validateTrade, type TradeAsset, type TradeProposal } from '../economy/trade';
 import { capSeason, contractFor, teamCapSheet, withCapCache } from '../cba/capManager';
 import { fullCapHit, holderCapHit, endOf } from '../cba/contract';
-import { retentionErrors, tradeConsent } from '../cba/tradeRules';
+import { describeTradeAsset, retentionErrors, tradeConsent } from '../cba/tradeRules';
 import { contractValue } from '../cba/market';
 import { financialPlan } from './finance';
 import { isUnsignedPick } from '../economy/draftRights';
@@ -120,8 +120,8 @@ function coreOf(league: League, teamId: number): Set<number> {
   return core;
 }
 
-function assetPool(league: League, teamId: number, exclude: Set<number>): TradeAsset[] {
-  const core = coreOf(league, teamId);
+function assetPool(league: League, teamId: number, exclude: Set<number>, includeCore = false): TradeAsset[] {
+  const core = includeCore ? new Set<number>() : coreOf(league, teamId);
   const players = [...playersOf(league, teamId, ['active', 'prospect'])].filter((p) => !core.has(p.id) && !exclude.has(p.id) && !recentlyMoved(league, p.id) && (p.contract || isUnsignedPick(p)));
   const picks = league.draftPicks.filter((d) => d.ownerId === teamId && d.playerId === undefined && d.season <= league.season + 2);
   return [...players.map((p) => ({ kind: 'player' as const, id: p.id })), ...picks.map((d) => ({ kind: 'pick' as const, id: d.id }))];
@@ -132,24 +132,26 @@ function assetPool(league: League, teamId: number, exclude: Set<number>): TradeA
  * the seller values more than the buyer does. Returns null if it can't be done
  * within a few assets.
  */
-function buildPackage(league: League, buyer: number, seller: number, need: number, exclude: Set<number>, rng: Rng): TradeAsset[] | null {
+function buildPackage(league: League, buyer: number, seller: number, need: number, exclude: Set<number>, rng: Rng, budget = Infinity, includeCore = false): TradeAsset[] | null {
   // The seller can only take back so many roster players (it loses one in the deal).
   let activeRoom = Math.max(0, ROSTER_HARD_MAX + 1 - playersOf(league, seller).filter((p) => !p.ltir).length);
   const isActive = (a: TradeAsset) => a.kind === 'player' && league.players[a.id]?.status === 'active';
   const firstRounder = (a: TradeAsset) => a.kind === 'pick' && league.draftPicks.find((d) => d.id === a.id)?.round === 1;
   let firsts = 0; // GMs part with at most one first-round pick in a deal.
-  const pool = assetPool(league, buyer, exclude)
+  const pool = assetPool(league, buyer, exclude, includeCore)
     .filter((a) => a.kind === 'pick' || tradeConsent(league, league.players[a.id], seller).granted)
     .map((a) => ({ a, sv: assetValue(league, seller, a), bv: assetValue(league, buyer, a) }))
-    .filter((x) => x.sv > 0.5)
+    .filter((x) => x.sv > 0.5 && x.bv <= budget)
     .sort((x, y) => y.sv / Math.max(1, y.bv) - x.sv / Math.max(1, x.bv) + rng.normal(0, 0.05));
   const out: TradeAsset[] = [];
   let got = 0;
   // A single asset that covers it is the cleanest deal.
   const single = pool.filter((x) => x.sv >= need && (!isActive(x.a) || activeRoom > 0)).sort((x, y) => x.sv - y.sv)[0];
   if (single && single.sv <= need * 1.6) return [single.a];
+  let spent = 0;
   for (const x of pool) {
     if (got >= need) break;
+    if (spent + x.bv > budget) continue;
     if (firstRounder(x.a) && firsts >= 1) continue;
     if (isActive(x.a)) {
       if (activeRoom <= 0) continue;
@@ -158,6 +160,7 @@ function buildPackage(league: League, buyer: number, seller: number, need: numbe
     if (firstRounder(x.a)) firsts++;
     out.push(x.a);
     got += x.sv;
+    spent += x.bv;
     if (out.length >= 5) break;
   }
   if (got >= need) return out;
@@ -166,8 +169,10 @@ function buildPackage(league: League, buyer: number, seller: number, need: numbe
   let sum = 0;
   let room = Math.max(0, ROSTER_HARD_MAX + 1 - playersOf(league, seller).filter((p) => !p.ltir).length);
   let bigFirsts = 0;
+  let bigSpent = 0;
   for (const x of [...pool].sort((a, b) => b.sv - a.sv)) {
     if (sum >= need || big.length >= 5) break;
+    if (bigSpent + x.bv > budget) continue;
     if (firstRounder(x.a) && bigFirsts >= 1) continue;
     if (isActive(x.a)) {
       if (room <= 0) continue;
@@ -176,6 +181,7 @@ function buildPackage(league: League, buyer: number, seller: number, need: numbe
     if (firstRounder(x.a)) bigFirsts++;
     big.push(x);
     sum += x.sv;
+    bigSpent += x.bv;
   }
   if (sum < need) return null;
   for (const x of [...big].sort((a, b) => a.sv - b.sv)) {
@@ -197,13 +203,13 @@ function capOver(league: League, p: TradeProposal, teamId: number): number {
  * Make the money work the way NHL teams do: the seller retains salary (up to
  * 50%, if it is willing), and/or the buyer sends one or two contracts back.
  */
-function fitCap(league: League, p: TradeProposal, target: Player, buyer: number, seller: number): TradeProposal | null {
+function fitCap(league: League, p: TradeProposal, target: Player, buyer: number, seller: number, allowRetention = true): TradeProposal | null {
   let cur = p;
   let over = capOver(league, cur, buyer);
   if (over <= 0) return cur;
   // 1. Seller retention, in 5% steps.
   const full = fullCapHit(target.contract!);
-  if (seller !== league.userTeamId && (financialPlan(league, seller).retainToSell || marketRole(league, league.teams[seller]) === 'seller')) {
+  if (allowRetention && seller !== league.userTeamId && (financialPlan(league, seller).retainToSell || marketRole(league, league.teams[seller]) === 'seller')) {
     const pct = Math.min(0.5, Math.ceil((over / full) * 20) / 20);
     if (pct > 0 && !retentionErrors(league, target, seller, pct).length) {
       const withRet = { ...cur, retain: [...(cur.retain ?? []), { playerId: target.id, pct }] };
@@ -444,8 +450,8 @@ function attemptsToday(league: League, rng: Rng): number {
   if (league.phase === 'regular') {
     const toDeadline = league.tradeDeadlineDay - league.day;
     if (toDeadline < 0) return 0;
-    const base = league.day < 15 ? 0.25 : 0.8;
-    const rate = toDeadline <= 3 ? 12 : toDeadline <= 14 ? 5 : base;
+    const base = league.day < 15 ? 0.15 : 0.45;
+    const rate = toDeadline <= 3 ? 9 : toDeadline <= 14 ? 3.5 : base;
     return Math.floor(rate) + (rng.chance(rate - Math.floor(rate)) ? 1 : 0);
   }
   return 0;
@@ -616,6 +622,11 @@ export function offerForUser(league: League): UserOffer | null {
 }
 
 function offerForUserInner(league: League): UserOffer | null {
+  // Players on the trade block draw most of the calls.
+  if (tradeBlock(league).length && withRng(league, (rng) => rng.chance(0.6))) {
+    const b = withRng(league, (rng) => blockOffer(league, rng));
+    if (b) return b;
+  }
   const kind = withRng(league, (rng) => {
     const deadline = league.phase === 'regular' && league.tradeDeadlineDay - league.day <= 14;
     const r = rng.next();
@@ -623,4 +634,164 @@ function offerForUserInner(league: League): UserOffer | null {
   });
   const first = withRng(league, (rng) => (kind === 'rental' ? rentalOffer(league, rng) : kind === 'dump' ? dumpOffer(league, rng) : needOffer(league, rng)));
   return first ?? withRng(league, (rng) => needOffer(league, rng)) ?? findOfferForUser(league);
+}
+
+// ───────────────────────────── negotiating with the user ─────────────────────────────
+
+/** The user's trade block (players still on the team). */
+export function tradeBlock(league: League): Player[] {
+  const t = league.teams[league.userTeamId];
+  return (t.tradeBlock ?? []).map((id) => league.players[id]).filter((p): p is Player => !!p && p.teamId === league.userTeamId);
+}
+
+export function toggleTradeBlock(league: League, playerId: number): boolean {
+  const t = league.teams[league.userTeamId];
+  const list = (t.tradeBlock ?? []).filter((id) => league.players[id]?.teamId === t.id);
+  const on = !list.includes(playerId);
+  t.tradeBlock = on ? [...list, playerId] : list.filter((id) => id !== playerId);
+  return on;
+}
+
+/**
+ * What one CPU team would offer for a user's player. Teams know the player is
+ * being shopped, so they bid a little under the user's own valuation; the
+ * package is built from assets the bidder can spare and must fit the cap.
+ */
+function bidFor(league: League, bidder: Team, target: Player, rng: Rng, discount: number): TradeProposal | null {
+  const me = league.userTeamId;
+  if (!tradeConsent(league, target, bidder.id).granted) return null;
+  // Does he help them? A team only bids if he'd crack its lineup or it is rebuilding and he is young.
+  const age = capSeason(league) - target.birthYear;
+  const fits = target.ca >= slotQuality(league, bidder.id)[grp(target)] + 2 || (bidder.strategy === 'rebuild' && age <= 24);
+  if (!fits) return null;
+  // A GM bids what the player is worth to him, never more than the user is asking.
+  const worth = playerTradeValue(league, bidder.id, target);
+  const price = Math.min(playerTradeValue(league, me, target) * discount, worth * 0.9) + 0.5;
+  if (price < 2) return null;
+  // Spend no more (by the bidder's own valuation) than he is worth to them.
+  const pkg = buildPackage(league, bidder.id, me, price, new Set([target.id]), rng, worth * 1.02);
+  if (!pkg) return null;
+  let p: TradeProposal | null = { from: bidder.id, to: me, give: pkg, get: [{ kind: 'player', id: target.id }] };
+  p = fitCap(league, p, target, bidder.id, me);
+  return p && cpuLikes(league, p, 0.95) ? p : null;
+}
+
+/** A call about one of the players on the user's trade block. */
+function blockOffer(league: League, rng: Rng): UserOffer | null {
+  const block = tradeBlock(league);
+  if (!block.length) return null;
+  const target = rng.pick(block);
+  const bidders = rng.shuffle(league.teams.filter((t) => t.id !== league.userTeamId && !onCooldown(league, t.id)));
+  for (const bidder of bidders.slice(0, 8)) {
+    const p = bidFor(league, bidder, target, rng, 0.93);
+    if (p) return { proposal: p, note: `The ${bidder.city} ${bidder.name} saw ${fullName(target)} on your trade block and made an offer.` };
+  }
+  return null;
+}
+
+/** Value of a proposal's return to the user, by the user's own valuation. */
+function userReturn(league: League, p: TradeProposal): number {
+  return p.give.reduce((s, a) => s + assetValue(league, league.userTeamId, a), 0);
+}
+
+/**
+ * Shop a player around the league: the best bid from every interested team,
+ * best return first. Nothing is executed.
+ */
+export function shopPlayer(league: League, playerId: number, max = 6): UserOffer[] {
+  const target = league.players[playerId];
+  if (!target || target.teamId !== league.userTeamId) return [];
+  return withCapCache(() =>
+    withRng(league, (rng) => {
+      const out: UserOffer[] = [];
+      for (const bidder of league.teams) {
+        if (bidder.id === league.userTeamId) continue;
+        const p = bidFor(league, bidder, target, rng, 0.97);
+        if (p) out.push({ proposal: p, note: `${bidder.abbr}: ${p.give.map((a) => describeTradeAsset(league, a)).join(', ')}` });
+      }
+      return out.sort((a, b) => userReturn(league, b.proposal) - userReturn(league, a.proposal)).slice(0, max);
+    }),
+  );
+}
+
+/**
+ * "What would you want for him?" The partner names a price for the assets the
+ * user wants, built from the user's assets it values most relative to what
+ * they're worth to the user (prospects, picks, depth), within the cap.
+ */
+export function askingPrice(league: League, partner: number, want: TradeAsset[], keep: TradeAsset[] = []): TradeProposal | null {
+  if (!want.length) return null;
+  const me = league.userTeamId;
+  return withCapCache(() =>
+    withRng(league, (rng) => {
+      const base: TradeProposal = { from: me, to: partner, give: [...keep], get: want };
+      const ev = evaluateTrade(league, base);
+      if (ev.accept) return base;
+      // Value first (the partner's own view of what it gives up), then make the money work.
+      const short = ev.valueOut * 1.08 * league.settings.tradeDifficulty + 1.5 - ev.valueIn + 0.5;
+      let give = [...keep];
+      if (short > 0) {
+        const exclude = new Set(keep.filter((a) => a.kind === 'player').map((a) => a.id));
+        // A star costs a core piece when prospects, picks and depth can't cover it.
+        const pkg = buildPackage(league, me, partner, short, exclude, rng) ?? buildPackage(league, me, partner, short, exclude, rng, Infinity, true);
+        if (!pkg) return null;
+        give = [...keep, ...pkg.filter((a) => !keep.some((k) => k.kind === a.kind && k.id === a.id))];
+      }
+      const target = want.map((a) => (a.kind === 'player' ? league.players[a.id] : null)).find((x): x is Player => !!x?.contract);
+      const works = (q: TradeProposal | null) => !!q && !validateTrade(league, q).length && evaluateTrade(league, q).accept;
+      // Retention costs the partner value; if that sinks the deal, ask for salary back instead.
+      for (const allowRetention of [true, false]) {
+        let p: TradeProposal | null = { ...base, give };
+        if (target) p = fitCap(league, p, target, me, partner, allowRetention);
+        if (p && !evaluateTrade(league, p).accept) p = topUp(league, p, rng);
+        if (works(p)) return p;
+      }
+      return null;
+    }),
+  );
+}
+
+export interface Counter {
+  proposal: TradeProposal;
+  note: string;
+}
+
+/**
+ * A rejected proposal comes back with a counter: either the partner keeps one
+ * of the pieces the user asked for, or it names what it wants added.
+ */
+export function counterOffer(league: League, p: TradeProposal): Counter | null {
+  const ev = evaluateTrade(league, p);
+  if (ev.accept) return null;
+  const partner = league.teams[p.to];
+  // Clause refusals and the like can't be negotiated away; cap and value can.
+  if (ev.errors.some((e) => !/over the .* (salary cap|limit) after this trade/.test(e))) return null;
+  // 1. Keep one piece: drop whichever costs the user least.
+  if (p.get.length > 1 && !ev.errors.length) {
+    const options = p.get
+      .map((a) => ({ a, q: { ...p, get: p.get.filter((x) => x !== a), retain: p.retain?.filter((r) => r.playerId !== a.id) } }))
+      .filter((o) => !validateTrade(league, o.q).length && evaluateTrade(league, o.q).accept)
+      .sort((x, y) => assetValue(league, p.from, x.a) - assetValue(league, p.from, y.a));
+    if (options[0]) return { proposal: options[0].q, note: `${partner.gm.name} would do it if ${describeTradeAsset(league, options[0].a)} stays in ${partner.city}.` };
+  }
+  // 2. Add from the user's side.
+  const asked = askingPrice(league, p.to, p.get, p.give);
+  if (asked) {
+    const added = asked.give.filter((a) => !p.give.some((g) => g.kind === a.kind && g.id === a.id));
+    if (added.length) return { proposal: { ...asked, retain: p.retain }, note: `${partner.gm.name} wants ${added.map((a) => describeTradeAsset(league, a)).join(' and ')} added to make it work.` };
+  }
+  return null;
+}
+
+/** GMs lose patience with repeated lowball offers: after a few rejections they stop taking calls for the day. */
+export function gmPatience(league: League, teamId: number): { open: boolean; rejected: number } {
+  const t = league.aiMemory[teamId]?.talks;
+  const rejected = t && t.season === league.season && t.day === league.day ? t.rejected : 0;
+  return { open: rejected < 4, rejected };
+}
+
+export function recordRejection(league: League, teamId: number): void {
+  const mem = (league.aiMemory[teamId] ??= { lastTradeDay: -100, coachHotSeat: 0 });
+  const t = mem.talks;
+  mem.talks = t && t.season === league.season && t.day === league.day ? { ...t, rejected: t.rejected + 1 } : { season: league.season, day: league.day, rejected: 1 };
 }

@@ -15,6 +15,7 @@ import { points, savePct, gaa, gsax, fmtToi, addStatLine, emptyStatLine } from '
 import { offerContract, makeOffer } from '../../engine/economy/freeAgency';
 import { demote, promote, releasePlayer } from '../../engine/economy/roster';
 import { isUnsignedPick, signByLabel, signDraftPick } from '../../engine/economy/draftRights';
+import { toggleTradeBlock } from '../../engine/ai/tradeMarket';
 import { heightLabel, weightLabel, seasonLabel, sv } from '../format';
 import { countryLabel } from '../../engine/data/names';
 import { attrLabel as label } from '../attrLabels';
@@ -62,6 +63,11 @@ export function PlayerPage({ id }: { id: number }) {
         <div className="actions">
           {mine && p.status === 'active' && <button className="btn" onClick={() => { const r = mutate((l) => demote(l, p)); toast(r.message, r.ok ? 'info' : 'bad'); }}>Send to minors</button>}
           {mine && p.status === 'prospect' && p.contract && <button className="btn" onClick={() => mutate((l) => promote(l, p))}>Call up</button>}
+          {mine && (
+            <button className="btn" onClick={() => { const on = mutate((l) => toggleTradeBlock(l, p.id)); toast(on ? `${p.last} is on the trade block — teams will call.` : `${p.last} is off the trade block.`, 'info'); }}>
+              {(league.teams[league.userTeamId].tradeBlock ?? []).includes(p.id) ? 'Remove from trade block' : 'Add to trade block'}
+            </button>
+          )}
           {mine && isUnsignedPick(p) && (
             <button className="btn primary" onClick={() => { const r = mutate((l) => signDraftPick(l, p)); toast(r.message, r.ok ? 'good' : 'bad'); }}>
               Sign entry-level contract

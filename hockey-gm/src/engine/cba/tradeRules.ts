@@ -200,13 +200,13 @@ export function validateMoves(league: League, moves: TradeMove[]): TradeCheck {
       if (m.from === tid) {
         outgoing += chargeAt(league, p, share);
         contractsOut++;
-        if (p.status === 'active') activeOut++;
+        if (p.status === 'active' && !onIR(p)) activeOut++;
         if (m.retainPct) retainedAdded += fullCapHit(p.contract) * m.retainPct;
       }
       if (m.to === tid) {
         incoming += chargeAt(league, p, share - (m.retainPct ?? 0));
         contractsIn++;
-        if (p.status === 'active') activeIn++;
+        if (p.status === 'active' && !onIR(p)) activeIn++;
       }
     }
     const after = sheet.total - outgoing + incoming + retainedAdded;
@@ -214,8 +214,11 @@ export function validateMoves(league: League, moves: TradeMove[]): TradeCheck {
     const ok = after <= limit + 1e-6 || after <= sheet.total + 1e-6;
     if (!ok) errors.push(`Trade invalid: ${tname(league, tid)} would be ${fmtCap(after - limit)} over the ${fmtCap(limit)} ${limit > r.upperLimit ? 'limit' : 'salary cap'} after this trade (${fmtCap(sheet.total)} → ${fmtCap(after)}).`);
     if (sheet.rows.length - contractsOut + contractsIn > r.contractLimit) errors.push(`Trade invalid: ${tname(league, tid)} would have ${sheet.rows.length - contractsOut + contractsIn} contracts (limit ${r.contractLimit}).`);
-    const activeAfter = playersOf(league, tid).filter((p) => !p.ltir).length - activeOut + activeIn;
-    if (activeAfter > r.rosterMax + 3) errors.push(`Trade invalid: ${tname(league, tid)} would have ${activeAfter} players on the active roster.`);
+    // Injured-reserve players don't count against the roster limit; a trade that
+    // shrinks an already-full roster is always allowed.
+    const activeBefore = playersOf(league, tid).filter((p) => !p.ltir && !onIR(p)).length;
+    const activeAfter = activeBefore - activeOut + activeIn;
+    if (activeAfter > r.rosterMax + 3 && activeAfter > activeBefore) errors.push(`Trade invalid: ${tname(league, tid)} would have ${activeAfter} players on the active roster.`);
     else if (activeAfter > r.rosterMax && (league.phase === 'regular' || league.phase === 'preseason')) warnings.push(`${tname(league, tid)} will have ${activeAfter} active players and must send someone down (limit ${r.rosterMax}).`);
     cap.push({ teamId: tid, before: sheet.total, after, limit, spaceBefore: limit - sheet.total, spaceAfter: limit - after, incoming, outgoing, retainedAdded, ok });
   }
@@ -223,6 +226,11 @@ export function validateMoves(league: League, moves: TradeMove[]): TradeCheck {
 }
 
 // ───────────────────────────── execution ─────────────────────────────
+
+/** On injured reserve (out at least a week): off the active roster count. */
+function onIR(p: Player): boolean {
+  return !!p.injury && p.injury.daysRemaining >= 7;
+}
 
 export function executeMoves(league: League, moves: TradeMove[]): void {
   const season = capSeason(league);

@@ -466,6 +466,8 @@ export interface Team {
   morale: number;
   /** Rivalry intensity with other teams (teamId -> 0..100). */
   rivals: Record<number, number>;
+  /** Players the team is openly shopping (the user's trade block). */
+  tradeBlock?: number[];
 }
 
 export interface DraftPick {
@@ -815,7 +817,7 @@ export interface League {
   /** Preseason projected points per team (for expectations / coach of the year). */
   projections: Record<number, number>;
   /** Per-team in-season performance memory used by AI GMs. */
-  aiMemory: Record<number, { lastTradeDay: number; coachHotSeat: number }>;
+  aiMemory: Record<number, { lastTradeDay: number; coachHotSeat: number; /** Rejected user proposals today (GM patience). */ talks?: { season: number; day: number; rejected: number } }>;
   /** Trade proposals CPU teams have made to the user (from = CPU team). */
   tradeOffers: { id: number; from: number; give: { kind: 'player' | 'pick'; id: number }[]; get: { kind: 'player' | 'pick'; id: number }[]; day: number; season: number; note: string }[];
   // ── NHL contract & cap system ──
