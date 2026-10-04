@@ -18,6 +18,7 @@ import { scaleContract, yearsOf, aav, termOf, totalValue, endOf } from '../cba/c
 import { determineFreeAgentStatus } from '../cba/rulesEngine';
 import { generateSchedule } from './schedule';
 import { updateStrategies } from '../ai/gm';
+import { applyRealPickOwnership, buildRealReserves, draftDataInfo } from './realDraft';
 import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
 import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
@@ -164,6 +165,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   const abbrs = teams.map((t) => t.abbr);
   const real = snap && snapshotHasRosters(snap, abbrs) ? buildRealPlayers(rng, snap, abbrs, season, () => ids.player++) : null;
 
+  const hasReserves = !!real && draftDataInfo().prospects > 0;
   const realIds = new Set<number>();
   if (real) for (const list of real.values()) for (const p of list) if (p.nhlId !== undefined) realIds.add(p.nhlId);
   const ltirAtStart: Player[] = [];
@@ -324,7 +326,8 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     // Prospects in the system.
     const orgContracts = Object.values(players).filter((p) => p.teamId === t.id && p.contract).length;
     // Real organisations already carry their signed prospects; only top up with unsigned-style prospects within the contract limit.
-    const prospectCount = usedStatuses ? Math.max(0, Math.min(2, 48 - orgContracts)) : Math.max(3, 9 - realExtras);
+    // With real reserve lists (unsigned draft picks) imported below, real organisations need no invented prospects.
+    const prospectCount = usedStatuses ? (hasReserves ? 0 : Math.max(0, Math.min(2, 48 - orgContracts))) : Math.max(3, 9 - realExtras);
     for (let i = 0; i < prospectCount; i++) {
       let p = generateProspect(rng, ids.player++, season, rng.int(18, 21));
       // Every organisation starts with at least one goaltending prospect.
@@ -384,6 +387,9 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     addPlayer(p);
   }
 
+  // ── Real reserve lists: each club's unsigned draft picks.
+  if (hasReserves) for (const p of buildRealReserves(rng, teams, season, Object.values(players), () => ids.player++)) addPlayer(p);
+
   // ── Draft class for the upcoming draft
   const draftClassSize = cfg.teams.length * cfg.draft.rounds + 40;
   for (let i = 0; i < draftClassSize; i++) addPlayer(generateProspect(rng, ids.player++, season));
@@ -434,6 +440,8 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   for (let s = season; s < season + 3; s++)
     for (let r = 1; r <= cfg.draft.rounds; r++)
       for (const t of teams) draftPicks.push({ id: ids.pick++, season: s, round: r, originalTeamId: t.id, ownerId: t.id });
+  // Real ownership: traded picks (and their conditions) are where they are in the NHL today.
+  if (real) applyRealPickOwnership(draftPicks, teams);
 
   // ── Scouts for the user's team
   const scouts: Scout[] = [];

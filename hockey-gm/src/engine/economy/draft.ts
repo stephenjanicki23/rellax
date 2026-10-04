@@ -65,7 +65,32 @@ export function prepareDraft(league: League): void {
     }
   }
   league.draftOrder = order;
+  for (const id of order) resolveProtection(league, league.draftPicks.find((p) => p.id === id)!);
   league.phase = 'draft';
+}
+
+/**
+ * A protected pick that lands inside its protection stays with the original
+ * team; the conveyance rolls to that team's same-round pick the next year
+ * (unprotected). SIMPLIFICATION: real protections vary deal by deal.
+ */
+function resolveProtection(league: League, pick: DraftPick): void {
+  if (!pick.protectedTop || !pick.pickNumber || pick.ownerId === pick.originalTeamId) return;
+  const inRound = ((pick.pickNumber - 1) % league.teams.length) + 1;
+  if (inRound > pick.protectedTop) return;
+  const holder = pick.ownerId;
+  const top = pick.protectedTop;
+  pick.ownerId = pick.originalTeamId;
+  const next = league.draftPicks.find((d) => d.season === pick.season + 1 && d.round === pick.round && d.originalTeamId === pick.originalTeamId && d.ownerId === pick.originalTeamId);
+  if (next) next.ownerId = holder;
+  delete pick.protectedTop;
+  addNews(league, {
+    category: 'draft',
+    headline: `${teamName(league, pick.originalTeamId)} keep their top-${top} protected pick (No. ${pick.pickNumber}); ${teamName(league, holder)} ${next ? `get their ${pick.season + 2} pick instead` : 'come away empty-handed'}`,
+    teamIds: [pick.originalTeamId, holder],
+    playerIds: [],
+    importance: 3,
+  });
 }
 
 /** Public consensus ranking of draft-eligible prospects. */
@@ -107,7 +132,12 @@ export function makeDraftPick(league: League, pickId: number, playerId: number):
   p.teamId = pick.ownerId;
   p.rightsTeamId = pick.ownerId;
   p.draft = { season: league.season, round: pick.round, pick: pick.pickNumber ?? 0, teamId: pick.ownerId };
-  signDraftedElc(league, p, pick.ownerId, pick.pickNumber ?? 50);
+  // Drafted, not signed: the club holds his rights until his sign-by date
+  // (CBA 8.6 — two years for junior players, four for college/European
+  // players; SIMPLIFICATION: which path an 18-year-old takes is random).
+  const age = league.season + 1 - p.birthYear;
+  const years = age >= 20 || withRng(league, (rng) => rng.chance(0.4)) ? 4 : 2;
+  p.signBySeason = league.season + years;
   league.seasonStats[p.id] = { reg: emptyStatLine(), po: emptyStatLine(), teamId: pick.ownerId };
   addTransaction(league, { kind: 'draft', teamIds: [pick.ownerId], playerIds: [p.id], pickIds: [pick.id], description: `${teamName(league, pick.ownerId)} select ${fullName(p)} (${p.pos}) — Round ${pick.round}, Pick ${pick.pickNumber}` });
   if (pick.pickNumber === 1) {
@@ -177,8 +207,7 @@ export function finishDraft(league: League): void {
  * signing, compensation up to the draft-year maximum (scaled by draft slot),
  * signing bonus up to 10%, Schedule A bonuses for top picks, two-way.
  */
-export function signDraftedElc(league: League, p: Player, teamId: number, pickNumber: number): void {
-  const start = league.season + 1;
+export function signDraftedElc(league: League, p: Player, teamId: number, pickNumber: number, start = league.season + 1): void {
   const age = start - p.birthYear;
   const term = STATIC().elcTermByAge[String(Math.min(24, Math.max(18, age)))] ?? 3;
   const max = elcMaxFor(league.season);
@@ -188,6 +217,7 @@ export function signDraftedElc(league: League, p: Player, teamId: number, pickNu
   const sb = pickNumber <= 15 ? Math.round(comp * 0.1) : 0;
   const perf = pickNumber <= 5 ? STATIC().elcScheduleABonusMax : pickNumber <= 32 ? 250 : 0;
   const c = buildContract({ startSeason: start, salaries: new Array(term).fill(comp - sb), signingBonuses: new Array(term).fill(sb), perfBonuses: new Array(term).fill(perf), minorSalaries: new Array(term).fill(80), type: 'ELC', twoWay: true, signedSeason: league.season, origin: 'elc', ageAtStart: age }, start);
+  delete p.signBySeason;
   registerContract(league, p, teamId, c, { origin: 'elc', skipValidation: true, toMinors: true, announce: false });
   p.status = 'prospect';
 }

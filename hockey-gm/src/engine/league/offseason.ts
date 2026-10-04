@@ -23,6 +23,7 @@ import { generateDraftClass } from '../player/prospects';
 import { generateSchedule } from './schedule';
 import { aiPreseason, offseasonCoaching, updateStrategies } from '../ai/gm';
 import { offseasonMarket } from '../ai/tradeMarket';
+import { aiSignDraftPicks, warnExpiringRights } from '../economy/draftRights';
 import { projectedPoints } from '../team/strength';
 import { teamBudget } from '../economy/contracts';
 import { expectedToiFor } from '../player/generate';
@@ -229,6 +230,9 @@ export function startResignPhase(league: League): void {
     aiResign(league, t.id);
     aiQualifyingDecisions(league, t.id);
   }
+  // Clubs sign the draft picks they want; the user is reminded of deadlines.
+  aiSignDraftPicks(league);
+  warnExpiringRights(league);
   // Draft weekend is one of the busiest trade windows of the year.
   offseasonMarket(league, 6);
   const mine = expiringPlayers(league, league.userTeamId);
@@ -343,6 +347,7 @@ export function advanceOffseason(league: League, auto = false): void {
       if (auto) {
         aiResign(league, league.userTeamId);
         aiQualifyingDecisions(league, league.userTeamId);
+        aiSignDraftPicks(league, true);
       }
       startFreeAgency(league);
       break;

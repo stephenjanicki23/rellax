@@ -4,7 +4,8 @@ import { simTo } from '../src/engine/league/season';
 import { advanceOffseason, simOffseason } from '../src/engine/league/offseason';
 import { marketValue, rosterOf, capSpace } from '../src/engine/economy/contracts';
 import { teamCapSheet } from '../src/engine/cba/capManager';
-import { evaluateTrade, executeTrade, playerTradeValue, findOfferForUser, validateTrade, type TradeProposal } from '../src/engine/economy/trade';
+import { evaluateTrade, executeTrade, playerTradeValue, validateTrade, type TradeProposal } from '../src/engine/economy/trade';
+import { offerForUser } from '../src/engine/ai/tradeMarket';
 import { currentPick, makeDraftPick, suggestPick } from '../src/engine/economy/draft';
 import { estimate } from '../src/engine/economy/scouting';
 import { makeOffer, faPool, demandFor } from '../src/engine/economy/freeAgency';
@@ -47,7 +48,7 @@ describe('trades', () => {
   });
   it('CPU teams make valid unsolicited offers to the user', () => {
     let found = null;
-    for (let i = 0; i < 30 && !found; i++) found = findOfferForUser(league);
+    for (let i = 0; i < 30 && !(found && found.proposal.get.length); i++) found = offerForUser(league);
     expect(found).not.toBeNull();
     const p = found!.proposal;
     expect(p.to).toBe(league.userTeamId);

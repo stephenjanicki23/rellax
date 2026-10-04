@@ -14,6 +14,7 @@ import { injuryLabel } from '../../engine/player/injuries';
 import { points, savePct, gaa, gsax, fmtToi, addStatLine, emptyStatLine } from '../../engine/core/statline';
 import { offerContract, makeOffer } from '../../engine/economy/freeAgency';
 import { demote, promote, releasePlayer } from '../../engine/economy/roster';
+import { isUnsignedPick, signByLabel, signDraftPick } from '../../engine/economy/draftRights';
 import { heightLabel, weightLabel, seasonLabel, sv } from '../format';
 import { countryLabel } from '../../engine/data/names';
 import { attrLabel as label } from '../attrLabels';
@@ -60,7 +61,12 @@ export function PlayerPage({ id }: { id: number }) {
         </div>
         <div className="actions">
           {mine && p.status === 'active' && <button className="btn" onClick={() => { const r = mutate((l) => demote(l, p)); toast(r.message, r.ok ? 'info' : 'bad'); }}>Send to minors</button>}
-          {mine && p.status === 'prospect' && <button className="btn" onClick={() => mutate((l) => promote(l, p))}>Call up</button>}
+          {mine && p.status === 'prospect' && p.contract && <button className="btn" onClick={() => mutate((l) => promote(l, p))}>Call up</button>}
+          {mine && isUnsignedPick(p) && (
+            <button className="btn primary" onClick={() => { const r = mutate((l) => signDraftPick(l, p)); toast(r.message, r.ok ? 'good' : 'bad'); }}>
+              Sign entry-level contract
+            </button>
+          )}
           {mine && p.contract && p.contract.years <= 1 && !p.contract.next && <button className="btn primary" onClick={() => setNeg(true)}>{p.contract.years <= 0 ? 'Re-sign' : 'Extend'}</button>}
           {mine && (
             <button className="btn" onClick={() => { mutate((l) => { const t = l.teams[l.userTeamId]; t.alternates = t.alternates.filter((x) => x !== p.id); t.captain = p.id; }); toast(`${p.last} named captain.`, 'good'); }}>
@@ -205,7 +211,13 @@ export function PlayerPage({ id }: { id: number }) {
               <span className="k">Injuries (career)</span>
               <span>{p.injuryHistory.length} ({p.injuryHistory.reduce((s, h) => s + h.days, 0)} days)</span>
               <span className="k">Draft</span>
-              <span>{p.draft ? `${p.draft.season} · Round ${p.draft.round}, #${p.draft.pick} by ${league.teams[p.draft.teamId].abbr}` : 'Undrafted'}</span>
+              <span>{p.draft ? `${p.draft.season + 1} · Round ${p.draft.round}, #${p.draft.pick} by ${league.teams[p.draft.teamId].abbr}` : 'Undrafted'}</span>
+              {isUnsignedPick(p) && (
+                <>
+                  <span className="k">Rights</span>
+                  <span className="warn">Unsigned draft pick ({league.teams[p.rightsTeamId!].abbr}) · sign by {signByLabel(p)}</span>
+                </>
+              )}
               <span className="k">Pro seasons</span>
               <span>{p.proSeasons}</span>
             </div>

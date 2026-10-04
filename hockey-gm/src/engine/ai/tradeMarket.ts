@@ -25,6 +25,7 @@ import { fullCapHit, holderCapHit, endOf } from '../cba/contract';
 import { retentionErrors, tradeConsent } from '../cba/tradeRules';
 import { contractValue } from '../cba/market';
 import { financialPlan } from './finance';
+import { isUnsignedPick } from '../economy/draftRights';
 import { ensureDressable, enforceCap, trimRoster } from '../economy/roster';
 
 type Group = 'F' | 'D' | 'G';
@@ -121,7 +122,7 @@ function coreOf(league: League, teamId: number): Set<number> {
 
 function assetPool(league: League, teamId: number, exclude: Set<number>): TradeAsset[] {
   const core = coreOf(league, teamId);
-  const players = [...playersOf(league, teamId, ['active', 'prospect'])].filter((p) => !core.has(p.id) && !exclude.has(p.id) && !recentlyMoved(league, p.id) && p.contract);
+  const players = [...playersOf(league, teamId, ['active', 'prospect'])].filter((p) => !core.has(p.id) && !exclude.has(p.id) && !recentlyMoved(league, p.id) && (p.contract || isUnsignedPick(p)));
   const picks = league.draftPicks.filter((d) => d.ownerId === teamId && d.playerId === undefined && d.season <= league.season + 2);
   return [...players.map((p) => ({ kind: 'player' as const, id: p.id })), ...picks.map((d) => ({ kind: 'pick' as const, id: d.id }))];
 }
@@ -576,7 +577,7 @@ function dumpOffer(league: League, rng: Rng): UserOffer | null {
       const prop: TradeProposal = { from: from.id, to: me, give: [{ kind: 'player', id: p.id }, { kind: 'pick', id: pick.d.id }], get: [] };
       if (validateTrade(league, prop).length) continue;
       const d = pick.d;
-      const pickName = `${d.season} ${d.round === 1 ? '1st' : d.round === 2 ? '2nd' : d.round === 3 ? '3rd' : `${d.round}th`}-round pick`;
+      const pickName = `${d.season + 1} ${d.round === 1 ? '1st' : d.round === 2 ? '2nd' : d.round === 3 ? '3rd' : `${d.round}th`}-round pick`;
       return { proposal: prop, note: `The ${from.city} ${from.name} need cap room and will attach a ${pickName} if you take ${fullName(p)}'s contract.` };
     }
   }

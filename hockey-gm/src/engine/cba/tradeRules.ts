@@ -67,7 +67,8 @@ export function describeTradeAsset(league: League, a: TradeAsset): string {
   const pick = league.draftPicks.find((x) => x.id === a.id);
   if (!pick) return 'Unknown pick';
   const own = pick.originalTeamId === pick.ownerId ? '' : ` (${league.teams[pick.originalTeamId].abbr})`;
-  return `${pick.season} Round ${pick.round} pick${own}`;
+  // A pick's season is the one whose draft it belongs to, held the following June.
+  return `${pick.season + 1} Round ${pick.round} pick${own}`;
 }
 
 // ───────────────────────────── clauses ─────────────────────────────

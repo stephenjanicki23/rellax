@@ -13,6 +13,7 @@
     "test:validation": "VALIDATION=1 vitest run tests/validation",
     "analyze": "tsx scripts/analyze.ts",
     "fetch:contracts": "node scripts/fetch-contracts.mjs",
+    "build:draft": "node scripts/build-draft.mjs",
     "fetch:nhl": "node scripts/fetch-nhl.mjs"
   },
   "dependencies": {
