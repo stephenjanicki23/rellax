@@ -26,6 +26,8 @@ type RinkTeam = Pick<Team, 'abbr' | 'colors' | 'logo' | 'city' | 'name'>;
 export interface LiveRinkProps {
   /** Called with the engine events the rink has just shown (drives the play-by-play). */
   onShown?: (events: GameEvent[]) => void;
+  /** Season goals/assists before this game (franchise games), for the goal card. */
+  seasonTotals?: (playerId: number) => { g: number; a: number };
   feed: RinkFeed;
   snap: GameSnapshot;
   home: RinkTeam;
@@ -50,6 +52,8 @@ interface Chip {
 }
 
 interface GoalInfo {
+  /** Season totals including this goal: scorer's goals, assisters' assists (franchise games). */
+  counts?: { scorer?: number; assists: (number | undefined)[] };
   id: number;
   event: GameEvent;
 }
@@ -96,7 +100,11 @@ function iceNoise(): string | null {
   return noiseUrl;
 }
 
-export function LiveRink({ feed, snap, home, away, players, playoff = false, onShown }: LiveRinkProps) {
+export function LiveRink({ feed, snap, home, away, players, playoff = false, onShown, seasonTotals }: LiveRinkProps) {
+  const totalsRef = useRef(seasonTotals);
+  totalsRef.current = seasonTotals;
+  // Goals and assists already shown in this game (added to the season totals on the goal card).
+  const tally = useRef(new Map<number, { g: number; a: number }>());
   const meta = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const shownRef = useRef(onShown);
   shownRef.current = onShown;
@@ -172,9 +180,21 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
         later(1400, () => setActive((prev) => (prev === actors ? [] : prev)));
       }
       switch (e.type) {
-        case 'goal':
-          setGoal({ id: ++seq.current, event: e });
+        case 'goal': {
+          const bump = (id: number | undefined, k: 'g' | 'a') => {
+            if (id === undefined) return;
+            const t = tally.current.get(id) ?? { g: 0, a: 0 };
+            t[k]++;
+            tally.current.set(id, t);
+          };
+          bump(e.p1, 'g');
+          bump(e.p2, 'a');
+          bump(e.p3, 'a');
+          const totals = totalsRef.current;
+          const season = (id: number | undefined, k: 'g' | 'a') => (id === undefined || !totals ? undefined : totals(id)[k] + (tally.current.get(id)?.[k] ?? 0));
+          setGoal({ id: ++seq.current, event: e, counts: totals ? { scorer: season(e.p1, 'g'), assists: [season(e.p2, 'a'), season(e.p3, 'a')] } : undefined });
           break;
+        }
         case 'save':
           if (e.p1 !== undefined) setSavePulse({ id: e.p1, n: ++seq.current });
           if (e.data?.big) chip('BIG SAVE', e.team, 'save');
@@ -530,12 +550,13 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
               <b>
                 {meta.get(goal.event.p1 ?? -1)?.first ?? ''} {name(goal.event.p1)}
               </b>
+              {goal.counts?.scorer !== undefined && <span className="gc-count" title="Goals this season">({goal.counts.scorer})</span>}
             </div>
             <div className="gc-assists">
               {goal.event.p2 !== undefined
                 ? `Assists: ${[goal.event.p2, goal.event.p3]
                     .filter((x): x is number => x !== undefined)
-                    .map((x) => `${num(x)}${name(x)}`)
+                    .map((x, i) => `${num(x)}${name(x)}${goal.counts?.assists[i] !== undefined ? ` (${goal.counts.assists[i]})` : ''}`)
                     .join(', ')}`
                 : 'Unassisted'}
               {goal.event.data?.strength && goal.event.data.strength !== 'EV' ? ` · ${goal.event.data.strength}` : ''}

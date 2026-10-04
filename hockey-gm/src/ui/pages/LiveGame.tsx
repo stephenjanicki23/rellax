@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useGame, runSim, mutate, toast } from '../store';
 import { navigate } from '../router';
 
-import { GameSim } from '../../engine/sim/engine';
+import { GameSim, simulateGame } from '../../engine/sim/engine';
 import { buildGameInput } from '../../engine/league/gameInput';
 import { prepareUserGame } from '../../engine/league/season';
 import { describe } from '../../engine/sim/commentary';
@@ -14,6 +14,7 @@ import { LiveRink } from '../rink/LiveRink';
 import { Scoreboard, type Speed } from '../live/Scoreboard';
 import { LiveFeed, type FeedLine } from '../live/LiveFeed';
 import { GamePanels } from '../live/GamePanels';
+import { Ticker, type TickerGame } from '../live/Ticker';
 import '../live/live.css';
 import { whistleHold, type RinkPlayer } from '../rink/director';
 import type { RinkFeed } from '../rink/LiveRink';
@@ -36,6 +37,17 @@ export function LiveGame() {
   }, []);
   // Build the game input once; LiveView keeps the simulation in a ref.
   const input = useMemo(() => (game && game.id >= 0 ? buildGameInput(league, game.id, true) : null), [game]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Tonight's other games: simulated once now, revealed by the ticker in step with this game,
+  // and recorded with exactly these results when the day is played.
+  const [ticker, setTicker] = useState<TickerGame[]>([]);
+  useEffect(() => {
+    if (!game || game.id < 0) return;
+    const id = setTimeout(() => {
+      const others = league.schedule.filter((g) => g.day === game.day && g.id !== game.id && !g.played);
+      setTicker(others.map((g) => ({ id: g.id, home: league.teams[g.home], away: league.teams[g.away], result: simulateGame(buildGameInput(league, g.id)) })));
+    }, 30);
+    return () => clearTimeout(id);
+  }, [game]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ready) return null;
   if (!game || game.id < 0 || !input) {
     return (
@@ -60,8 +72,13 @@ export function LiveGame() {
       info={game.playoff ? `${playoffRoundName(league, game.playoff.round)} · G${game.playoff.game}` : home.arena}
       records={[rec(home.id), rec(away.id)]}
       finishLabel="Record result & continue →"
+      ticker={ticker}
+      seasonTotals={(id) => {
+        const st = league.seasonStats[id]?.[game.playoff ? 'po' : 'reg'];
+        return { g: st?.g ?? 0, a: (st?.a1 ?? 0) + (st?.a2 ?? 0) };
+      }}
       onFinish={async (result) => {
-        await runSim('day', new Map([[game.id, result]]));
+        await runSim('day', new Map([[game.id, result], ...ticker.map((t): [number, GameResult] => [t.id, t.result])]));
         toast('Result recorded. The rest of the league played tonight too.', 'good');
         navigate(`game/${game.id}`);
       }}
@@ -80,10 +97,14 @@ export interface LiveViewProps {
   onFinish: (result: GameResult) => void | Promise<void>;
   /** Extra buttons shown once the game is over (e.g. Rematch). */
   extraActions?: ReactNode;
+  /** Other games tonight for the scores ticker (franchise only). */
+  ticker?: TickerGame[];
+  /** Season goals/assists before this game, for the goal card (franchise only). */
+  seasonTotals?: (playerId: number) => { g: number; a: number };
 }
 
 /** Live game presentation. Works for franchise games and standalone exhibitions. */
-export function LiveView({ input, home, away, playoff, info, records, finishLabel, onFinish, extraActions }: LiveViewProps) {
+export function LiveView({ input, home, away, playoff, info, records, finishLabel, onFinish, extraActions, ticker, seasonTotals }: LiveViewProps) {
   const simRef = useRef<GameSim | null>(null);
   if (!simRef.current) simRef.current = new GameSim(input);
   const sim = simRef.current;
@@ -228,9 +249,10 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
           </>
         }
       />
+      {ticker && ticker.length > 0 && <Ticker games={ticker} period={period} clock={clock} finished={finished} playoff={playoff} />}
       <div className="live-main">
         <div className="live-rink">
-          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} playoff={playoff} onShown={pushEvents} />
+          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} playoff={playoff} onShown={pushEvents} seasonTotals={seasonTotals} />
           <div className="live-momentum" title="Momentum: which team is pushing the play">
             <span>{home.abbr}</span>
             <div className="momentum">
