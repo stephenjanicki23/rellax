@@ -4,7 +4,8 @@ import { useGame, runSim, nextPhase } from '../store';
 import { href, navigate } from '../router';
 import { Card, Gauge, PlayerLink, Pos, Stat, TeamLink, TeamLogo, moraleLabel } from '../components/common';
 import { nextUserGame, userGameToday, teamInjuries } from '../../engine/league/season';
-import { standingRows, recordString, ppPct, pkPct, leagueRank } from '../../engine/league/standings';
+import { standingRows, recordString, leagueRank } from '../../engine/league/standings';
+import { TeamRankTiles, ordinal } from '../components/TeamRankTiles';
 import { payroll, fmtMoney } from '../../engine/economy/contracts';
 import { playersOf, points } from '../../engine/league/helpers';
 import { points as statPoints, savePct } from '../../engine/core/statline';
@@ -136,18 +137,26 @@ export function Dashboard() {
       {banner}
       <div className="grid g4" style={{ marginBottom: 14 }}>
         <Card>
-          <Stat k="Record" v={rec ? recordString(rec) : '0-0-0'} sub={`${rec ? points(rec) : 0} pts · ${rec && rec.gp ? pct(points(rec) / (rec.gp * 2)) : '—'}`} />
+          <Stat k="Record" v={rec ? recordString(rec) : '0-0-0'} sub={`${rec ? points(rec) : 0} pts · ${rec && rec.gp ? pct(points(rec) / (rec.gp * 2)) : '—'} pts%`} />
         </Card>
         <Card>
-          <Stat k="Division" v={`${data.div.findIndex((r) => r.team.id === team.id) + 1}${['st', 'nd', 'rd'][data.div.findIndex((r) => r.team.id === team.id)] ?? 'th'}`} sub={`League rank ${leagueRank(league, team.id)} · roster #${data.strengthRank}`} />
+          <Stat k="Division" v={ordinal(data.div.findIndex((r) => r.team.id === team.id) + 1)} sub={`${ordinal(leagueRank(league, team.id))} in the league · roster ${ordinal(data.strengthRank)}`} />
         </Card>
         <Card>
-          <Stat k="Goals" v={rec ? `${rec.gf}–${rec.ga}` : '0–0'} sub={rec && rec.gp ? `PP ${pct(ppPct(rec))} · PK ${pct(pkPct(rec))}` : '—'} />
+          <Stat
+            k="Form"
+            v={rec?.gp ? (rec.streak > 0 ? `W${rec.streak}` : `${rec.last10.at(-1) === 'O' ? 'OT' : 'L'}${-rec.streak}`) : '—'}
+            sub={rec?.gp ? `Last 10: ${rec.last10.filter((x) => x === 'W').length}-${rec.last10.filter((x) => x === 'L').length}-${rec.last10.filter((x) => x === 'O').length}` : 'No games yet'}
+          />
         </Card>
         <Card>
           <Stat k="Cap space" v={fmtMoney(league.cap.upper - pay)} sub={`Payroll ${fmtMoney(pay)} / ${fmtMoney(league.cap.upper)}`} />
         </Card>
       </div>
+      <Card title="Team stats" right={<span className="muted" style={{ fontSize: 12 }}>League rank · top 8 green, bottom 8 red</span>}>
+        <TeamRankTiles league={league} teamId={team.id} keys={['gf', 'ga', 'pp', 'pk', 'sf', 'sa']} />
+      </Card>
+      <div style={{ height: 14 }} />
       <div className="grid g-main">
         <div className="grid">
           <Card title={data.today ? 'Tonight' : 'Next game'}>
