@@ -48,9 +48,9 @@ export const TUNING = {
   shooterWeight: 0.24,
   goalieWeight: 0.25,
   /** Stick/hold penalties per second of play (both teams combined). */
-  penaltyRate: 1 / 1700,
+  penaltyRate: 1 / 1150,
   /** Probability a hit draws a penalty. */
-  hitPenalty: 0.035,
+  hitPenalty: 0.018,
   hitRate: 0.003,
   injuryHit: 0.0026,
   injuryBlock: 0.0018,
@@ -189,13 +189,14 @@ const STICK_PENALTIES: [string, number][] = [
   ['Holding the stick', 3],
   ['Unsportsmanlike conduct', 2],
 ];
+// NHL mix of body-contact minors: roughing and interference dominate; boarding, charging, elbowing and kneeing are rare.
 const HIT_PENALTIES: [string, number][] = [
-  ['Roughing', 34],
-  ['Boarding', 22],
-  ['Charging', 14],
-  ['Interference', 16],
-  ['Elbowing', 9],
-  ['Kneeing', 5],
+  ['Roughing', 40],
+  ['Interference', 32],
+  ['Boarding', 13],
+  ['Charging', 6],
+  ['Elbowing', 6],
+  ['Kneeing', 3],
 ];
 
 function emptyTeamStats(): TeamGameStats {
@@ -1311,7 +1312,7 @@ export class GameSim {
     let dist: number;
     if (reboundCtx) {
       danger = 'high';
-      dist = rng.float(3, 12);
+      dist = rng.float(4, 14);
     } else {
       const r = rng.next();
       if (r < pHD) {
@@ -1325,12 +1326,12 @@ export class GameSim {
         dist = rng.float(20, 36);
       }
     }
-    const angle = danger === 'high' ? rng.float(0, 45) : rng.float(0, 72);
+    let angle = danger === 'high' ? rng.float(0, 45) : rng.float(0, 72);
     // ── shot type
     let type: ShotType;
     if (reboundCtx) type = 'rebound';
     else if (this.oneTimerSetup && danger !== 'low' && rng.chance(0.55)) type = 'oneTimer';
-    else if (danger === 'low') type = !shooter.isF && rng.chance(0.55) ? 'slap' : rng.chance(0.25) ? 'snap' : 'wrist';
+    else if (danger === 'low') type = rng.chance(shooter.isF ? 0.15 : 0.6) ? 'slap' : rng.chance(0.25) ? 'snap' : 'wrist';
     else if (danger === 'high') type = rng.chance(0.2) ? 'backhand' : rng.chance(0.04) ? 'wraparound' : rng.chance(0.25) ? 'snap' : 'wrist';
     else type = rng.chance(0.1) ? 'slap' : rng.chance(0.25) ? 'snap' : rng.chance(0.06) ? 'backhand' : 'wrist';
     // Point shots can be tipped by a net-front forward.
@@ -1338,13 +1339,15 @@ export class GameSim {
       const tippers = A.onIce.filter((p) => p !== shooter && p.isF);
       if (tippers.length) {
         const tipper = this.pickW(tippers, (p) => p.style.netFront);
-        const pTip = 0.09 * tipper.style.netFront + (pp === 'netFront' ? 0.06 : 0);
+        const pTip = 0.11 * tipper.style.netFront + (pp === 'netFront' ? 0.06 : 0);
         if (rng.chance(pTip)) {
           this.addChain(shooter);
           shooter = tipper;
           type = 'tip';
-          danger = 'high';
-          dist = rng.float(4, 12);
+          // Deflections happen anywhere from the crease to the high slot.
+          dist = rng.float(5, 22);
+          danger = dist < 20 ? 'high' : 'medium';
+          angle = rng.float(0, 35);
         }
       }
     }
@@ -1370,7 +1373,7 @@ export class GameSim {
       B.stats.blocks++;
       shooter.stat.blockedAtt++;
       A.stats.blockedAtt++;
-      this.ev('blocked', B.idx, blocker.id, shooter.id, undefined, { dist: Math.round(dist) });
+      this.ev('blocked', B.idx, blocker.id, shooter.id, undefined, { dist: Math.round(dist), angle: Math.round(angle) });
       if (rng.chance(TUNING.injuryBlock * blocker.injuryRisk * (type === 'slap' ? 1.5 : 1))) this.injure(blocker, 'block');
       if (rng.chance(0.42)) {
         this.setupQ *= 0.55;
@@ -1400,7 +1403,7 @@ export class GameSim {
     if (rng.chance(logistic(lMiss))) {
       shooter.stat.missed++;
       A.stats.missed++;
-      this.ev('missed', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), shotType: type, xg, danger });
+      this.ev('missed', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), angle: Math.round(angle), shotType: type, xg, danger });
       if (rng.chance(0.42)) {
         this.setupQ *= 0.5;
         this.oneTimerSetup = false;
@@ -1419,14 +1422,14 @@ export class GameSim {
     if (hd) A.stats.hdShots++;
     const g = B.goalie;
     if (!g) {
-      this.ev('shot', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), shotType: type, xg, danger, en: true });
+      this.ev('shot', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), angle: Math.round(angle), shotType: type, xg, danger, en: true });
       this.scoreGoal(A, B, shooter, xg, type, true);
       return;
     }
     g.stat.sa++;
     g.stat.gxga += xgOnNet;
     if (hd) g.stat.hdsa++;
-    this.ev('shot', A.idx, shooter.id, g.id, undefined, { dist: Math.round(dist), shotType: type, xg, danger });
+    this.ev('shot', A.idx, shooter.id, g.id, undefined, { dist: Math.round(dist), angle: Math.round(angle), shotType: type, xg, danger });
     const shooterSkill = this.shooterSkill(shooter, type);
     const gSkill = this.goalieSkill(g, B, danger, type, screened);
     const late = this.period >= 3 && this.periodLength - this.clock < 300 && Math.abs(this.score[0] - this.score[1]) <= 1;
@@ -1659,7 +1662,7 @@ export class GameSim {
     this.ev('hit', hitter.team, hitter.id, target.id);
     if (this.rng.chance(TUNING.injuryHit * target.injuryRisk * (1 + Math.max(0, hitter.phys) * 0.3))) this.injure(target, 'hit');
     const aggr = hitter.hitProp;
-    if (this.rng.chance(TUNING.hitPenalty * clamp(1 - hitter.disc * 0.35, 0.4, 1.8) * (0.6 + 0.4 * aggr))) {
+    if (this.rng.chance(TUNING.hitPenalty * clamp(1 - hitter.disc * 0.35, 0.4, 1.8) * (0.6 + 0.4 * aggr) * this.callFactor(hitter.team))) {
       this.callPenalty(hitter, this.rng.weighted(HIT_PENALTIES, (x) => x[1])[0]);
       return;
     }
@@ -1684,6 +1687,17 @@ export class GameSim {
     this.bumpMomentum(winner.team, 0.1);
     this.faceoff = 'C';
     this.resetPossession();
+  }
+
+  /**
+   * Officials' game management: whistles get scarcer as penalties pile up in
+   * a game, and a lopsided count tends to even out (make-up calls).
+   */
+  private callFactor(side: Side): number {
+    let mine = 0, theirs = 0;
+    for (const p of this.pens) if (p.minutes < 5) p.team === side ? mine++ : theirs++;
+    const even = mine - theirs >= 2 ? 0.55 : theirs - mine >= 2 ? 1.3 : 1;
+    return even / (1 + 0.08 * (mine + theirs));
   }
 
   private callPenalty(offender: SP, infraction: string): void {
@@ -1728,7 +1742,7 @@ export class GameSim {
       const offSide = (rng.chance(0.64) ? defSide : 1 - defSide) as Side;
       const t = this.teams[offSide];
       const tacMult = (t.tactics.defense === 'physical' ? 1.15 : t.tactics.defense === 'aggressive' ? 1.08 : 1) * (this.isPK(offSide) ? 0.75 : 1);
-      if (rng.chance(clamp(tacMult * 0.8, 0, 1)) && t.onIce.length) {
+      if (rng.chance(clamp(tacMult * 0.8 * this.callFactor(offSide), 0, 1)) && t.onIce.length) {
         const offender = this.pickW(t.onIce, (p) => clamp(1 - p.disc * 0.35, 0.3, 2) * (0.6 + 0.4 * p.hitProp) * (p.fat < 0 ? 1.2 : 1));
         this.callPenalty(offender, rng.weighted(STICK_PENALTIES, (x) => x[1])[0]);
         return;

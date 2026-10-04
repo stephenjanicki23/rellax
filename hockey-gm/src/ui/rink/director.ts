@@ -188,11 +188,12 @@ export class RinkDirector {
   }
 
   /** Spot a shooter at `dist` feet from the net his team attacks. */
-  private shooterSpot(team: 0 | 1, period: number, dist: number, seed: number): Pt {
+  private shooterSpot(team: 0 | 1, period: number, dist: number, seed: number, angleDeg?: number): Pt {
     const d = attackDir(team, period);
     const net = attackNetX(team, period);
     const r = Math.min(Math.max(dist, 5), 75);
-    const a = (hash(seed, 7) - 0.5) * (r < 15 ? 1.6 : 1.9);
+    // The engine's shot angle when it has one (side of the ice chosen by seed); otherwise a spread around the slot.
+    const a = angleDeg !== undefined ? (hash(seed, 7) < 0.5 ? -1 : 1) * (angleDeg * Math.PI) / 180 : (hash(seed, 7) - 0.5) * (r < 15 ? 1.6 : 1.9);
     return clampPt({ x: net - d * Math.cos(a) * r, y: RINK.cy + Math.sin(a) * r * 0.9 });
   }
 
@@ -263,7 +264,7 @@ export class RinkDirector {
         this.poss = t;
         const dist = e.data?.dist ?? 30;
         this.carrier = e.p1 ?? null;
-        this.puck = e.data?.en && dist > 80 ? { x: RINK.cx - d * (dist > 120 ? 45 : 0), y: RINK.cy + side * 15 } : this.shooterSpot(t, p, dist, seed);
+        this.puck = e.data?.en && dist > 80 ? { x: RINK.cx - d * (dist > 120 ? 45 : 0), y: RINK.cy + side * 15 } : this.shooterSpot(t, p, dist, seed, e.data?.angle);
         return [this.frame(ice, 'carry')];
       }
       case 'save': {
@@ -286,7 +287,7 @@ export class RinkDirector {
       case 'missed': {
         this.poss = t;
         const dist = e.data?.dist ?? 35;
-        this.puck = this.shooterSpot(t, p, dist, seed);
+        this.puck = this.shooterSpot(t, p, dist, seed, e.data?.angle);
         const wind = this.frame(ice, 'carry');
         this.addShot({ ...this.puck, team: t, kind: 'miss', period: p });
         this.puck = { x: attackNetX(t, p) + d * 5, y: RINK.cy + side * (7 + hash(seed, 10) * 8) };
@@ -296,7 +297,7 @@ export class RinkDirector {
       case 'blocked': {
         // e.team is the blocking side; the shooter (p2) is on the other team.
         const st = (1 - t) as 0 | 1;
-        this.puck = this.shooterSpot(st, p, e.data?.dist ?? 40, seed);
+        this.puck = this.shooterSpot(st, p, e.data?.dist ?? 40, seed, e.data?.angle);
         this.carrier = e.p2 ?? null;
         this.poss = st;
         const wind = this.frame(ice, 'carry');

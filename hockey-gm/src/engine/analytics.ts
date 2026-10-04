@@ -242,7 +242,7 @@ export const GAME_TARGETS: Record<string, { lo: number; hi: number; label: strin
   shPct: { lo: 0.088, hi: 0.112, label: 'Shooting %', fmt: 'pct1' },
   svPct: { lo: 0.895, hi: 0.913, label: 'Save %', fmt: 'pct1' },
   ppPct: { lo: 0.16, hi: 0.25, label: 'Power-play %', fmt: 'pct1' },
-  ppOppPerTeam: { lo: 2.6, hi: 3.7, label: 'PP opportunities per team-game' },
+  ppOppPerTeam: { lo: 2.5, hi: 3.3, label: 'PP opportunities per team-game' },
   hitsPerTeam: { lo: 17, hi: 28, label: 'Hits per team-game' },
   blocksPerTeam: { lo: 11, hi: 17, label: 'Blocked shots per team-game' },
   homeWinPct: { lo: 0.51, hi: 0.57, label: 'Home win %', fmt: 'pct1' },

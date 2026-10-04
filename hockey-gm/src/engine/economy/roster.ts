@@ -39,7 +39,8 @@ function ensureStats(league: League, p: Player): void {
 }
 
 export function promote(league: League, p: Player, announce = true): void {
-  if (p.status !== 'prospect' || onWaiversNow(league, p)) return;
+  // Unsigned draft picks can't play until they sign.
+  if (p.status !== 'prospect' || !p.contract || onWaiversNow(league, p)) return;
   p.status = 'active';
   ensureStats(league, p);
   if (announce && p.teamId !== null) addTransaction(league, { kind: 'callup', teamIds: [p.teamId], playerIds: [p.id], description: `${teamName(league, p.teamId)} recall ${fullName(p)} (${p.pos})` });
@@ -130,7 +131,7 @@ export function ensureDressable(league: League, teamId: number): void {
     const pos = missing[0];
     const match = (p: Player) => (pos === 'G' ? p.pos === 'G' : pos === 'D' ? p.pos === 'D' : isForward(p.pos));
     const prospect = playersOf(league, teamId, ['prospect'])
-      .filter((p) => match(p) && healthy(p) && !onWaiversNow(league, p))
+      .filter((p) => p.contract && match(p) && healthy(p) && !onWaiversNow(league, p))
       .sort((a, b) => b.ca - a.ca)[0];
     const fa = Object.values(league.players)
       .filter((p) => p.status === 'fa' && match(p) && healthy(p))
@@ -288,7 +289,8 @@ function dumpContract(league: League, teamId: number, over: number): boolean {
 /** Keep the prospect pool within the configured limit (release the lowest-ceiling prospects). */
 export function trimProspects(league: League, teamId: number): void {
   const max = league.config.economics.prospectMax;
-  const pros = playersOf(league, teamId, ['prospect']).sort((a, b) => b.pa + b.ca * 0.2 - (a.pa + a.ca * 0.2));
+  // Unsigned draft picks don't take a spot; their rights run out on their own schedule.
+  const pros = playersOf(league, teamId, ['prospect']).filter((p) => p.contract).sort((a, b) => b.pa + b.ca * 0.2 - (a.pa + a.ca * 0.2));
   for (const p of pros.slice(max)) {
     if (league.season - p.birthYear <= 19 && p.pa >= 130) continue;
     releasePlayer(league, p, 'release prospect');

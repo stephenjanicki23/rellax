@@ -5,6 +5,7 @@
  * loyalty and career stage. Offers accumulate over several "free agency
  * days" and players decide when an offer is good enough (or time runs out).
  */
+import { lapseDraftRights } from './draftRights';
 import { clamp } from '../core/math';
 import { seedFrom, Rng } from '../core/rng';
 import type { FreeAgentOffer, League, Player } from '../types';
@@ -143,6 +144,8 @@ export function startFreeAgency(league: League): void {
   // July 1: unqualified RFAs become UFAs, qualified RFAs stay with their club's rights.
   processQualifyingOffers(league);
   releaseExpired(league);
+  // Unsigned draft picks past their sign-by date join the market.
+  lapseDraftRights(league);
   league.offseasonStep = 'freeAgency';
   league.faOffers = [];
   league.faDay = 0;

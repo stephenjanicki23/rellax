@@ -37,7 +37,7 @@ function AssetList({ league, teamId, selected, toggle }: { league: League; teamI
                   <Pos pos={p.pos} />
                 </td>
                 <td>
-                  <PlayerLink p={p} /> {p.status === 'prospect' && <span className="pill">minors</span>} {clauseOf(league, p) && <span className="pill warn">{clauseOf(league, p)}</span>}
+                  <PlayerLink p={p} /> {p.status === 'prospect' && <span className="pill">{p.contract ? 'minors' : 'unsigned'}</span>} {clauseOf(league, p) && <span className="pill warn">{clauseOf(league, p)}</span>}
                 </td>
                 <td className="num">{league.season - p.birthYear}</td>
                 <td>
@@ -57,7 +57,9 @@ function AssetList({ league, teamId, selected, toggle }: { league: League; teamI
                 <td>
                   <span className="pos">PK</span>
                 </td>
-                <td colSpan={3}>{describeAsset(league, a)}</td>
+                <td colSpan={3}>
+                  {describeAsset(league, a)} {pk.conditions?.length ? <span className="pill warn" title={pk.conditions.join(' · ')}>{pk.protectedTop ? `top-${pk.protectedTop} prot.` : 'conditional'}</span> : null}
+                </td>
                 <td className="num muted">{pk.round === 1 ? `~#${projectedPickNumber(league, pk)}` : ''}</td>
               </tr>
             );

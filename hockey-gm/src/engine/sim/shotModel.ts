@@ -48,12 +48,13 @@ export interface ShotContext {
 
 export function baseGoalProbability(c: ShotContext): number {
   if (c.empty) return 0.92;
-  let p = 0.36 * Math.exp(-c.dist / 11.5) + 0.024;
+  let p = 0.29 * Math.exp(-c.dist / 14) + 0.026;
   p *= 1 - 0.45 * Math.pow(Math.min(c.angle, 85) / 85, 1.5);
   p *= TYPE_MULT[c.type];
   if (c.rush) p *= 1.12;
   if (c.oddMan) p *= 1.4;
-  if (c.screened) p *= 1.25;
+  // Long shots mostly score through traffic: a screen matters more the farther out the shot.
+  if (c.screened) p *= c.dist > 30 ? 1.55 : 1.25;
   if (c.turnover) p *= 1.1;
   return clamp(p, 0.008, 0.62);
 }

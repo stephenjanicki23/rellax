@@ -1,0 +1,6793 @@
+{
+ "schemaVersion": 1,
+ "asOf": "2026-10-03",
+ "source": "CapWages team pages",
+ "picks": [
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "COL",
+   "owner": "TOR",
+   "conditions": [
+    "Top-10 protected first-round pick in 2027."
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "EDM",
+   "owner": "CHI",
+   "conditions": [
+    "1st round pick is Top 12 protected."
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "FLA",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "TBL",
+   "owner": "SEA",
+   "conditions": [
+    "Top-10 protected"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "TOR",
+   "owner": "PHI",
+   "conditions": [
+    "Top-10 protected"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "VGK",
+   "owner": "NJD",
+   "conditions": [
+    "Top 10 protected"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2027,
+   "round": 1,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "BOS",
+   "owner": "NYR"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "BUF",
+   "owner": "WPG"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "COL",
+   "owner": "CGY",
+   "conditions": [
+    "conditional 2027 second-round pick"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "DAL",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "DET",
+   "owner": "ANA"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "FLA",
+   "owner": "OTT"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "MIN",
+   "owner": "COL"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "NSH",
+   "owner": "DAL"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "NYR",
+   "owner": "PIT"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "SJS",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "STL",
+   "owner": "ANA"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "VAN",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "WPG",
+   "owner": "FLA",
+   "conditions": [
+    "Either wpg or cbj"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 2,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "ANA",
+   "owner": "WSH"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "BOS",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "CBJ",
+   "owner": "COL"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "DAL",
+   "owner": "CAR",
+   "conditions": [
+    "Top-10 protected"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "EDM",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "LAK",
+   "owner": "PHI"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "MIN",
+   "owner": "CGY"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "MTL",
+   "owner": "VGK"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "NJD",
+   "owner": "PIT"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "PIT",
+   "owner": "WSH"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "SJS",
+   "owner": "BUF"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "TBL",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "TOR",
+   "owner": "UTA",
+   "conditions": [
+    "Pick becomes a 2029 2nd-round pick if Maccelli scores 51+ points in 2025-26 AND Toronto qualifies for the playoffs."
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "UTA",
+   "owner": "NYR",
+   "conditions": [
+    "the earliest of UTA/TOR 3rd round choices"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "VGK",
+   "owner": "NSH",
+   "conditions": [
+    "If Vegas wins two playoff rounds next year, the 3rd RD pick becomes a 2nd Rd pick"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "WPG",
+   "owner": "WPG",
+   "conditions": [
+    "Trade on Feb. 2, 2024."
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 3,
+   "original": "WSH",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "ANA",
+   "owner": "STL"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "CGY",
+   "owner": "COL"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "EDM",
+   "owner": "UTA"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "FLA",
+   "owner": "PHI"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "NJD",
+   "owner": "WSH"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "NYR",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "PIT",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "TOR",
+   "owner": "TBL"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "WPG",
+   "owner": "BOS"
+  },
+  {
+   "year": 2027,
+   "round": 4,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "BOS",
+   "owner": "EDM"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "CHI",
+   "owner": "SJS"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "COL",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "OTT",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "SJS",
+   "owner": "COL"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "TBL",
+   "owner": "UTA"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2027,
+   "round": 5,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "NJD",
+   "owner": "NYI"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "OTT",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "PHI",
+   "owner": "TOR"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2027,
+   "round": 6,
+   "original": "WSH",
+   "owner": "FLA"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "CAR",
+   "owner": "PHI",
+   "conditions": [
+    "conditional 7th-round pick in the 2027 NHL Draft"
+   ]
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "CGY",
+   "owner": "ANA"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "DET",
+   "owner": "VGK"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "LAK",
+   "owner": "MTL"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "OTT",
+   "owner": "WSH"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "SJS",
+   "owner": "FLA"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "VGK",
+   "owner": "DET"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2027,
+   "round": 7,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "COL",
+   "owner": "NSH",
+   "conditions": [
+    "In the event that either a) COL 2027 1st is not transferred to TOR; or b) COL 2028 1st falls within Top 10, NSH shall instead receive COL 2029 1st."
+   ]
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "DAL",
+   "owner": "CAR",
+   "conditions": [
+    "Top-10 protected"
+   ]
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "FLA",
+   "owner": "UTA",
+   "conditions": [
+    "Top 10 protection"
+   ]
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "NYR",
+   "owner": "VGK",
+   "conditions": [
+    "Top-10 protected in 2028"
+   ]
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "TOR",
+   "owner": "BOS"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2028,
+   "round": 1,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "CBJ",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "COL",
+   "owner": "PIT"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "DAL",
+   "owner": "PIT"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "EDM",
+   "owner": "CHI"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "MIN",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "NJD",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "TBL",
+   "owner": "LAK"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "VGK",
+   "owner": "CGY",
+   "conditions": [
+    "Becomes a first if Vegas wins Cup in 2026"
+   ]
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2028,
+   "round": 2,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "BOS",
+   "owner": "NYR",
+   "conditions": [
+    "Conditional 2028 3rd round pick that can upgrade to a 2nd"
+   ]
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "COL",
+   "owner": "NYI",
+   "conditions": [
+    "The Islanders receive this pick if Colorado wins the 2025 Stanley Cup and Brock Nelson plays in at least 50% of the playoff games."
+   ]
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "EDM",
+   "owner": "BUF"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "FLA",
+   "owner": "VGK"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "SJS",
+   "owner": "PIT"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "STL",
+   "owner": "EDM"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "TBL",
+   "owner": "SEA"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "TOR",
+   "owner": "TBL"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "VGK",
+   "owner": "DAL"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2028,
+   "round": 3,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "MIN",
+   "owner": "CGY"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "NYR",
+   "owner": "BOS"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "PIT",
+   "owner": "TOR"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "SJS",
+   "owner": "CHI"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "TOR",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2028,
+   "round": 4,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "CBJ",
+   "owner": "COL"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "PIT",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "SJS",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2028,
+   "round": 5,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2028,
+   "round": 6,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "BUF",
+   "owner": "EDM"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "CGY",
+   "owner": "PHI"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "CHI",
+   "owner": "SJS"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2028,
+   "round": 7,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "FLA",
+   "owner": "OTT",
+   "conditions": [
+    "Top-10 protected"
+   ]
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2029,
+   "round": 1,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "EDM",
+   "owner": "PIT"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "MIN",
+   "owner": "CGY"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "VGK",
+   "owner": "WSH"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2029,
+   "round": 2,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "COL",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "DET",
+   "owner": "VGK"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "TBL",
+   "owner": "SEA"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2029,
+   "round": 3,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "DAL",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2029,
+   "round": 4,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2029,
+   "round": 5,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2029,
+   "round": 6,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2029,
+   "round": 7,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "NYR",
+   "owner": "VAN",
+   "conditions": [
+    "Top 10 protected"
+   ]
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2030,
+   "round": 1,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2030,
+   "round": 2,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2030,
+   "round": 3,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2030,
+   "round": 4,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2030,
+   "round": 5,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2030,
+   "round": 6,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2030,
+   "round": 7,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2031,
+   "round": 1,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2031,
+   "round": 2,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2031,
+   "round": 3,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2031,
+   "round": 4,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2031,
+   "round": 5,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2031,
+   "round": 6,
+   "original": "WSH",
+   "owner": "WSH"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "ANA",
+   "owner": "ANA"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "BOS",
+   "owner": "BOS"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "BUF",
+   "owner": "BUF"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "CAR",
+   "owner": "CAR"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "CBJ",
+   "owner": "CBJ"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "CGY",
+   "owner": "CGY"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "CHI",
+   "owner": "CHI"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "COL",
+   "owner": "COL"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "DAL",
+   "owner": "DAL"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "DET",
+   "owner": "DET"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "EDM",
+   "owner": "EDM"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "FLA",
+   "owner": "FLA"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "LAK",
+   "owner": "LAK"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "MIN",
+   "owner": "MIN"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "MTL",
+   "owner": "MTL"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "NJD",
+   "owner": "NJD"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "NSH",
+   "owner": "NSH"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "NYI",
+   "owner": "NYI"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "NYR",
+   "owner": "NYR"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "OTT",
+   "owner": "OTT"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "PHI",
+   "owner": "PHI"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "PIT",
+   "owner": "PIT"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "SEA",
+   "owner": "SEA"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "SJS",
+   "owner": "SJS"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "STL",
+   "owner": "STL"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "TBL",
+   "owner": "TBL"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "TOR",
+   "owner": "TOR"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "UTA",
+   "owner": "UTA"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "VAN",
+   "owner": "VAN"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "VGK",
+   "owner": "VGK"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "WPG",
+   "owner": "WPG"
+  },
+  {
+   "year": 2031,
+   "round": 7,
+   "original": "WSH",
+   "owner": "WSH"
+  }
+ ]
+}

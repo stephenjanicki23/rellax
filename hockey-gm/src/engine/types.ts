@@ -319,6 +319,12 @@ export interface Player {
   /** Unsigned draft rights or RFA rights held by this team. */
   rightsTeamId: number | null;
   draft: { season: number; round: number; pick: number; teamId: number } | null;
+  /**
+   * Unsigned draft pick (status 'prospect', no contract, rightsTeamId set):
+   * the team holds his rights until the offseason of this season, when they
+   * lapse unless he signs (CBA 8.6).
+   */
+  signBySeason?: number;
   career: CareerSeason[];
   awards: PlayerAward[];
   /** Public reputation 0-100 (league-wide perception). */
@@ -471,6 +477,10 @@ export interface DraftPick {
   /** Set once the draft order is known. */
   pickNumber?: number;
   playerId?: number;
+  /** Conditions attached when the pick was traded (real data), e.g. "Top-10 protected". */
+  conditions?: string[];
+  /** Protected if it lands in the top N: it then stays with the original team (see draft.ts). */
+  protectedTop?: number;
 }
 
 export interface ScheduledGame {
