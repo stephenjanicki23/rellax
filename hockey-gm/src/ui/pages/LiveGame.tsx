@@ -21,6 +21,9 @@ import { whistleHold, type RinkPlayer } from '../rink/director';
 import type { RinkFeed } from '../rink/LiveRink';
 
 
+/** Game seconds the engine runs ahead of the display. */
+const LOOKAHEAD = 25;
+
 /** Sim state after one engine step, queued until the playback clock reaches it. */
 interface Frame {
   elapsed: number;
@@ -41,14 +44,28 @@ export function LiveGame() {
   // Tonight's other games: simulated once now, revealed by the ticker in step with this game,
   // and recorded with exactly these results when the day is played.
   const [ticker, setTicker] = useState<TickerGame[]>([]);
+  const tickerRef = useRef<TickerGame[]>([]);
+  const others = useMemo(() => (game && game.id >= 0 ? league.schedule.filter((g) => g.day === game.day && g.id !== game.id && !g.played) : []), [game]); // eslint-disable-line react-hooks/exhaustive-deps
+  const simOther = (g: ScheduledGame): TickerGame => ({ id: g.id, home: league.teams[g.home], away: league.teams[g.away], result: simulateGame(buildGameInput(league, g.id)) });
   useEffect(() => {
-    if (!game || game.id < 0) return;
-    const id = setTimeout(() => {
-      const others = league.schedule.filter((g) => g.day === game.day && g.id !== game.id && !g.played);
-      setTicker(others.map((g) => ({ id: g.id, home: league.teams[g.home], away: league.teams[g.away], result: simulateGame(buildGameInput(league, g.id)) })));
-    }, 30);
+    // One game per tick, so simulating tonight's slate never freezes the live view.
+    let i = 0;
+    let id: ReturnType<typeof setTimeout>;
+    const next = () => {
+      const g = others[i++];
+      if (!g) return;
+      if (!tickerRef.current.some((t) => t.id === g.id)) tickerRef.current = [...tickerRef.current, simOther(g)];
+      setTicker(tickerRef.current);
+      id = setTimeout(next, 40);
+    };
+    id = setTimeout(next, 200);
     return () => clearTimeout(id);
-  }, [game]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [others]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Every other game tonight (simulating any the ticker hasn't reached yet). */
+  const allOthers = (): TickerGame[] => {
+    for (const g of others) if (!tickerRef.current.some((t) => t.id === g.id)) tickerRef.current = [...tickerRef.current, simOther(g)];
+    return tickerRef.current;
+  };
   if (!ready) return null;
   if (!game || game.id < 0 || !input) {
     return (
@@ -79,7 +96,7 @@ export function LiveGame() {
         return { g: st?.g ?? 0, a: (st?.a1 ?? 0) + (st?.a2 ?? 0) };
       }}
       onFinish={async (result) => {
-        await runSim('day', new Map([[game.id, result], ...ticker.map((t): [number, GameResult] => [t.id, t.result])]));
+        await runSim('day', new Map([[game.id, result], ...allOthers().map((t): [number, GameResult] => [t.id, t.result])]));
         toast('Result recorded. The rest of the league played tonight too.', 'good');
         navigate(`game/${game.id}`);
       }}
@@ -206,7 +223,10 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     const pb = playRef.current!;
     pb.t = t;
     let guard = 0;
-    while (!sim.finished && sim.elapsed <= t && guard++ < 20000) {
+    // Run the engine ahead of the display so the rink always knows where play is going next
+    // (a possession can pass 10-15 s without an engine event). Nothing is revealed early: the
+    // play-by-play and score follow what the rink shows.
+    while (!sim.finished && sim.elapsed <= t + LOOKAHEAD && guard++ < 20000) {
       const evs = sim.step();
       const snapNow = sim.snapshot();
       pb.pending.push(...evs);
