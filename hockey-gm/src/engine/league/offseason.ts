@@ -17,6 +17,7 @@ import { standingRows } from './standings';
 import { agePlayer, developPlayer, retirementChance } from '../player/development';
 import { devContext } from './season';
 import { publishCentralRankings, runCombine } from '../economy/scouting';
+import { ahlPlayoffs, archiveAhlSeason, resetAhlSeason } from './ahl';
 import { prepareDraft, runDraftUntilUser, finishDraft } from '../economy/draft';
 import { aiResign, startFreeAgency, processFADay, expiringPlayers } from '../economy/freeAgency';
 import { generateDraftClass } from '../player/prospects';
@@ -39,6 +40,7 @@ import { aiBuyouts } from '../ai/finance';
 import { trainingCamp } from '../team/fit';
 
 export function endRegularSeasonHooks(league: League): void {
+  ahlPlayoffs(league);
   // Central Scouting's final rankings come out as the season ends; the combine follows.
   if (league.scouting.central?.season !== league.season || league.scouting.central.stage !== 'final') publishCentralRankings(league, 'final');
   if (!league.draftCombineDone) runCombine(league);
@@ -126,6 +128,7 @@ export function finishSeason(league: League): void {
   processWaivers(league, true);
   settlePerformanceBonuses(league);
   archiveCareers(league);
+  archiveAhlSeason(league);
   announceAwards(league, awards);
   if (champ != null) {
     for (const p of playersOf(league, champ, ['active'])) {
@@ -246,6 +249,7 @@ export function startResignPhase(league: League): void {
 /** Start the next season: schedule, cap growth, resets. */
 export function startNewSeason(league: League): void {
   league.season++;
+  resetAhlSeason(league);
   // The books are now kept for the new season (capSeason depends on the phase).
   league.phase = 'preseason';
   const cfg = league.config;

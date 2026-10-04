@@ -6,6 +6,8 @@ import { signFromOffer, type SignResult } from '../cba/contractService';
 import { capSeason, contractFor, teamCapSheet } from '../cba/capManager';
 import { endOf } from '../cba/contract';
 import { rulesFor } from '../cba/rules';
+import { affiliateOf, ahlUsage } from '../league/ahl';
+import { clamp } from '../core/math';
 import { buyoutPlayer, canPlaceOnLTIR, inBuyoutWindow, placeOnLTIR } from '../cba/capActions';
 import { executeTrade, validateTrade } from './trade';
 import { needsWaivers, onWaivers, placeOnWaivers, waiverConsentBlock, waiverPeriod, waiverRisk } from '../cba/waivers';
@@ -39,11 +41,40 @@ function ensureStats(league: League, p: Player): void {
 }
 
 export function promote(league: League, p: Player, announce = true): void {
-  // Unsigned draft picks can't play until they sign.
+  // Unsigned draft picks (and AHL-contract players) can't play until they sign an NHL deal.
   if (p.status !== 'prospect' || !p.contract || onWaiversNow(league, p)) return;
   p.status = 'active';
   ensureStats(league, p);
-  if (announce && p.teamId !== null) addTransaction(league, { kind: 'callup', teamIds: [p.teamId], playerIds: [p.id], description: `${teamName(league, p.teamId)} recall ${fullName(p)} (${p.pos})` });
+  if (announce && p.teamId !== null) {
+    const l = league.ahl?.stats[p.id];
+    const from = p.teamId !== null ? affiliateOf(league, p.teamId) : undefined;
+    const line = l && l.gp > 0 ? (p.pos === 'G' ? ` (${l.gp} GP, ${l.sa ? (1 - l.ga / l.sa).toFixed(3) : '—'} SV%)` : ` (${l.gp} GP, ${l.g}-${l.a}-${l.g + l.a})`) : '';
+    addTransaction(league, { kind: 'callup', teamIds: [p.teamId], playerIds: [p.id], description: `${teamName(league, p.teamId)} recall ${fullName(p)} (${p.pos})${from && l?.gp ? ` from the ${from.name}${line}` : ''}` });
+  }
+}
+
+/** Call-up order: ability first, with credit for a prospect who is producing in the AHL. */
+export function callupScore(league: League, p: Player): number {
+  const u = ahlUsage(league, p);
+  if (!u || u.gp < 5) return p.ca;
+  if (p.pos === 'G') {
+    const l = league.ahl!.stats[p.id];
+    const sv = l.sa ? 1 - l.ga / l.sa : 0.9;
+    return p.ca + clamp((sv - 0.9) * 200, -3, 4);
+  }
+  const expected = p.pos === 'D' ? 0.3 : 0.5;
+  return p.ca + clamp((u.ppg - expected) * 10, -3, 5);
+}
+
+/** Sign a player on an AHL contract to an NHL (two-way, league-minimum) deal so he can be called up. */
+export function signAhlPlayer(league: League, p: Player, years = 1): MoveResult {
+  if (!p.ahlContract || p.teamId === null) return { ok: false, message: `${fullName(p)} is not on an AHL contract.` };
+  const salary = rulesFor(capSeason(league)).minimumSalary;
+  const res = signFromOffer(league, p, p.teamId, { aav: salary, years, twoWay: true }, { origin: 'signing', toMinors: true });
+  if (!res.ok) return { ok: false, message: res.message };
+  p.ahlContract = false;
+  p.status = 'prospect';
+  return { ok: true, message: `${fullName(p)} signs a two-way NHL contract and can now be called up.` };
 }
 
 export interface MoveResult {
@@ -132,7 +163,7 @@ export function ensureDressable(league: League, teamId: number): void {
     const match = (p: Player) => (pos === 'G' ? p.pos === 'G' : pos === 'D' ? p.pos === 'D' : isForward(p.pos));
     const prospect = playersOf(league, teamId, ['prospect'])
       .filter((p) => p.contract && match(p) && healthy(p) && !onWaiversNow(league, p))
-      .sort((a, b) => b.ca - a.ca)[0];
+      .sort((a, b) => callupScore(league, b) - callupScore(league, a))[0];
     const fa = Object.values(league.players)
       .filter((p) => p.status === 'fa' && match(p) && healthy(p))
       .sort((a, b) => b.ca - a.ca)
@@ -200,7 +231,7 @@ export function trimRoster(league: League, teamId: number): void {
 /** Promote prospects who are clearly better than the weakest regulars (CPU teams). */
 export function promoteReadyProspects(league: League, teamId: number): void {
   const prospects = playersOf(league, teamId, ['prospect']).filter((p) => healthy(p) && league.season - p.birthYear >= 19 && p.contract && !onWaiversNow(league, p));
-  for (const pr of prospects.sort((a, b) => b.ca - a.ca)) {
+  for (const pr of prospects.sort((a, b) => callupScore(league, b) - callupScore(league, a))) {
     const active = playersOf(league, teamId, ['active']);
     const same = active.filter((p) => (pr.pos === 'G' ? p.pos === 'G' : pr.pos === 'D' ? p.pos === 'D' : isForward(p.pos) && p.pos !== 'G'));
     const weakest = same.sort((a, b) => a.ca - b.ca)[0];

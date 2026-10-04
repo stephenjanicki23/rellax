@@ -13,7 +13,7 @@ import { estimate, displayedAttr, scoutReport, knowledgeOf } from '../../engine/
 import { injuryLabel } from '../../engine/player/injuries';
 import { points, savePct, gaa, gsax, fmtToi, addStatLine, emptyStatLine } from '../../engine/core/statline';
 import { offerContract, makeOffer } from '../../engine/economy/freeAgency';
-import { demote, promote, releasePlayer } from '../../engine/economy/roster';
+import { demote, promote, releasePlayer, signAhlPlayer } from '../../engine/economy/roster';
 import { isUnsignedPick, signByLabel, signDraftPick } from '../../engine/economy/draftRights';
 import { toggleTradeBlock } from '../../engine/ai/tradeMarket';
 import { agentOf, AGENT_STYLES } from '../../engine/cba/agents';
@@ -64,6 +64,11 @@ export function PlayerPage({ id }: { id: number }) {
         <div className="actions">
           {mine && p.status === 'active' && <button className="btn" onClick={() => { const r = mutate((l) => demote(l, p)); toast(r.message, r.ok ? 'info' : 'bad'); }}>Send to minors</button>}
           {mine && p.status === 'prospect' && p.contract && <button className="btn" onClick={() => mutate((l) => promote(l, p))}>Call up</button>}
+          {mine && p.ahlContract && (
+            <button className="btn primary" onClick={() => { const r = mutate((l) => signAhlPlayer(l, p)); toast(r.message, r.ok ? 'good' : 'bad'); }}>
+              Sign NHL contract
+            </button>
+          )}
           {mine && (
             <button className="btn" onClick={() => { const on = mutate((l) => toggleTradeBlock(l, p.id)); toast(on ? `${p.last} is on the trade block — teams will call.` : `${p.last} is off the trade block.`, 'info'); }}>
               {(league.teams[league.userTeamId].tradeBlock ?? []).includes(p.id) ? 'Remove from trade block' : 'Add to trade block'}
@@ -240,6 +245,58 @@ export function PlayerPage({ id }: { id: number }) {
           <Card title="Contract">
             <ContractDetails league={league} p={p} />
           </Card>
+          {(league.ahl?.stats[p.id] || p.ahlCareer?.length) && (
+            <Card title="AHL" tight>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Season</th>
+                    <th>Team</th>
+                    <th className="num">GP</th>
+                    {p.pos === 'G' ? (
+                      <>
+                        <th className="num">W-L-OT</th>
+                        <th className="num">SV%</th>
+                        <th className="num">GAA</th>
+                        <th className="num">SO</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="num">G</th>
+                        <th className="num">A</th>
+                        <th className="num">PTS</th>
+                        <th className="num">+/-</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...(p.ahlCareer ?? []), ...(league.ahl?.stats[p.id]?.gp ? [{ season: league.ahl.season, team: league.ahl.stats[p.id].team, stats: league.ahl.stats[p.id] }] : [])].map((r) => (
+                    <tr key={`${r.season}${r.team}`}>
+                      <td>{seasonLabel(r.season)}</td>
+                      <td className="muted">{r.team}</td>
+                      <td className="num">{r.stats.gp}</td>
+                      {p.pos === 'G' ? (
+                        <>
+                          <td className="num">{r.stats.w}-{r.stats.l}-{r.stats.otl}</td>
+                          <td className="num">{r.stats.sa ? (1 - r.stats.ga / r.stats.sa).toFixed(3).replace(/^0/, '') : '—'}</td>
+                          <td className="num">{r.stats.gp ? (r.stats.ga / r.stats.gp).toFixed(2) : '—'}</td>
+                          <td className="num">{r.stats.so}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="num">{r.stats.g}</td>
+                          <td className="num">{r.stats.a}</td>
+                          <td className="num"><b>{r.stats.g + r.stats.a}</b></td>
+                          <td className="num">{r.stats.pm}</td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
           <Card title="System fit">
             <SystemFit league={league} p={p} />
           </Card>

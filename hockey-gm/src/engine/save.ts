@@ -4,6 +4,7 @@
  */
 import type { League } from './types';
 import { SAVE_VERSION } from './league/create';
+import { newAhlState } from './league/ahl';
 import { emptyFinancialState } from './cba/import';
 import { buildContract } from './cba/contract';
 import { capSeason } from './cba/capManager';
@@ -55,6 +56,7 @@ function migrate(league: League): League {
   for (const t of league.teams) league.aiMemory[t.id] ??= { lastTradeDay: -100, coachHotSeat: 0 };
   for (const p of Object.values(league.players)) p.caHistory ??= [];
   league.tradeOffers ??= [];
+  league.ahl ??= newAhlState(league.teams, league.season);
   // v2: NHL contract & cap system.
   const fin = emptyFinancialState();
   league.capLedger ??= fin.capLedger;

@@ -20,6 +20,7 @@ import { generateSchedule } from './schedule';
 import { updateStrategies } from '../ai/gm';
 import { applyRealPickOwnership, buildRealReserves, draftDataInfo } from './realDraft';
 import { buildRealDraftClass, isReentryClass } from './realDraftClass';
+import { buildAhlContractPlayers, newAhlState } from './ahl';
 import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
 import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
@@ -388,6 +389,9 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     addPlayer(p);
   }
 
+  // ── Real AHL-contract players at each club's affiliate.
+  if (real) for (const p of buildAhlContractPlayers(rng, teams, season, () => ids.player++)) addPlayer(p);
+
   // ── Real reserve lists: each club's unsigned draft picks.
   if (hasReserves) for (const p of buildRealReserves(rng, teams, season, Object.values(players), () => ids.player++)) addPlayer(p);
 
@@ -504,6 +508,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
     ratingBaseline: 120,
     tradeOffers: [],
     aiMemory: Object.fromEntries(teams.map((t) => [t.id, { lastTradeDay: -100, coachHotSeat: 0 }])),
+    ahl: newAhlState(teams, season),
     ...emptyFinancialState(),
   };
   league.nextContractId = contractIds;

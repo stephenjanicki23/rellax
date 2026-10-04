@@ -323,6 +323,10 @@ export interface Player {
   csRank?: { category: CsCategory; rank: number };
   /** Rank on an imported public big board (real prospects). */
   boardRank?: number;
+  /** Signed to an AHL contract with the club's affiliate (no NHL contract; must sign one to be called up). */
+  ahlContract?: boolean;
+  /** AHL seasons (kept apart from NHL career totals). */
+  ahlCareer?: { season: number; team: string; stats: AhlLine }[];
   /** Agent representing him (see cba/agents). */
   agentId?: number;
   /** Restricted free agent refusing his qualifying offer (sits out until he signs). */
@@ -732,6 +736,45 @@ export interface CsRankings {
   lists: Record<CsCategory, number[]>;
 }
 
+/** A season line in the AHL (compact: skater and goalie fields). */
+export interface AhlLine {
+  gp: number;
+  g: number;
+  a: number;
+  sog: number;
+  pim: number;
+  pm: number;
+  /** Goalies. */
+  gs: number;
+  sa: number;
+  ga: number;
+  w: number;
+  l: number;
+  otl: number;
+  so: number;
+}
+
+export interface AhlTeamRecord {
+  /** NHL parent club. */
+  nhlTeamId: number;
+  abbrev: string;
+  name: string;
+  gp: number;
+  w: number;
+  l: number;
+  otl: number;
+  gf: number;
+  ga: number;
+}
+
+/** The AHL season: affiliates, standings, player lines and the Calder Cup. */
+export interface AhlState {
+  season: number;
+  teams: AhlTeamRecord[];
+  stats: Record<number, AhlLine & { team: string }>;
+  champion: number | null;
+}
+
 export type AgentStyle = 'hardball' | 'fair' | 'friendly' | 'media';
 
 export interface Agent {
@@ -882,6 +925,8 @@ export interface League {
   arbitration: ArbitrationCase[];
   offerSheets: OfferSheet[];
   negotiations: Record<number, NegotiationState>;
+  /** The AHL (affiliates of every NHL club). */
+  ahl?: AhlState;
   /** Player agents (created on demand for older saves). */
   agents?: Record<number, Agent>;
   /** Retained-salary transactions per team (for the per-team limit). */

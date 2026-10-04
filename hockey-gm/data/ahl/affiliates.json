@@ -1,0 +1,2642 @@
+{
+ "schemaVersion": 1,
+ "asOf": "2026-10-03",
+ "source": "CapWages team pages (AHL affiliate and AHL-contract players)",
+ "teams": {
+  "BOS": {
+   "abbrev": "PRO",
+   "name": "Providence Bruins",
+   "players": [
+    {
+     "first": "Joey",
+     "last": "Abate",
+     "born": "1998-09-26",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Maxim",
+     "last": "Andreev",
+     "born": "1998-10-22",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Josh",
+     "last": "Bloom",
+     "born": "2003-06-08",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Wyatt",
+     "last": "Bongiovanni",
+     "born": "1999-07-24",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Robert",
+     "last": "Cronin",
+     "born": "2000-08-15",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Alexis",
+     "last": "Gendron",
+     "born": "2003-12-30",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Cross",
+     "last": "Hanas",
+     "born": "2002-01-05",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Nolan",
+     "last": "Renwick",
+     "born": "2001-02-16",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Jake",
+     "last": "Schmaltz",
+     "born": "2001-04-24",
+     "pos": "C",
+     "term": 2
+    },
+    {
+     "first": "Ryan",
+     "last": "Tattle",
+     "born": "2001-09-07",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Ty",
+     "last": "Gallagher",
+     "born": "2003-03-06",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Dylan",
+     "last": "MacKinnon",
+     "born": "2005-01-12",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Chris",
+     "last": "Ortiz",
+     "born": "2001-01-17",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Tobie",
+     "last": "Paquette-Bisson",
+     "born": "1997-02-01",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Maximus",
+     "last": "Wanner",
+     "born": "2003-03-12",
+     "pos": "D",
+     "term": 1
+    }
+   ]
+  },
+  "BUF": {
+   "abbrev": "ROC",
+   "name": "Rochester Americans",
+   "players": [
+    {
+     "first": "Thomas",
+     "last": "Bordeleau",
+     "born": "2002-01-03",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Matteo",
+     "last": "Costantini",
+     "born": "2002-08-16",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Matthew",
+     "last": "Peca",
+     "born": "1993-04-27",
+     "pos": "C",
+     "term": 2
+    },
+    {
+     "first": "Redmond",
+     "last": "Savage",
+     "born": "2003-05-15",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Graham",
+     "last": "Slaggert",
+     "born": "1999-04-06",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Liam",
+     "last": "Valente",
+     "born": "2003-05-23",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Brendan",
+     "last": "Warren",
+     "born": "1997-05-07",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Noah",
+     "last": "Laaouan",
+     "born": "2001-03-07",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Talyn",
+     "last": "Boyko",
+     "born": "2002-10-16",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "DET": {
+   "abbrev": "GR",
+   "name": "Grand Rapids Griffins",
+   "players": [
+    {
+     "first": "Tag",
+     "last": "Bertuzzi",
+     "born": "2001-02-18",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Kaden",
+     "last": "Bohlsen",
+     "born": "2001-01-10",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Kienan",
+     "last": "Draper",
+     "born": "2002-02-19",
+     "pos": "RW",
+     "term": 2
+    },
+    {
+     "first": "Nolan",
+     "last": "Moyle",
+     "born": "1999-04-13",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Justice",
+     "last": "Christensen",
+     "born": "2005-08-30",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Marcus",
+     "last": "Crawford",
+     "born": "1997-03-21",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Alex",
+     "last": "Kannok Leipert",
+     "born": "2000-07-20",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jacob",
+     "last": "Truscott",
+     "born": "2002-04-12",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jonathan",
+     "last": "Lemieux",
+     "born": "2001-06-08",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "FLA": {
+   "abbrev": "CLT",
+   "name": "Charlotte Checkers",
+   "players": [
+    {
+     "first": "William",
+     "last": "Bitten",
+     "born": "1998-07-10",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Brett",
+     "last": "Chorske",
+     "born": "2001-05-24",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Karsen",
+     "last": "Dorwart",
+     "born": "2002-09-17",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Riese",
+     "last": "Gaber",
+     "born": "1999-10-10",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Riley",
+     "last": "Hughes",
+     "born": "2000-06-27",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Kasper",
+     "last": "Lundell",
+     "born": "2004-03-11",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Robert",
+     "last": "Mastrosimone",
+     "born": "2001-01-24",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Liam",
+     "last": "McLinskey",
+     "born": "2001-02-20",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Brian",
+     "last": "Pinho",
+     "born": "1995-05-11",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Nathan",
+     "last": "Smith",
+     "born": "1998-10-19",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Philip",
+     "last": "Tresca",
+     "born": "2002-04-10",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Luca",
+     "last": "Fantilli",
+     "born": "2002-12-30",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Colton",
+     "last": "Huard",
+     "born": "2000-11-27",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Matyas",
+     "last": "Man",
+     "born": "2006-05-31",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Mitchell",
+     "last": "Vande Sompel",
+     "born": "1997-02-11",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Vinnie",
+     "last": "Purpura",
+     "born": "1998-10-29",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "MTL": {
+   "abbrev": "LAV",
+   "name": "Laval Rocket",
+   "players": [
+    {
+     "first": "Vincent",
+     "last": "Arseneau",
+     "born": "1992-03-26",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Dillan",
+     "last": "Bentley",
+     "born": "2001-03-31",
+     "pos": "C",
+     "term": 2
+    },
+    {
+     "first": "Laurent",
+     "last": "Dauphin",
+     "born": "1995-03-27",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Alexander",
+     "last": "Legkov",
+     "born": "2004-03-15",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Israel",
+     "last": "Mianscum",
+     "born": "2003-04-18",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Josh",
+     "last": "Nadeau",
+     "born": "2003-10-22",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Xavier",
+     "last": "Simoneau",
+     "born": "2001-05-19",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Jacob",
+     "last": "Dion",
+     "born": "2001-11-01",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Aiden",
+     "last": "Dubinsky",
+     "born": "2004-04-28",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Braden",
+     "last": "Hache",
+     "born": "2003-05-21",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Kale",
+     "last": "McCallum",
+     "born": "2002-02-14",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Hunter",
+     "last": "Jones",
+     "born": "2000-09-21",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Francesco",
+     "last": "Lapenna",
+     "born": "2002-07-08",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Kevin",
+     "last": "Mandolese",
+     "born": "2000-08-22",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "OTT": {
+   "abbrev": "BEL",
+   "name": "Belleville Senators",
+   "players": [
+    {
+     "first": "Landen",
+     "last": "Hookey",
+     "born": "2004-01-29",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Luke",
+     "last": "Mistelbacher",
+     "born": "2005-11-02",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Scott",
+     "last": "Harrington",
+     "born": "1993-03-10",
+     "pos": "D",
+     "term": 1
+    }
+   ]
+  },
+  "TBL": {
+   "abbrev": "SYR",
+   "name": "Syracuse Crunch",
+   "players": [
+    {
+     "first": "Clark",
+     "last": "Bishop",
+     "born": "1996-03-29",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Elliot",
+     "last": "Desnoyers",
+     "born": "2002-01-21",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Shawn",
+     "last": "Element",
+     "born": "2000-04-23",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Brendan",
+     "last": "Furry",
+     "born": "1998-07-08",
+     "pos": "LW",
+     "term": 2
+    },
+    {
+     "first": "Tommy",
+     "last": "Miller",
+     "born": "1999-03-06",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Matteo",
+     "last": "Pietroniro",
+     "born": "1998-10-20",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Jarred",
+     "last": "Tinordi",
+     "born": "1992-02-20",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Zach",
+     "last": "Uens",
+     "born": "2001-05-13",
+     "pos": "D",
+     "term": 1
+    }
+   ]
+  },
+  "TOR": {
+   "abbrev": "TOR",
+   "name": "Toronto Marlies",
+   "players": [
+    {
+     "first": "Sawyer",
+     "last": "Boulton",
+     "born": "2004-07-12",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Matt",
+     "last": "Copponi",
+     "born": "2003-06-04",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Reese",
+     "last": "Johnson",
+     "born": "1998-07-10",
+     "pos": "C",
+     "term": 2
+    },
+    {
+     "first": "Marc",
+     "last": "Johnstone",
+     "born": "1996-06-19",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "Kirwan",
+     "born": "2002-02-27",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Jackson",
+     "last": "Kunz",
+     "born": "2002-08-13",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Ross",
+     "last": "Mitton",
+     "born": "2000-07-05",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Logan",
+     "last": "Shaw",
+     "born": "1992-10-05",
+     "pos": "C",
+     "term": 2
+    },
+    {
+     "first": "Sam",
+     "last": "Stevens",
+     "born": "2000-04-27",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Matt",
+     "last": "Anderson",
+     "born": "1999-04-11",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Frank",
+     "last": "Djurasevic",
+     "born": "2002-03-09",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Ben",
+     "last": "Meehan",
+     "born": "2001-04-20",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Ken",
+     "last": "Appleby",
+     "born": "1995-04-10",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Timofei",
+     "last": "Obvintsev",
+     "born": "2005-01-06",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "CAR": {
+   "abbrev": "CHI",
+   "name": "Chicago Wolves",
+   "players": [
+    {
+     "first": "David",
+     "last": "Gagnon",
+     "born": "2000-04-19",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Ethan",
+     "last": "Leyh",
+     "born": "2001-06-07",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Matt",
+     "last": "Quercia",
+     "born": "1999-02-24",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Stiven",
+     "last": "Sardarian",
+     "born": "2003-02-07",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Gabriel",
+     "last": "Seger",
+     "born": "1999-11-15",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Josiah",
+     "last": "Slavin",
+     "born": "1998-12-31",
+     "pos": "LW",
+     "term": 2
+    },
+    {
+     "first": "Evan",
+     "last": "Vierling",
+     "born": "2002-06-20",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Chase",
+     "last": "Wheatcroft",
+     "born": "2002-05-28",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Yegor",
+     "last": "Velmakin",
+     "born": "2003-04-08",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "CBJ": {
+   "abbrev": "CLE",
+   "name": "Cleveland Monsters",
+   "players": [
+    {
+     "first": "Roman",
+     "last": "Ahcan",
+     "born": "1999-03-24",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Tate",
+     "last": "Singleton",
+     "born": "1998-09-05",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Robby",
+     "last": "Drazner",
+     "born": "2000-02-13",
+     "pos": "D",
+     "term": 1
+    }
+   ]
+  },
+  "NJD": {
+   "abbrev": "UTC",
+   "name": "Utica Comets",
+   "players": [
+    {
+     "first": "Tristan",
+     "last": "Ashbrook",
+     "born": "1998-07-16",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Zach",
+     "last": "Gallant",
+     "born": "1999-03-06",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Gabe",
+     "last": "Klassen",
+     "born": "2003-06-30",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Jack",
+     "last": "Malone",
+     "born": "2000-10-13",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Justin",
+     "last": "Pearson",
+     "born": "1998-05-17",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "Schmelzer",
+     "born": "1993-07-28",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Cristophe",
+     "last": "Tellier",
+     "born": "2000-05-23",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Jeremy",
+     "last": "Wilmer",
+     "born": "2003-08-16",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Charlie",
+     "last": "Leddy",
+     "born": "2004-01-11",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Dmitri",
+     "last": "Osipov",
+     "born": "1996-10-04",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Eamon",
+     "last": "Powell",
+     "born": "2002-05-10",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jeremy",
+     "last": "Brodeur",
+     "born": "1996-10-29",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Seth",
+     "last": "Eisele",
+     "born": "1998-10-30",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "NYI": {
+   "abbrev": "HAM",
+   "name": "Hamilton Hammers",
+   "players": [
+    {
+     "first": "Cameron",
+     "last": "Berg",
+     "born": "2002-01-29",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Hunter",
+     "last": "Drew",
+     "born": "1998-10-21",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Max",
+     "last": "Ellis",
+     "born": "2000-01-18",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Matthew",
+     "last": "Highmore",
+     "born": "1996-02-27",
+     "pos": "LW",
+     "term": 2
+    },
+    {
+     "first": "Camden",
+     "last": "Thiesing",
+     "born": "2001-03-26",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "Healey",
+     "born": "2004-05-19",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Luke",
+     "last": "Rowe",
+     "born": "1998-08-08",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Brandon",
+     "last": "Scanlin",
+     "born": "1999-06-02",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Chas",
+     "last": "Sharpe",
+     "born": "2003-11-28",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "Fanti",
+     "born": "1999-10-03",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "NYR": {
+   "abbrev": "HFD",
+   "name": "Hartford Wolf Pack",
+   "players": [
+    {
+     "first": "Zakary",
+     "last": "Karpa",
+     "born": "2002-03-25",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Justin",
+     "last": "Nachbaur",
+     "born": "2000-03-04",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Caige",
+     "last": "Sterzer",
+     "born": "2000-08-08",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Lucas",
+     "last": "Vanroboys",
+     "born": "1999-07-24",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Ethan",
+     "last": "Frisch",
+     "born": "2000-10-29",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Anthony",
+     "last": "Kehrer",
+     "born": "2002-03-04",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Cooper",
+     "last": "Moore",
+     "born": "2001-02-16",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Gabriel",
+     "last": "Carriere",
+     "born": "2000-11-06",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "PHI": {
+   "abbrev": "LV",
+   "name": "Lehigh Valley Phantoms",
+   "players": [
+    {
+     "first": "Brady",
+     "last": "Berard",
+     "born": "2004-02-26",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Owen",
+     "last": "McLaughlin",
+     "born": "2003-03-25",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Mikael",
+     "last": "Robidoux",
+     "born": "1999-04-17",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Zayde",
+     "last": "Wisdom",
+     "born": "2002-07-07",
+     "pos": "RW",
+     "term": 2
+    },
+    {
+     "first": "Andrew",
+     "last": "Perrott",
+     "born": "2001-08-24",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Vincent",
+     "last": "Sevigny",
+     "born": "2001-04-14",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Cooper",
+     "last": "Wylie",
+     "born": "2001-10-26",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Yaniv",
+     "last": "Perets",
+     "born": "2000-03-04",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Keith",
+     "last": "Petruzzelli",
+     "born": "1999-02-09",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "PIT": {
+   "abbrev": "WBS",
+   "name": "Wilkes-Barre/Scranton Penguins",
+   "players": [
+    {
+     "first": "Lucas",
+     "last": "Ciona",
+     "born": "2003-01-08",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Brayden",
+     "last": "Edwards",
+     "born": "2004-12-23",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Max",
+     "last": "Graham",
+     "born": "2004-05-21",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Rafael",
+     "last": "Harvey-Pinard",
+     "born": "1999-01-06",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Jack",
+     "last": "Horbach",
+     "born": "2002-05-04",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Aaron",
+     "last": "Huglen",
+     "born": "2001-03-06",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Hugh",
+     "last": "McGing",
+     "born": "1998-07-11",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Daniel",
+     "last": "Russell",
+     "born": "2001-11-16",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Mark",
+     "last": "Senden",
+     "born": "1998-01-22",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Tiernan",
+     "last": "Shoudy",
+     "born": "2002-03-15",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "David",
+     "last": "Breazeale",
+     "born": "2000-04-22",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Tyler",
+     "last": "Duke",
+     "born": "2004-07-19",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Brent",
+     "last": "Johnson",
+     "born": "2003-03-20",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "Mast",
+     "born": "2003-01-14",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Maleek",
+     "last": "McGowan",
+     "born": "2005-06-13",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Broten",
+     "last": "Sabo",
+     "born": "2002-08-09",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Cam",
+     "last": "Johnson",
+     "born": "1994-07-11",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "WSH": {
+   "abbrev": "HER",
+   "name": "Hershey Bears",
+   "players": [
+    {
+     "first": "Sam",
+     "last": "Bitten",
+     "born": "2000-03-21",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Grant",
+     "last": "Cruikshank",
+     "born": "1998-07-19",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Alex",
+     "last": "Gaffney",
+     "born": "2002-06-25",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Kyle",
+     "last": "Jackson",
+     "born": "2002-10-17",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Jalen",
+     "last": "Luypen",
+     "born": "2002-06-28",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Landon",
+     "last": "McCallum",
+     "born": "2003-09-05",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Cam",
+     "last": "Morrison",
+     "born": "1998-08-27",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Dalton",
+     "last": "Smith",
+     "born": "1992-06-30",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Matthew",
+     "last": "Strome",
+     "born": "1999-01-06",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Jeremie",
+     "last": "Biakabutuka",
+     "born": "2002-03-05",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Noah",
+     "last": "Beck",
+     "born": "2001-03-25",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jon",
+     "last": "McDonald",
+     "born": "1998-06-15",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Rhett",
+     "last": "Parsons",
+     "born": "2003-08-10",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Garin",
+     "last": "Bjorklund",
+     "born": "2002-05-28",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Ben",
+     "last": "Kraws",
+     "born": "2000-08-02",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Cal",
+     "last": "Petersen",
+     "born": "1994-10-19",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "CHI": {
+   "abbrev": "RFD",
+   "name": "Rockford IceHogs",
+   "players": [
+    {
+     "first": "Chase",
+     "last": "DaFoe",
+     "born": "2002-02-25",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Jamie",
+     "last": "Engelbert",
+     "born": "2000-06-21",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Harrison",
+     "last": "Israels",
+     "born": "1999-09-01",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Marcus",
+     "last": "Joughin",
+     "born": "2001-07-05",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Kyler",
+     "last": "Kupka",
+     "born": "1999-05-11",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Kevin",
+     "last": "Lombardi",
+     "born": "1998-08-12",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Brett",
+     "last": "Seney",
+     "born": "1996-02-28",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Tommy",
+     "last": "Budnick",
+     "born": "2004-02-14",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Ashton",
+     "last": "Cumby",
+     "born": "2005-07-19",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Cavan",
+     "last": "Fitzgerald",
+     "born": "1996-08-23",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Lachlan",
+     "last": "Getz",
+     "born": "2002-02-01",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Brayden",
+     "last": "Hislop",
+     "born": "2003-09-26",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Thomas",
+     "last": "Gale",
+     "born": "2000-06-10",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "COL": {
+   "abbrev": "COL",
+   "name": "Colorado Eagles",
+   "players": [
+    {
+     "first": "Francesco",
+     "last": "Arcuri",
+     "born": "2003-06-13",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Reilly",
+     "last": "Connors",
+     "born": "2000-03-17",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Evan",
+     "last": "Friesen",
+     "born": "2004-08-24",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Maros",
+     "last": "Jedlicka",
+     "born": "2002-10-23",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Rilen",
+     "last": "Kovacevic",
+     "born": "2004-08-02",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Jayson",
+     "last": "Megna",
+     "born": "1990-02-01",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Yanick",
+     "last": "Turcotte",
+     "born": "1996-06-25",
+     "pos": "LW",
+     "term": 2
+    },
+    {
+     "first": "Jake",
+     "last": "Wise",
+     "born": "2000-02-28",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Chris",
+     "last": "Hedden",
+     "born": "2002-09-20",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Connor",
+     "last": "Kelley",
+     "born": "2002-01-30",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Hank",
+     "last": "Kempf",
+     "born": "2002-04-15",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Hunter",
+     "last": "Miska",
+     "born": "1995-07-07",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Isaiah",
+     "last": "Saville",
+     "born": "2000-09-21",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "DAL": {
+   "abbrev": "TEX",
+   "name": "Texas Stars",
+   "players": [
+    {
+     "first": "Jack",
+     "last": "Becker",
+     "born": "1997-06-24",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Curtis",
+     "last": "McKenzie",
+     "born": "1991-02-22",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Charlie",
+     "last": "Paquette",
+     "born": "2005-12-06",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Ellis",
+     "last": "Rickwood",
+     "born": "2002-07-02",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Mike",
+     "last": "Sgarbossa",
+     "born": "1992-07-25",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Ben",
+     "last": "Gleason",
+     "born": "1998-03-25",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Michael",
+     "last": "Karow",
+     "born": "1998-12-18",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Kyle",
+     "last": "Looft",
+     "born": "1998-06-27",
+     "pos": "D",
+     "term": 1
+    }
+   ]
+  },
+  "MIN": {
+   "abbrev": "IA",
+   "name": "Iowa Wild",
+   "players": [
+    {
+     "first": "Blake",
+     "last": "Biondi",
+     "born": "2002-04-24",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Drew",
+     "last": "Kuzma",
+     "born": "2002-11-13",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Bradley",
+     "last": "Marek",
+     "born": "2000-11-13",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Gerald",
+     "last": "Mayhew",
+     "born": "1992-12-31",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Nick",
+     "last": "Rheaume",
+     "born": "2002-05-02",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Mike",
+     "last": "Koster",
+     "born": "2001-04-13",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Braidan",
+     "last": "Simmons-Fischer",
+     "born": "2002-01-26",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Reilly",
+     "last": "Webb",
+     "born": "1999-05-04",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "William",
+     "last": "Rousseau",
+     "born": "2003-01-09",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "NSH": {
+   "abbrev": "MIL",
+   "name": "Milwaukee Admirals",
+   "players": [
+    {
+     "first": "John",
+     "last": "Farinacci",
+     "born": "2001-02-14",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Kyle",
+     "last": "Marino",
+     "born": "1995-06-01",
+     "pos": "RW",
+     "term": 2
+    },
+    {
+     "first": "Ben",
+     "last": "Strinden",
+     "born": "2002-06-04",
+     "pos": "RW",
+     "term": 2
+    },
+    {
+     "first": "Oasiz",
+     "last": "Wiesblatt",
+     "born": "2004-04-08",
+     "pos": "C",
+     "term": 2
+    },
+    {
+     "first": "Will",
+     "last": "Gilson",
+     "born": "2001-06-28",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Kevin",
+     "last": "Gravel",
+     "born": "1992-03-06",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "John",
+     "last": "Prokop",
+     "born": "2001-05-13",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Ethan",
+     "last": "Haider",
+     "born": "2001-09-04",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "T.J.",
+     "last": "Semptimphelter",
+     "born": "2002-05-09",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "STL": {
+   "abbrev": "SPR",
+   "name": "Springfield Thunderbirds",
+   "players": [
+    {
+     "first": "Kale",
+     "last": "Kessy",
+     "born": "1992-12-04",
+     "pos": "LW",
+     "term": 2
+    },
+    {
+     "first": "Sam",
+     "last": "Stange",
+     "born": "2001-04-20",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "T.J.",
+     "last": "Tynan",
+     "born": "1992-02-25",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Chris",
+     "last": "Wagner",
+     "born": "1991-05-27",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "Wheeler",
+     "born": "1997-08-24",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Parker",
+     "last": "Gahagen",
+     "born": "1993-05-17",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "UTA": {
+   "abbrev": "TUC",
+   "name": "Tucson Roadrunners",
+   "players": [
+    {
+     "first": "Austin",
+     "last": "Poganski",
+     "born": "1996-02-16",
+     "pos": "RW",
+     "term": 2
+    },
+    {
+     "first": "Jack",
+     "last": "Ricketts",
+     "born": "1999-09-08",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Kevin",
+     "last": "Rooney",
+     "born": "1993-05-21",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Tyler",
+     "last": "Tullio",
+     "born": "2002-04-05",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Samuel",
+     "last": "Walker",
+     "born": "1999-06-07",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Brandon",
+     "last": "Holt",
+     "born": "2001-04-30",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Robbie",
+     "last": "Russo",
+     "born": "1993-02-15",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Cal",
+     "last": "Thomas",
+     "born": "2003-05-08",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jesper",
+     "last": "Vikman",
+     "born": "2002-03-11",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "WPG": {
+   "abbrev": "MB",
+   "name": "Manitoba Moose",
+   "players": [
+    {
+     "first": "Davis",
+     "last": "Burnside",
+     "born": "2003-09-22",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Tyson",
+     "last": "Empey",
+     "born": "1995-06-29",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Deni",
+     "last": "Goure",
+     "born": "2003-07-15",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Sullivan",
+     "last": "Mack",
+     "born": "2000-07-05",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Michael",
+     "last": "Milne",
+     "born": "2002-09-21",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Chase",
+     "last": "Yoder",
+     "born": "2002-05-28",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Dawson",
+     "last": "Barteaux",
+     "born": "2000-01-12",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Lukas",
+     "last": "Gustafsson",
+     "born": "2002-12-16",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Dysin",
+     "last": "Mayo",
+     "born": "1996-08-17",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Evan",
+     "last": "Nause",
+     "born": "2003-01-20",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Ashton",
+     "last": "Sautner",
+     "born": "1994-05-27",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Alex",
+     "last": "Worthington",
+     "born": "2005-05-02",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "ANA": {
+   "abbrev": "SD",
+   "name": "San Diego Gulls",
+   "players": [
+    {
+     "first": "Ryan",
+     "last": "Carpenter",
+     "born": "1991-01-18",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Drew",
+     "last": "Elliott",
+     "born": "2003-04-04",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Travis",
+     "last": "Howe",
+     "born": "1994-02-10",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Kyle",
+     "last": "Kukkonen",
+     "born": "2002-11-13",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Sasha",
+     "last": "Mutala",
+     "born": "2001-05-06",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Matthew",
+     "last": "Phillips",
+     "born": "1998-04-06",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Matt",
+     "last": "Basgall",
+     "born": "2002-08-16",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Roman",
+     "last": "Kinal",
+     "born": "1998-07-20",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jake",
+     "last": "Lee",
+     "born": "2001-07-13",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jackson",
+     "last": "Niedermayer",
+     "born": "2001-03-11",
+     "pos": "D",
+     "term": 1
+    }
+   ]
+  },
+  "CGY": {
+   "abbrev": "CGY",
+   "name": "Calgary Wranglers",
+   "players": [
+    {
+     "first": "Braden",
+     "last": "Birnie",
+     "born": "2001-08-19",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Ryder",
+     "last": "Boulton",
+     "born": "2006-06-21",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Alexander",
+     "last": "Campbell",
+     "born": "2001-02-27",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Will",
+     "last": "Dineen",
+     "born": "2000-11-17",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Alex",
+     "last": "Gallant",
+     "born": "1992-12-08",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "Hofer",
+     "born": "2002-05-10",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Quinn",
+     "last": "Olson",
+     "born": "2001-05-09",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Luke",
+     "last": "Philp",
+     "born": "1995-11-06",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Marko",
+     "last": "Sikic",
+     "born": "2003-03-24",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Carter",
+     "last": "Wilkie",
+     "born": "2000-04-03",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Alex",
+     "last": "Young",
+     "born": "2001-03-22",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Kent",
+     "last": "Anderson",
+     "born": "2003-11-13",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Tyson",
+     "last": "Feist",
+     "born": "2001-01-14",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Tyler",
+     "last": "Inamoto",
+     "born": "1999-05-06",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Kyle",
+     "last": "Walker",
+     "born": "2000-07-09",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Semyon",
+     "last": "Konopsky",
+     "born": "2006-03-28",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Owen",
+     "last": "Say",
+     "born": "2001-06-05",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "EDM": {
+   "abbrev": "BAK",
+   "name": "Bakersfield Condors",
+   "players": [
+    {
+     "first": "Daniel",
+     "last": "D'Amato",
+     "born": "2001-04-08",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Josh",
+     "last": "Davies",
+     "born": "2004-03-24",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Seth",
+     "last": "Griffith",
+     "born": "1993-01-04",
+     "pos": "RW",
+     "term": 2
+    },
+    {
+     "first": "Hunter",
+     "last": "Johannes",
+     "born": "1998-07-23",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Ethan",
+     "last": "Keppen",
+     "born": "2001-03-20",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Rhett",
+     "last": "Pitlick",
+     "born": "2001-02-07",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Tucker",
+     "last": "Robertson",
+     "born": "2003-06-22",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Simon",
+     "last": "Tassy",
+     "born": "2001-03-21",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Zach",
+     "last": "Bookman",
+     "born": "2002-03-29",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "John",
+     "last": "Gormley",
+     "born": "2000-08-19",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Samuel",
+     "last": "Sjolund",
+     "born": "2001-05-19",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Eemil",
+     "last": "Vinni",
+     "born": "2005-12-18",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "LAK": {
+   "abbrev": "ONT",
+   "name": "Ontario Reign",
+   "players": [
+    {
+     "first": "Jacob",
+     "last": "Doty",
+     "born": "1993-06-19",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Brendan",
+     "last": "Gorman",
+     "born": "2003-02-17",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Jack",
+     "last": "Hughes",
+     "born": "2003-11-02",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Kenta",
+     "last": "Isogai",
+     "born": "2004-08-28",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "O'Hara",
+     "born": "2001-07-18",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Neil",
+     "last": "Shea",
+     "born": "1999-07-29",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Michael",
+     "last": "Mastrodomenico",
+     "born": "2004-04-19",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jack",
+     "last": "Millar",
+     "born": "2000-11-30",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jake",
+     "last": "Murray",
+     "born": "2002-04-11",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Cameron",
+     "last": "Supryka",
+     "born": "2001-10-28",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Owen",
+     "last": "Flores",
+     "born": "2004-05-09",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Mattias",
+     "last": "Sholl",
+     "born": "2000-09-30",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "SJS": {
+   "abbrev": "SJ",
+   "name": "San Jose Barracuda",
+   "players": [
+    {
+     "first": "Ryley",
+     "last": "Appelt",
+     "born": "2000-01-28",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Jordan",
+     "last": "Bax",
+     "born": "2005-10-13",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Brendan",
+     "last": "Hoffmann",
+     "born": "2001-10-09",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Donavan",
+     "last": "Houle",
+     "born": "1999-11-04",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Samuel",
+     "last": "Huo",
+     "born": "2001-07-13",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Connor",
+     "last": "Lockhart",
+     "born": "2003-01-21",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Anthony",
+     "last": "Vincent",
+     "born": "1997-08-12",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Jake",
+     "last": "Boltmann",
+     "born": "2001-10-19",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Roland",
+     "last": "McKeown",
+     "born": "1996-01-20",
+     "pos": "D",
+     "term": 2
+    },
+    {
+     "first": "Thomas",
+     "last": "Messineo",
+     "born": "2002-05-02",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Mack",
+     "last": "Oliphant",
+     "born": "2002-12-28",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Tristan",
+     "last": "Sarsland",
+     "born": "2004-02-25",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Matt",
+     "last": "Davis",
+     "born": "2001-06-16",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Connor",
+     "last": "Hasley",
+     "born": "2001-02-27",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "SEA": {
+   "abbrev": "CV",
+   "name": "Coachella Valley Firebirds",
+   "players": [
+    {
+     "first": "Justin",
+     "last": "Janicke",
+     "born": "2003-06-30",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "Lautenbach",
+     "born": "2000-02-27",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Ian",
+     "last": "McKinnon",
+     "born": "1998-03-05",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Jakov",
+     "last": "Novak",
+     "born": "1998-10-22",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Jack",
+     "last": "Randl",
+     "born": "2000-05-07",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Mitchell",
+     "last": "Stephens",
+     "born": "1997-02-05",
+     "pos": "C",
+     "term": 2
+    },
+    {
+     "first": "Alex",
+     "last": "Swetlikoff",
+     "born": "2001-07-06",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Aidan",
+     "last": "Fulp",
+     "born": "2000-02-29",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Gustav",
+     "last": "Olofsson",
+     "born": "1994-12-01",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Charlie",
+     "last": "Wright",
+     "born": "2003-10-22",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Logan",
+     "last": "Terness",
+     "born": "2002-09-18",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "VAN": {
+   "abbrev": "ABB",
+   "name": "Abbotsford Canucks",
+   "players": [
+    {
+     "first": "Ben",
+     "last": "Berard",
+     "born": "1999-02-13",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Austin",
+     "last": "Brimmer",
+     "born": "2001-08-10",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Sean",
+     "last": "Chisholm",
+     "born": "2001-01-26",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Quinn",
+     "last": "Emerson",
+     "born": "2001-03-12",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Kole",
+     "last": "Lind",
+     "born": "1998-10-16",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Bennett",
+     "last": "Schimek",
+     "born": "2003-04-15",
+     "pos": "RW",
+     "term": 1
+    },
+    {
+     "first": "Ryan",
+     "last": "St. Louis",
+     "born": "2003-06-13",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Cooper",
+     "last": "Walker",
+     "born": "2002-07-11",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Joe",
+     "last": "Arntsen",
+     "born": "2003-05-22",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Isaac",
+     "last": "Belliveau",
+     "born": "2002-11-26",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Tim",
+     "last": "Rego",
+     "born": "2000-10-31",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Gavin",
+     "last": "White",
+     "born": "2002-11-12",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Mitchell",
+     "last": "Weeks",
+     "born": "2001-06-22",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  },
+  "VGK": {
+   "abbrev": "HSK",
+   "name": "Henderson Silver Knights",
+   "players": [
+    {
+     "first": "Jett",
+     "last": "Jones",
+     "born": "2002-08-27",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Mitch",
+     "last": "McLain",
+     "born": "1993-12-09",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Shane",
+     "last": "Smith",
+     "born": "2005-01-14",
+     "pos": "C",
+     "term": 1
+    },
+    {
+     "first": "Sloan",
+     "last": "Stanick",
+     "born": "2003-08-01",
+     "pos": "LW",
+     "term": 1
+    },
+    {
+     "first": "Brandon",
+     "last": "Hickey",
+     "born": "1996-04-13",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Samuel",
+     "last": "Mayer",
+     "born": "2003-04-15",
+     "pos": "D",
+     "term": 1
+    },
+    {
+     "first": "Jordan",
+     "last": "Papirny",
+     "born": "1996-04-10",
+     "pos": "G",
+     "term": 1
+    },
+    {
+     "first": "Alexander",
+     "last": "Tracy",
+     "born": "2001-05-04",
+     "pos": "G",
+     "term": 1
+    }
+   ]
+  }
+ }
+}

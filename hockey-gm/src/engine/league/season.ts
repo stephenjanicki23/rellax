@@ -3,6 +3,7 @@
  * persistent league state (standings, statistics, injuries, fatigue, form,
  * chemistry, news) and triggers playoffs and the offseason.
  */
+import { affiliateReport, ahlDay, ahlUsage } from './ahl';
 import { clamp } from '../core/math';
 import { emptyStatLine, addStatLine, points as statPoints } from '../core/statline';
 import type { GameSummary, League, Player, ScheduledGame } from '../types';
@@ -181,6 +182,8 @@ function dailyUpdates(league: League): void {
   if (day % 7 === 6) updateMorale(league);
   if (day % 21 === 20) inSeasonDevelopment(league, 21 / 190);
   if (day % 30 === 29) breakoutNews(league);
+  ahlDay(league);
+  if (day % 30 === 14) affiliateReport(league);
   aiDaily(league);
 }
 
@@ -207,7 +210,11 @@ export function devContext(league: League, p: Player, fraction: number) {
   const gamesShare = clamp(gp / Math.max(1, daysPlayed / 2.3), 0, 1);
   const iceTime = p.pos === 'G' ? gamesShare : clamp((toiPerGame / Math.max(8, p.expectedToi)) * 0.6 + gamesShare * 0.4, 0, 1.2);
   const injuryDays = p.injuryHistory.filter((h) => h.season === league.season).reduce((s, h) => s + h.days, 0);
-  return { season: league.season, iceTime, environment: env, fraction, injuryDays, minors: p.status === 'prospect', leagueSeed: league.seed };
+  // In the minors, playing a regular role for the AHL affiliate (and producing) is what develops a prospect.
+  const ahl = p.status === 'prospect' ? ahlUsage(league, p) : null;
+  const expectedPpg = p.pos === 'D' ? 0.3 : 0.5;
+  const minorIce = ahl && ahl.gp >= 5 ? clamp(0.72 + 0.28 * ahl.share + (p.pos === 'G' ? 0 : clamp((ahl.ppg - expectedPpg) * 0.12, -0.04, 0.06)), 0.65, 1.04) : undefined;
+  return { season: league.season, iceTime, environment: env, fraction, injuryDays, minors: p.status === 'prospect', minorIce, leagueSeed: league.seed };
 }
 
 export interface DayReport {
