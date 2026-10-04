@@ -186,7 +186,7 @@ export function agePlayer(p: Player, season: number, leagueSeed: string): number
   }
   if (peakAge >= 30 && rng.chance(Math.min(0.35, (peakAge - 29) * 0.035))) {
     // The legs go first: a sudden drop in skating and physical tools, hockey sense intact.
-    const hit = rng.float(4, 9);
+    const hit = rng.float(7, 14);
     const legs: AttrKey[] = isG ? ['reflexes', 'athleticism', 'lateral', 'endurance'] : ['speed', 'acceleration', 'agility', 'endurance', 'balance', 'strength'];
     for (const k of legs) d(k, -hit);
   }
