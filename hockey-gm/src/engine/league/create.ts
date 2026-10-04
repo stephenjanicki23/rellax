@@ -17,6 +17,7 @@ import { teamCapSheet } from '../cba/capManager';
 import { scaleContract, yearsOf, aav, termOf, totalValue, endOf } from '../cba/contract';
 import { determineFreeAgentStatus } from '../cba/rulesEngine';
 import { generateSchedule } from './schedule';
+import { updateStrategies } from '../ai/gm';
 import { emptyRecord } from './helpers';
 import { projectedPoints } from '../team/strength';
 import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
@@ -497,6 +498,8 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   for (const p of ltirAtStart) if (p.teamId !== null && p.contract) placeOnLTIR(league, p);
   if (real && contractDbInfo().count > 0) openingDayCompliance(league);
   for (const p of Object.values(players)) p.caSeasonStart = p.ca;
+  // Front offices start the season with a plan: contend, stay the course, or rebuild.
+  updateStrategies(league, true);
   league.projections = Object.fromEntries(teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   return league;
 }
