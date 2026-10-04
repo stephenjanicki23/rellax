@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useGame, mutate } from '../store';
+import { useGame } from '../store';
 import { Card, PlayerLink, Pos } from '../components/common';
 import { FIT_AREAS, SYSTEM_DEMANDS, allOptionFits, fitLabel, fitNorm, fullFamiliarity, playerSystemFit, regulars, type FitArea } from '../../engine/team/fit';
 import type { Tactics } from '../../engine/types';
@@ -74,7 +74,6 @@ export function TacticsPage() {
   const coachPref = { ...(hc ? tacticsForPhilosophy(hc.philosophy) : {}), ...(hc?.system ?? {}) } as Partial<Tactics>;
   const regs = regulars(roster);
   const sysFit = regs.map((p) => ({ p, f: playerSystemFit(norm, p, team.tactics).overall })).sort((a, b) => b.f - a.f);
-  const set = <K extends keyof Tactics>(k: K, v: Tactics[K]) => mutate((l) => (l.teams[l.userTeamId].tactics = { ...l.teams[l.userTeamId].tactics, [k]: v }));
   const group = <K extends keyof Tactics>(title: string, k: K, opts: Opt<K>[]) => {
     const area = AREA_OF[k];
     const best = area ? Object.entries(fits[area]).sort((a, b) => b[1] - a[1])[0]?.[0] : undefined;
@@ -82,8 +81,8 @@ export function TacticsPage() {
     <Card title={title} right={area ? <span className="muted" style={{ fontSize: 12 }}>Familiarity {Math.round(fam[area] * 100)}%</span> : undefined}>
       <div className="stack" style={{ gap: 6 }}>
         {opts.map((o) => (
-          <label key={String(o.id)} className="row" style={{ alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '6px 8px', borderRadius: 6, background: team.tactics[k] === o.id ? 'var(--panel2)' : 'transparent', border: `1px solid ${team.tactics[k] === o.id ? 'var(--accent)' : 'transparent'}` }}>
-            <input type="radio" checked={team.tactics[k] === o.id} onChange={() => set(k, o.id)} style={{ marginTop: 3 }} />
+          <div key={String(o.id)} className="row" style={{ alignItems: 'flex-start', gap: 8, padding: '6px 8px', borderRadius: 6, background: team.tactics[k] === o.id ? 'var(--panel2)' : 'transparent', border: `1px solid ${team.tactics[k] === o.id ? 'var(--accent)' : 'transparent'}`, opacity: team.tactics[k] === o.id ? 1 : 0.6 }}>
+            <span aria-hidden style={{ width: 14, marginTop: 2, color: 'var(--accent)' }}>{team.tactics[k] === o.id ? '●' : '○'}</span>
             <span className="stack" style={{ gap: 2, flex: 1 }}>
               <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                 <b>{o.label}</b>
@@ -94,7 +93,7 @@ export function TacticsPage() {
               <span className="muted" style={{ fontSize: 12 }}>{o.desc}</span>
               {area && SYSTEM_DEMANDS[area][String(o.id)] && <span className="dim" style={{ fontSize: 11 }}>Needs {SYSTEM_DEMANDS[area][String(o.id)]!.why}</span>}
             </span>
-          </label>
+          </div>
         ))}
       </div>
     </Card>
@@ -104,7 +103,7 @@ export function TacticsPage() {
     <>
       <div className="page-head">
         <h1>Tactics</h1>
-        <span className="sub">Every setting is a trade-off inside the game engine. Systems that suit your players work better; new systems take games to learn.</span>
+        <span className="sub">Your head coach runs the systems. You shape them as GM: build a roster that fits, or hire a coach whose style you want.</span>
       </div>
       {hc && (
         <div className="banner">
@@ -115,12 +114,12 @@ export function TacticsPage() {
             {PHILOSOPHY_LABEL[hc.philosophy]}{hc.styleNote ? ` — ${hc.styleNote}` : ''} · Overall {coachOverall(hc)} · Tactics {hc.ratings.tactics} (better tacticians get more out of any system and install it faster)
           </span>
           <a href={href(`team/${team.id}?tab=staff`)} style={{ marginLeft: 'auto' }}>
-            Coaching staff →
+            Change coach →
           </a>
         </div>
       )}
       <div className="grid g-main" style={{ marginBottom: 14 }}>
-        <Card title="System familiarity" right={<span className="muted" style={{ fontSize: 12 }}>Grows each game · halves when you change a system · resets with a new coach</span>}>
+        <Card title="System familiarity" right={<span className="muted" style={{ fontSize: 12 }}>Grows each game · halves when the coach switches a system · resets with a new coach</span>}>
           <div className="stack" style={{ gap: 6 }}>
             {FIT_AREAS.map((a) => (
               <div key={a} className="row" style={{ gap: 8 }}>
