@@ -9,7 +9,10 @@ import { addNews, addTransaction, isCpu, playersOf, teamName, withRng, points } 
 import { enforceCap, ensureDressable, promoteReadyProspects, trimProspects, trimRoster } from '../economy/roster';
 import { executeTrade, findAiGoalieTrade, validateTrade } from '../economy/trade';
 import { marketDay, offerForUser, offseasonMarket, tradeBlock } from './tradeMarket';
-import { weeklyScouting } from '../economy/scouting';
+import { publishCentralRankings, weeklyScouting } from '../economy/scouting';
+
+/** Schedule day of the Central Scouting midterm rankings (about January 15). */
+const CS_MIDTERM_DAY = 99;
 import { teamStrength } from '../team/strength';
 import { coachOverall, tacticsForRoster } from '../team/coaching';
 import { demandedExtras, extensionEligible, offerContract, resignAsk, willingness } from '../economy/freeAgency';
@@ -24,6 +27,8 @@ export function aiDaily(league: League): void {
   holdoutDay(league);
   for (const t of league.teams) ensureDressable(league, t.id);
   if (league.day % 7 === 3) weeklyScouting(league);
+  // Mid-January: Central Scouting's midterm rankings.
+  if (league.phase === 'regular' && league.day === CS_MIDTERM_DAY) publishCentralRankings(league, 'midterm');
   if (league.phase !== 'regular') return;
   if (league.day % 7 === 1) aiCapHousekeeping(league);
   const daysToDeadline = league.tradeDeadlineDay - league.day;

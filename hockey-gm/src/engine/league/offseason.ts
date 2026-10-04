@@ -16,7 +16,7 @@ import { playoffResultFor } from './playoffs';
 import { standingRows } from './standings';
 import { agePlayer, developPlayer, retirementChance } from '../player/development';
 import { devContext } from './season';
-import { runCombine } from '../economy/scouting';
+import { publishCentralRankings, runCombine } from '../economy/scouting';
 import { prepareDraft, runDraftUntilUser, finishDraft } from '../economy/draft';
 import { aiResign, startFreeAgency, processFADay, expiringPlayers } from '../economy/freeAgency';
 import { generateDraftClass } from '../player/prospects';
@@ -39,6 +39,8 @@ import { aiBuyouts } from '../ai/finance';
 import { trainingCamp } from '../team/fit';
 
 export function endRegularSeasonHooks(league: League): void {
+  // Central Scouting's final rankings come out as the season ends; the combine follows.
+  if (league.scouting.central?.season !== league.season || league.scouting.central.stage !== 'final') publishCentralRankings(league, 'final');
   if (!league.draftCombineDone) runCombine(league);
 }
 

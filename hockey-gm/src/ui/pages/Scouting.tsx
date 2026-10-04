@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useGame, mutate } from '../store';
 import { Card, PlayerLink, Pos, Stars, Table, Tabs, Bar, type Column } from '../components/common';
-import { estimate, scoutReport, knowledgeOf, combineResults } from '../../engine/economy/scouting';
+import { estimate, scoutReport, knowledgeOf, combineResults, interviewsLeft } from '../../engine/economy/scouting';
+import { draftColumns, interviewColumn } from '../components/DraftColumns';
+import { draftClassInfo } from '../../engine/league/realDraftClass';
 import { draftRankings } from '../../engine/economy/draft';
 import type { Player, ScoutAssignment } from '../../engine/types';
 import { ARCHETYPES } from '../../engine/player/archetypes';
@@ -20,13 +22,15 @@ export function ScoutingPage() {
     { key: 'pos', label: 'Pos', render: (p) => <Pos pos={p.pos} /> },
     { key: 'name', label: 'Prospect', render: (p) => <PlayerLink p={p} /> },
     { key: 'age', label: 'Age', num: true, render: (p) => league.season - p.birthYear },
-    { key: 'jr', label: 'League', render: (p) => <span className="muted">{p.junior} · {p.nat}</span> },
+    ...draftColumns(league),
     { key: 'type', label: 'Type', render: (p) => <span className="muted">{ARCHETYPES[p.archetype].short}</span> },
     { key: 'ca', label: 'Now', render: (p) => { const e = estimate(league, p); return <Stars value={e.ca} range={[e.caLow, e.caHigh]} />; }, sort: (p) => estimate(league, p).ca },
     { key: 'pa', label: 'Ceiling (est.)', render: (p) => { const e = estimate(league, p); return <Stars value={e.pa} range={[e.paLow, e.paHigh]} />; }, sort: (p) => estimate(league, p).pa },
     { key: 'know', label: 'Scouted', render: (p) => <div style={{ width: 70 }}><Bar value={knowledgeOf(league, p)} max={100} /></div>, sort: (p) => knowledgeOf(league, p) },
-    { key: 'rep', label: 'Report', render: (p) => <span className="muted" style={{ whiteSpace: 'normal', fontSize: 12 }}>{scoutReport(league, p).projection}</span> },
+    { key: 'rep', label: 'Report', render: (p) => { const r = scoutReport(league, p); return <span className="muted" style={{ whiteSpace: 'normal', fontSize: 12 }}>{r.projection}{r.personality ? ` Character: ${r.personality}.` : ''}</span>; } },
+    interviewColumn(league),
   ];
+  const info = draftClassInfo();
   return (
     <>
       <div className="page-head">
@@ -36,6 +40,13 @@ export function ScoutingPage() {
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'draft', label: `Draft class (${prospects.length})` }, { id: 'staff', label: 'Scouting staff' }, { id: 'combine', label: 'Draft combine' }]} />
       {tab === 'draft' && (
         <Card tight>
+          <div className="muted" style={{ padding: '8px 12px', fontSize: 12 }}>
+            {league.scouting.central?.season === league.season
+              ? `NHL Central Scouting ${league.scouting.central.stage} rankings are out. `
+              : 'Central Scouting publishes midterm rankings in mid-January and final rankings when the regular season ends. '}
+            {league.draftCombineDone ? `Combine interviews left: ${interviewsLeft(league)}. ` : 'Interviews open at the draft combine. '}
+            {info.draftYear === league.season + 1 && info.count > 0 ? `Real prospects: ${info.source} (as of ${info.asOf}).` : ''}
+          </div>
           <Table rows={prospects} columns={cols} rowKey={(p) => p.id} limit={250} />
         </Card>
       )}
@@ -49,14 +60,17 @@ export function ScoutingPage() {
                 <label className="field">
                   Assignment
                   <select
-                    value={s.assignment.kind === 'team' ? `team-${s.assignment.teamId}` : s.assignment.kind}
+                    value={s.assignment.kind === 'team' ? `team-${s.assignment.teamId}` : s.assignment.kind === 'draft' && s.assignment.region ? `draft-${s.assignment.region}` : s.assignment.kind}
                     onChange={(e) => {
                       const v = e.target.value;
                       if (v.startsWith('team-')) assign(s.id, { kind: 'team', teamId: Number(v.slice(5)) });
+                      else if (v === 'draft-NA' || v === 'draft-EU') assign(s.id, { kind: 'draft', region: v.slice(6) as 'NA' | 'EU' });
                       else assign(s.id, { kind: v as 'draft' | 'freeAgents' | 'idle' });
                     }}
                   >
-                    <option value="draft">Draft prospects</option>
+                    <option value="draft">Draft prospects — everywhere</option>
+                    <option value="draft-NA">Draft prospects — North America (CHL, USHL, NCAA)</option>
+                    <option value="draft-EU">Draft prospects — Europe</option>
                     <option value="freeAgents">Free agents</option>
                     <option value="idle">Unassigned</option>
                     {league.teams.filter((t) => t.id !== league.userTeamId).map((t) => (
