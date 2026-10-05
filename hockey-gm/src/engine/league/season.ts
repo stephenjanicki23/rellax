@@ -14,6 +14,7 @@ import { applyToStandings } from './standings';
 import { tallyCoachGame } from '../team/staffMarket';
 import { bookGame, fansWeekly } from '../front/finances';
 import { devPlansWeekly } from '../player/devPlan';
+import { allStarDay, selectAllStars, weeklyStars } from './race';
 import { addNews, isCpu, playersOf, teamName } from './helpers';
 import { makeInjury, injuryLabel } from '../player/injuries';
 import { developPlayer } from '../player/development';
@@ -191,8 +192,10 @@ function dailyUpdates(league: League): void {
     updateMorale(league);
     fansWeekly(league);
     devPlansWeekly(league);
+    weeklyStars(league);
   }
   if (day % 21 === 20) inSeasonDevelopment(league, 21 / 190);
+  if (league.phase === 'regular' && day >= allStarDay(league) && league.allStars?.season !== league.season) selectAllStars(league);
   if (day % 30 === 29) breakoutNews(league);
   ahlDay(league);
   if (day % 30 === 14) affiliateReport(league);

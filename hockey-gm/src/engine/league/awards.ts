@@ -25,6 +25,8 @@ interface Cand {
 export function isRookieSeason(p: Player, season: number): boolean {
   const age = season - p.birthYear;
   if (age > 26) return false;
+  // NHL games before this save count too (the Calder excludes anyone with more than 25 prior games).
+  if ((p.nhlGamesBefore ?? 0) > 25) return false;
   return !p.career.some((c) => !c.playoffs && c.season < season && c.stats.gp > 25);
 }
 
@@ -40,6 +42,27 @@ function best<T>(arr: T[], score: (t: T) => number): T | undefined {
   }
   return b;
 }
+
+export function teamPctOf(league: League, id: number): number {
+  const r = league.standings[id];
+  return r && r.gp ? recPoints(r) / (r.gp * 2) : 0.5;
+}
+
+/** Award scoring, shared by the season-end awards and the in-season race. */
+export const SCORERS = {
+  hartSkater: (league: League, c: Cand) => points(c.s) + c.s.g * 0.25 + (teamPctOf(league, c.teamId) - 0.5) * 45 + (c.p.pos === 'D' ? 8 : 0),
+  hartGoalie: (league: League, c: Cand) => gsax(c.s) * 2.1 + c.s.w * 0.6 + (teamPctOf(league, c.teamId) - 0.5) * 45,
+  vezina: (_l: League, c: Cand) => gsax(c.s) + (savePct(c.s) - 0.905) * 300 + c.s.w * 0.15,
+  norris: (_l: League, c: Cand) => points(c.s) + (corsiPct(c.s) - 0.5) * 60 + c.s.pm * 0.4 + (c.s.toi / c.s.gp / 60) * 1.2 + c.s.blocks * 0.04,
+  calder: (_l: League, c: Cand) => (c.p.pos === 'G' ? gsax(c.s) * 2.4 + c.s.w * 0.5 : points(c.s) * (c.p.pos === 'D' ? 1.3 : 1) + c.s.g * 0.2),
+  selke: (_l: League, c: Cand) => {
+    const s = c.s;
+    const xgShare = s.xgf + s.xga > 0 ? s.xgf / (s.xgf + s.xga) : 0.5;
+    const fo = s.fow + s.fol > 200 ? (faceoffPct(s) - 0.5) * 40 : 0;
+    return s.tk * 0.25 + fo + (s.toiPK / s.gp / 60) * 4 + (xgShare - 0.5) * 60 + s.pm * 0.3 + points(s) * 0.12 + c.p.attrs.defAwareness * 0.05;
+  },
+};
+export type AwardCand = Cand;
 
 export function computeAwards(league: League): SeasonAwardResult[] {
   const out: SeasonAwardResult[] = [];
@@ -67,31 +90,26 @@ export function computeAwards(league: League): SeasonAwardResult[] {
   const rocket = best(skaters, (c) => c.s.g + points(c.s) * 0.001);
   push(AWARD_NAMES.goals, rocket, rocket ? `${rocket.s.g} goals` : '');
 
-  const hartSk = best(skaters.filter((c) => c.s.gp >= 40), (c) => points(c.s) + c.s.g * 0.25 + (teamPct(c.teamId) - 0.5) * 45 + (c.p.pos === 'D' ? 8 : 0));
-  const hartG = best(goalies, (c) => gsax(c.s) * 2.1 + c.s.w * 0.6 + (teamPct(c.teamId) - 0.5) * 45);
+  const hartSk = best(skaters.filter((c) => c.s.gp >= 40), (c) => SCORERS.hartSkater(league, c));
+  const hartG = best(goalies, (c) => SCORERS.hartGoalie(league, c));
   const hartSkScore = hartSk ? points(hartSk.s) + hartSk.s.g * 0.25 + (teamPct(hartSk.teamId) - 0.5) * 45 : -1;
   const hartGScore = hartG ? gsax(hartG.s) * 2.1 + hartG.s.w * 0.6 + (teamPct(hartG.teamId) - 0.5) * 45 : -1;
   const hart = hartGScore > hartSkScore ? hartG : hartSk;
   push(AWARD_NAMES.mvp, hart, hart ? (hart.p.pos === 'G' ? `${savePct(hart.s).toFixed(3)} SV%, ${gsax(hart.s).toFixed(1)} GSAx` : `${points(hart.s)} pts`) : '');
 
-  const vezina = best(goalies, (c) => gsax(c.s) + (savePct(c.s) - 0.905) * 300 + c.s.w * 0.15);
+  const vezina = best(goalies, (c) => SCORERS.vezina(league, c));
   push(AWARD_NAMES.goalie, vezina, vezina ? `${savePct(vezina.s).toFixed(3)} SV%, ${gsax(vezina.s).toFixed(1)} GSAx` : '');
 
   const dmen = skaters.filter((c) => c.p.pos === 'D' && c.s.gp >= 40);
-  const norris = best(dmen, (c) => points(c.s) + (corsiPct(c.s) - 0.5) * 60 + c.s.pm * 0.4 + (c.s.toi / c.s.gp / 60) * 1.2 + c.s.blocks * 0.04);
+  const norris = best(dmen, (c) => SCORERS.norris(league, c));
   push(AWARD_NAMES.defense, norris, norris ? `${points(norris.s)} pts, ${(norris.s.toi / norris.s.gp / 60).toFixed(1)} TOI` : '');
 
   const rookies = cands.filter((c) => isRookieSeason(c.p, league.season) && c.s.gp >= 25);
-  const calder = best(rookies, (c) => (c.p.pos === 'G' ? gsax(c.s) * 2.4 + c.s.w * 0.5 : points(c.s) * (c.p.pos === 'D' ? 1.3 : 1) + c.s.g * 0.2));
+  const calder = best(rookies, (c) => SCORERS.calder(league, c));
   push(AWARD_NAMES.rookie, calder, calder ? (calder.p.pos === 'G' ? `${savePct(calder.s).toFixed(3)} SV%` : `${points(calder.s)} pts`) : '');
 
   const fwds = skaters.filter((c) => c.p.pos !== 'D' && c.s.gp >= 50);
-  const selke = best(fwds, (c) => {
-    const s = c.s;
-    const xgShare = s.xgf + s.xga > 0 ? s.xgf / (s.xgf + s.xga) : 0.5;
-    const fo = s.fow + s.fol > 200 ? (faceoffPct(s) - 0.5) * 40 : 0;
-    return s.tk * 0.25 + fo + (s.toiPK / s.gp / 60) * 4 + (xgShare - 0.5) * 60 + s.pm * 0.3 + points(s) * 0.12 + c.p.attrs.defAwareness * 0.05;
-  });
+  const selke = best(fwds, (c) => SCORERS.selke(league, c));
   push(AWARD_NAMES.selke, selke, selke ? `${selke.s.tk} TK, ${(faceoffPct(selke.s) * 100).toFixed(1)} FO%` : '');
 
   // Coach of the year: biggest over-achievement vs preseason projection.
