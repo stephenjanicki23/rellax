@@ -100,6 +100,31 @@ export type PersonalityId =
   | 'leader'
   | 'easygoing';
 
+export interface MoraleParts {
+  role: number;
+  winning: number;
+  contract: number;
+  promises: number;
+  coach: number;
+  room: number;
+}
+
+export type PromiseKind = 'role' | 'pp' | 'noTrade' | 'extension';
+
+export interface PlayerPromise {
+  kind: PromiseKind;
+  season: number;
+  day: number;
+  /** Schedule day by which it must be honoured (end of the regular season for season-long promises). */
+  dueDay: number;
+  /** Weekly checks honoured / total (role and power-play promises). */
+  ok: number;
+  total: number;
+  status: 'open' | 'kept' | 'broken';
+  /** Role tier a "bigger role" promise commits to. */
+  tier?: number;
+}
+
 export type TraitId = 'injuryProne' | 'durable' | 'streaky' | 'bigGame' | 'fanFavorite' | 'lateBloomer';
 
 export type InjurySeverity = 'minor' | 'moderate' | 'major' | 'severe';
@@ -305,6 +330,18 @@ export interface Player {
   /** Hidden injury resistance 0-200. */
   durability: number;
   morale: number; // 0-100
+  /** What drives his morale right now (the latest weekly target, by factor). */
+  moraleParts?: MoraleParts;
+  /** Faith in the GM's word, 0-100 (promises kept and broken). */
+  trust?: number;
+  /** Promises the GM has made him. */
+  promises?: PlayerPromise[];
+  /** An open trade request (private to the GM until it goes public). */
+  tradeRequest?: { season: number; day: number; reason: string; public: boolean; since: number };
+  /** Consecutive weeks of low morale. */
+  unhappyWeeks?: number;
+  /** Last one-on-one meeting with the GM, and how many this season. */
+  meetings?: { season: number; day: number; count: number };
   /** Slow-moving form/streak value in roughly [-1, 1]. */
   form: number;
   /** Goalie confidence [-1, 1]. */
@@ -659,7 +696,8 @@ export type NewsCategory =
   | 'retirement'
   | 'streak'
   | 'league'
-  | 'development';
+  | 'development'
+  | 'room';
 
 export interface NewsItem {
   id: number;
