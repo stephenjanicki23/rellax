@@ -95,7 +95,7 @@ export function AwardsRacePage() {
         (as ? (
           <div className="grid g2">
             {league.config.conferences.map((c) => (
-              <Card key={c.id} title={`${c.name} Conference`} right={<span className="muted" style={{ fontSize: 12 }}>Named {shortDate(league.season, as.day)}</span>} tight>
+              <Card key={c.id} title={c.name} right={<span className="muted" style={{ fontSize: 12 }}>Named {shortDate(league.season, as.day)}</span>} tight>
                 <table className="tbl">
                   <tbody>
                     {(as.rosters[c.id] ?? [])
