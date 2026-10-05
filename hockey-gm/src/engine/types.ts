@@ -928,6 +928,40 @@ export interface LeagueSettings {
   tradeDifficulty: number; // 0.5 easy .. 1.5 hard
   /** Let the AI run the user's team too (holiday mode / validation runs). */
   autoManageUser: boolean;
+  /** The owner can fire the GM (off: play on regardless of results). */
+  canBeFired?: boolean;
+}
+
+export type OwnerPriority = 'winNow' | 'patient' | 'frugal' | 'youth';
+
+export interface OwnerGoal {
+  kind: 'playoffs' | 'round' | 'points' | 'improve' | 'division' | 'youth' | 'budget';
+  label: string;
+  target: number;
+  weight: number;
+}
+
+/** The user's employer: goals for the season, job security and the GM's career. */
+export interface OwnerState {
+  teamId: number;
+  name: string;
+  priority: OwnerPriority;
+  /** 0-100: how slowly the owner loses faith. */
+  patience: number;
+  /** 0-100 job security. */
+  security: number;
+  /** Security when this season's goals were set (bounds in-season swings). */
+  seasonStart?: number;
+  /** Season the goals are for. */
+  season: number;
+  goals: OwnerGoal[];
+  history: { season: number; teamId: number; grade: string; security: number; change: number; summary: string; record: string }[];
+  messages: { season: number; day: number; text: string; tone: 'good' | 'bad' | 'neutral' }[];
+  hiredSeason: number;
+  /** Previous jobs. */
+  career: { teamId: number; from: number; to: number; seasons: number; record: string; cups: number }[];
+  warned?: boolean;
+  fired?: { season: number; day: number; reason: string; offers: number[] };
 }
 
 export interface League {
@@ -977,6 +1011,8 @@ export interface League {
   ratingBaseline: number;
   /** Preseason projected points per team (for expectations / coach of the year). */
   projections: Record<number, number>;
+  /** The user's owner (goals and job security). */
+  owner?: OwnerState;
   /** Per-team in-season performance memory used by AI GMs. */
   aiMemory: Record<number, { lastTradeDay: number; coachHotSeat: number; /** Rejected user proposals today (GM patience). */ talks?: { season: number; day: number; rejected: number } }>;
   /** Trade proposals CPU teams have made to the user (from = CPU team). */

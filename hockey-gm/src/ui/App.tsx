@@ -31,6 +31,7 @@ import { AnalyticsPage } from './pages/Analytics';
 import { PlayerPage } from './pages/PlayerPage';
 import { TeamPage } from './pages/TeamPage';
 import { CoachingPage } from './pages/Coaching';
+import { FiredDialog, OwnerPage } from './pages/Owner';
 import { CoachPage } from './pages/CoachPage';
 import { LiveGame } from './pages/LiveGame';
 import { SettingsPage } from './pages/Settings';
@@ -54,6 +55,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
   {
     section: 'Front Office',
     items: [
+      { id: 'owner', label: 'Owner', icon: '★' },
       { id: 'scouting', label: 'Scouting', icon: '◎' },
       { id: 'cap', label: 'Salary Cap', icon: '$' },
       { id: 'trades', label: 'Trades', icon: '⇄' },
@@ -114,6 +116,7 @@ export function App() {
         <Routes />
       </main>
       <MobileNav />
+      <FiredDialog league={league} />
       {busy && (
         <div className="busy">
           <div className="box stack">
@@ -158,6 +161,7 @@ function Routes() {
     lines: <LinesPage />,
     tactics: <TacticsPage />,
     coaching: <CoachingPage />,
+    owner: <OwnerPage />,
     coach: <CoachPage id={Number(r.param)} />,
     players: <PlayersPage />,
     prospects: <ProspectsPage />,
@@ -196,6 +200,7 @@ function useBadges(): Record<string, string | null> {
     if (league.tradeOffers?.length) badges.trades = String(league.tradeOffers.length);
     const staff = league.teams[league.userTeamId].staff;
     if (staff.headCoach === null || league.coaches[staff.headCoach]?.interim) badges.coaching = '!';
+    if (league.owner && league.owner.security < 30) badges.owner = '!';
   }
   return badges;
 }

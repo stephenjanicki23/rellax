@@ -16,6 +16,7 @@ import { expiringPlayers, FA_DAYS } from '../../engine/economy/freeAgency';
 import { dateForDay, pct, sv, PHASE_LABEL } from '../format';
 import { playoffRoundName } from '../../engine/league/playoffs';
 import { NewsList } from './News';
+import { OwnerCard } from './Owner';
 import { describeAsset } from '../../engine/economy/trade';
 
 export function Dashboard() {
@@ -271,6 +272,7 @@ export function Dashboard() {
           </Card>
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
+          <OwnerCard league={league} />
           <Card title="Team leaders" tight>
             <table className="tbl">
               <tbody>

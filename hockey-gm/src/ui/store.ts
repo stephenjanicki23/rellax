@@ -236,3 +236,6 @@ export async function nextPhase(auto = false): Promise<void> {
     scheduleSave();
   }
 }
+
+// Test builds (VITE_TEST_HOOKS=1) expose the store to browser automation.
+if (import.meta.env.VITE_TEST_HOOKS) (globalThis as unknown as { __hgm: unknown }).__hgm = { getLeague, mutate };
