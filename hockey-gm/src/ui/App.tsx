@@ -33,6 +33,7 @@ import { TeamPage } from './pages/TeamPage';
 import { CoachingPage } from './pages/Coaching';
 import { FiredDialog, OwnerPage } from './pages/Owner';
 import { RoomPage } from './pages/Room';
+import { FinancesPage } from './pages/Finances';
 import { CoachPage } from './pages/CoachPage';
 import { LiveGame } from './pages/LiveGame';
 import { SettingsPage } from './pages/Settings';
@@ -60,6 +61,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'owner', label: 'Owner', icon: '★' },
       { id: 'scouting', label: 'Scouting', icon: '◎' },
       { id: 'cap', label: 'Salary Cap', icon: '$' },
+      { id: 'finances', label: 'Finances', icon: '¤' },
       { id: 'trades', label: 'Trades', icon: '⇄' },
       { id: 'freeagency', label: 'Free Agency', icon: '✚' },
       { id: 'draft', label: 'Draft', icon: '⬇' },
@@ -165,6 +167,7 @@ function Routes() {
     coaching: <CoachingPage />,
     owner: <OwnerPage />,
     room: <RoomPage />,
+    finances: <FinancesPage />,
     coach: <CoachPage id={Number(r.param)} />,
     players: <PlayersPage />,
     prospects: <ProspectsPage />,

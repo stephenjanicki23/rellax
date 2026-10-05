@@ -515,6 +515,21 @@ export interface Coach {
   grudge?: Record<number, number>;
 }
 
+/** A club's fans and money (thousands of dollars). */
+export interface FanState {
+  /** 0-100. */
+  mood: number;
+  /** Ticket price relative to the market price (1 = market). */
+  priceFactor: number;
+  season: { gate: number; concessions: number; media: number; playoffs: number; payroll: number; staff: number; operations: number; projects: number; homeGames: number; attendance: number };
+  history: { season: number; revenue: number; expenses: number; profit: number; avgAttendance: number; fill: number; mood: number; priceFactor: number }[];
+  /** Recent regular-season home games. */
+  games: { day: number; opp: string; att: number; cap: number }[];
+  lastProfit?: number;
+  /** Season a facility project was last funded. */
+  projectSeason?: number;
+}
+
 /** Salary still owed to a coach who was let go (thousands, per season). */
 export interface DeadStaffMoney {
   coachId: number;
@@ -573,6 +588,8 @@ export interface Team {
   staff: { headCoach: number | null; assistant: number | null; goalieCoach: number | null };
   /** Coaches the club fired but is still paying. */
   deadStaff?: DeadStaffMoney[];
+  /** Fans, attendance and the season's books. */
+  fans?: FanState;
   lines: Lines;
   autoLines: boolean;
   tactics: Tactics;
@@ -973,7 +990,7 @@ export interface LeagueSettings {
 export type OwnerPriority = 'winNow' | 'patient' | 'frugal' | 'youth';
 
 export interface OwnerGoal {
-  kind: 'playoffs' | 'round' | 'points' | 'improve' | 'division' | 'youth' | 'budget';
+  kind: 'playoffs' | 'round' | 'points' | 'improve' | 'division' | 'youth' | 'budget' | 'profit';
   label: string;
   target: number;
   weight: number;

@@ -7,6 +7,7 @@
  * through their own (imperfect) scouting.
  */
 import { onPlayerTraded } from '../league/room';
+import { onFavouriteTraded } from '../front/finances';
 import { clamp } from '../core/math';
 import { describeTradeAsset, executeMoves, tradeConsent, validateMoves, type TradeAsset, type TradeCheck, type TradeMove } from '../cba/tradeRules';
 import { fullCapHit, remainingYears } from '../cba/contract';
@@ -218,8 +219,13 @@ export function executeMultiTrade(league: League, moves: TradeMove[]): void {
 
 export function executeTrade(league: League, t: TradeProposal): void {
   const moved = [...t.give, ...t.get].filter((a) => a.kind === 'player').map((a) => league.players[a.id]).filter(Boolean);
+  const from = new Map(moved.map((p) => [p.id, p.teamId]));
   executeMoves(league, proposalMoves(t));
-  for (const p of moved) onPlayerTraded(league, p);
+  for (const p of moved) {
+    onPlayerTraded(league, p);
+    const old = from.get(p.id);
+    if (old != null && p.status === 'active') onFavouriteTraded(league, old, p.traits.includes('fanFavorite'), p.ca);
+  }
 }
 
 /** Ask the CPU team what it would want added to make a proposal work. */

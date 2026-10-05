@@ -10,6 +10,7 @@ import { clamp } from '../core/math';
 import type { League, OwnerGoal, OwnerPriority, OwnerState, Team } from '../types';
 import { addNews, points, teamName } from '../league/helpers';
 import { payroll, fmtMoney } from '../economy/contracts';
+import { booksOf, projectedProfit } from './finances';
 
 export const PRIORITY_LABEL: Record<OwnerPriority, string> = {
   winNow: 'Win now',
@@ -65,7 +66,10 @@ export function setOwnerGoals(league: League): void {
   const ptsTarget = Math.round(rank <= 20 ? Math.min(proj - 4, 104) : proj - 2);
   goals.push({ kind: 'points', target: ptsTarget, weight: rank > 20 && !last ? 3 : 2, label: `Finish with at least ${ptsTarget} points` });
   if (o.priority === 'youth' || o.priority === 'patient') goals.push({ kind: 'youth', target: 3, weight: o.priority === 'youth' ? 2 : 1, label: 'Give three players aged 23 or younger 40+ games' });
-  if (o.priority === 'frugal') goals.push({ kind: 'budget', target: team.budget, weight: 1.5, label: `Keep payroll at or under ${fmtMoney(team.budget)}` });
+  if (o.priority === 'frugal') {
+    goals.push({ kind: 'budget', target: team.budget, weight: 1, label: `Keep payroll at or under ${fmtMoney(team.budget)}` });
+    goals.push({ kind: 'profit', target: 0, weight: 1.5, label: 'Turn a profit this season' });
+  }
   if (o.priority === 'winNow') goals.push({ kind: 'division', target: 3, weight: 1, label: 'Finish top three in the division' });
   o.goals = goals;
   o.season = league.season;
@@ -136,6 +140,13 @@ export function goalProgress(league: League, g: OwnerGoal, teamId: number): { va
       const n = youthCount(league, teamId);
       return { value: `${n} of ${g.target}`, met: n >= g.target, score: clamp(n / g.target, 0, 1.15), pct: clamp(n / g.target, 0, 1) };
     }
+    case 'profit': {
+      // Through the regular season, the projection; once it's over, the actual books (the review runs before they close).
+      const done = league.phase !== 'regular' && league.phase !== 'preseason';
+      const f = league.teams[teamId].fans;
+      const v = done && f ? booksOf(f).profit : projectedProfit(league, teamId);
+      return { value: gp ? `${done ? '' : 'Projected '}${v >= 0 ? 'profit' : 'loss'} ${fmtMoney(Math.abs(v))}` : 'Season not started', met: gp > 0 && v >= g.target, score: gp ? clamp(1 + v / 30000, 0, 1.15) : 0.6, pct: gp ? clamp(0.5 + v / 40000, 0, 1) : 0 };
+    }
     case 'budget': {
       const pay = payroll(league, teamId);
       return { value: `Payroll ${fmtMoney(pay)}`, met: pay <= g.target, score: pay <= g.target ? 1 : clamp(1 - (pay - g.target) / 6000, 0, 1), pct: pay <= g.target ? 1 : clamp(g.target / pay, 0, 1) };
@@ -176,7 +187,9 @@ export function ownerWeekly(league: League): void {
   const speed = 1 - o.patience / 150;
   // In-season mood swings are bounded; the big verdict comes at the season review.
   const start = o.seasonStart ?? o.security;
-  o.security = clamp(o.security + (score - 0.7) * 1.6 * speed, Math.max(0, start - 30), Math.min(100, start + 15));
+  // Happy fans buy the GM a little patience; angry ones cost some.
+  const mood = league.teams[o.teamId].fans?.mood ?? 60;
+  o.security = clamp(o.security + (score - 0.7) * 1.6 * speed + (mood - 55) / 120, Math.max(0, start - 30), Math.min(100, start + 15));
   if (o.security < 30 && !o.warned) {
     o.warned = true;
     say(league, o, `I'm not happy with where this is heading. Results need to improve, and soon.`, 'bad');

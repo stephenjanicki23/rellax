@@ -31,6 +31,7 @@ import { expectedToiFor } from '../player/generate';
 import { stockCoachPool } from '../team/coachPool';
 import { closeCoachSeason } from '../team/staffMarket';
 import { ownerSeasonReview, setOwnerGoals } from '../front/owner';
+import { budgetMultiplier, closeBooks } from '../front/finances';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
 import { advanceContracts } from '../cba/contractService';
@@ -140,6 +141,7 @@ export function finishSeason(league: League): void {
   finalizeRecords(league);
   updateRivalries(league);
   ownerSeasonReview(league);
+  closeBooks(league);
   offseasonCoaching(league);
   yearlyDevelopment(league);
   retirements(league);
@@ -255,7 +257,7 @@ export function startNewSeason(league: League): void {
   const capRules = rulesFor(league.season);
   league.cap = { upper: capRules.upperLimit, floor: capRules.lowerLimit, minSalary: capRules.minimumSalary };
   pruneLedger(league);
-  for (const t of league.teams) t.budget = teamBudget(t, league.cap.upper);
+  for (const t of league.teams) t.budget = Math.round(teamBudget(t, league.cap.upper) * budgetMultiplier(t.fans));
   const rng = new Rng(league.rng);
   league.schedule = generateSchedule(league.teams, cfg, rng, league.nextId.game);
   league.nextId.game += league.schedule.length;
