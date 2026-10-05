@@ -193,6 +193,10 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 .txt-bad { color: var(--bad); }
 .modal.wide { width: min(900px, calc(100vw - 32px)); max-width: none; }
 @media (max-width: 760px) { .trade-review { grid-template-columns: minmax(0, 1fr); } .trade-impact { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cmp td, .cmp th { min-width: 130px; }
+.cmp td:first-child, .cmp th:first-child { min-width: 150px; position: sticky; left: 0; background: var(--panel); z-index: 1; }
+.cmp-section td { color: var(--accent); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; padding-top: 14px; }
+.cmp .cmp-best { color: var(--good); font-weight: 700; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
 .kv .k { color: var(--muted); }
 .list { display: flex; flex-direction: column; }

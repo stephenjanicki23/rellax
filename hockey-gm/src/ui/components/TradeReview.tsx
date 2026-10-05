@@ -10,6 +10,7 @@ import { capSeason } from '../../engine/cba/capManager';
 import { playersOf } from '../../engine/league/helpers';
 import { assists, gaa, points, savePct } from '../../engine/core/statline';
 import { seasonLabel } from '../format';
+import { href } from '../router';
 import { lastRealSeason } from '../../engine/data/nhl/realStats';
 
 /**
@@ -89,6 +90,11 @@ export function TradeReview({
         )}
 
         <div className="row" style={{ justifyContent: 'flex-end' }}>
+          {[...incoming, ...outgoing].filter((a) => a.kind === 'player').length >= 2 && (
+            <a href={href(`compare?ids=${[...incoming, ...outgoing].filter((a) => a.kind === 'player').slice(0, 4).map((a) => a.id).join(',')}`)} style={{ marginRight: 'auto', fontSize: 13 }} onClick={onClose}>
+              Compare these players →
+            </a>
+          )}
           {onDecline && (
             <button className="btn danger" onClick={onDecline}>
               Decline

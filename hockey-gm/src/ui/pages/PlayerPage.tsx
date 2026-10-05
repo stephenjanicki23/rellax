@@ -62,6 +62,7 @@ export function PlayerPage({ id }: { id: number }) {
           </div>
         </div>
         <div className="actions">
+          <button className="btn" onClick={() => navigate(`compare?ids=${p.id}`)}>Compare</button>
           {mine && p.status === 'active' && <button className="btn" onClick={() => { const r = mutate((l) => demote(l, p)); toast(r.message, r.ok ? 'info' : 'bad'); }}>Send to minors</button>}
           {mine && p.status === 'prospect' && p.contract && <button className="btn" onClick={() => mutate((l) => promote(l, p))}>Call up</button>}
           {mine && p.ahlContract && (
