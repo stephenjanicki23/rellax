@@ -24,6 +24,7 @@ import { holdoutDay } from '../cba/holdouts';
 import { startNegotiation } from '../cba/negotiation';
 import { fitNorm } from '../team/fit';
 import { ownerWeekly, setOwnerGoals } from '../front/owner';
+import { recordDeadlineEvent } from '../league/deadline';
 
 export function aiDaily(league: League): void {
   // Older saves (or a new job mid-season) get this season's owner goals.
@@ -43,6 +44,7 @@ export function aiDaily(league: League): void {
   }
   if (daysToDeadline === 0) remindExpiringCoaches(league);
   if (daysToDeadline === 0) {
+    recordDeadlineEvent(league, 'close', 'The trade deadline has passed. Rosters are set for the stretch run.', []);
     addNews(league, { category: 'league', headline: 'Trade deadline passes — rosters are set for the stretch run', teamIds: [], playerIds: [], importance: 3 });
   }
   if (league.day > 30 && league.day % 15 === 0) midseasonCoachReview(league);
@@ -71,6 +73,7 @@ function maybeRumor(league: League): void {
     if (!v) return;
     if (league.news.some((n) => n.category === 'rumor' && n.playerIds.includes(v.id) && n.season === league.season)) return;
     const role = v.pos === 'G' ? 'goaltender' : v.pos === 'D' ? 'defenseman' : v.pos === 'C' ? 'center' : 'winger';
+    recordDeadlineEvent(league, 'rumor', `The ${s.name} are shopping veteran ${role} ${fullName(v)}`, [s.id], [v.id]);
     addNews(league, {
       category: 'rumor',
       headline: `Rumors circulate that the ${s.name} are shopping veteran ${role} ${fullName(v)}`,
@@ -253,8 +256,10 @@ function manageUserOffers(league: League, daysToDeadline: number): void {
   league.tradeOffers = league.tradeOffers.filter(
     (o) => o.season === league.season && league.day - o.day <= 6 && validateTrade(league, { from: o.from, to: league.userTeamId, give: o.give, get: o.get }).length === 0,
   );
-  if (daysToDeadline < 0 || league.settings.autoManageUser || league.tradeOffers.length >= 3) return;
-  let p = daysToDeadline <= 3 ? 0.45 : daysToDeadline <= 14 ? 0.28 : league.day < 15 ? 0.04 : 0.1;
+  // The phone rings most in the final days: up to four offers at once.
+  const maxOffers = daysToDeadline <= 1 ? 4 : 3;
+  if (daysToDeadline < 0 || league.settings.autoManageUser || league.tradeOffers.length >= maxOffers) return;
+  let p = daysToDeadline <= 1 ? 0.75 : daysToDeadline <= 3 ? 0.45 : daysToDeadline <= 14 ? 0.28 : league.day < 15 ? 0.04 : 0.1;
   // Shopping players gets the phone ringing.
   if (tradeBlock(league).length) p = Math.max(p, 0.3);
   if (!withRng(league, (rng) => rng.chance(p))) return;
@@ -263,4 +268,5 @@ function manageUserOffers(league: League, daysToDeadline: number): void {
   const id = league.nextId.tx++;
   league.tradeOffers.push({ id, from: found.proposal.from, give: found.proposal.give, get: found.proposal.get, day: league.day, season: league.season, note: found.note });
   addNews(league, { category: 'rumor', headline: found.note, teamIds: [found.proposal.from, league.userTeamId], playerIds: found.proposal.get.map((a) => a.id), importance: 3 });
+  recordDeadlineEvent(league, 'call', `${league.teams[found.proposal.from].city} called: ${found.note}`, [found.proposal.from, league.userTeamId], found.proposal.get.map((a) => a.id));
 }

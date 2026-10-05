@@ -100,6 +100,16 @@ export type PersonalityId =
   | 'leader'
   | 'easygoing';
 
+export interface DeadlineEvent {
+  day: number;
+  /** Clock time on deadline day. */
+  time?: string;
+  kind: 'trade' | 'rumor' | 'call' | 'close';
+  text: string;
+  teamIds: number[];
+  playerIds: number[];
+}
+
 export type DevFocus = 'balanced' | 'skating' | 'shooting' | 'puck' | 'iq' | 'defense' | 'physical' | 'reflexes' | 'technique';
 export type DevIntensity = 'light' | 'normal' | 'intense';
 
@@ -1073,6 +1083,8 @@ export interface League {
   ratingBaseline: number;
   /** Preseason projected points per team (for expectations / coach of the year). */
   projections: Record<number, number>;
+  /** Deals, rumours and calls in the run-up to the trade deadline. */
+  deadlineFeed?: { season: number; events: DeadlineEvent[] };
   /** The user's owner (goals and job security). */
   owner?: OwnerState;
   /** Per-team in-season performance memory used by AI GMs. */

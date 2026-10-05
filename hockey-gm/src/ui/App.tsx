@@ -36,6 +36,7 @@ import { RoomPage } from './pages/Room';
 import { FinancesPage } from './pages/Finances';
 import { ComparePage } from './pages/Compare';
 import { DevelopmentPage } from './pages/Development';
+import { DeadlinePage } from './pages/Deadline';
 import { CoachPage } from './pages/CoachPage';
 import { LiveGame } from './pages/LiveGame';
 import { SettingsPage } from './pages/Settings';
@@ -66,6 +67,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'cap', label: 'Salary Cap', icon: '$' },
       { id: 'finances', label: 'Finances', icon: '¤' },
       { id: 'trades', label: 'Trades', icon: '⇄' },
+      { id: 'deadline', label: 'Deadline Centre', icon: '⏱' },
       { id: 'freeagency', label: 'Free Agency', icon: '✚' },
       { id: 'draft', label: 'Draft', icon: '⬇' },
     ],
@@ -174,6 +176,7 @@ function Routes() {
     finances: <FinancesPage />,
     compare: <ComparePage />,
     development: <DevelopmentPage />,
+    deadline: <DeadlinePage />,
     coach: <CoachPage id={Number(r.param)} />,
     players: <PlayersPage />,
     prospects: <ProspectsPage />,
@@ -215,6 +218,8 @@ function useBadges(): Record<string, string | null> {
     if (league.owner && league.owner.security < 30) badges.owner = '!';
     const reqs = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && p.tradeRequest).length;
     if (reqs) badges.room = String(reqs);
+    const dd = league.phase === 'regular' ? league.tradeDeadlineDay - league.day : -1;
+    if (dd >= 0 && dd <= 7) badges.deadline = dd === 0 ? 'TODAY' : `${dd}d`;
   }
   return badges;
 }
