@@ -100,6 +100,9 @@ export type PersonalityId =
   | 'leader'
   | 'easygoing';
 
+export type DevFocus = 'balanced' | 'skating' | 'shooting' | 'puck' | 'iq' | 'defense' | 'physical' | 'reflexes' | 'technique';
+export type DevIntensity = 'light' | 'normal' | 'intense';
+
 export interface MoraleParts {
   role: number;
   winning: number;
@@ -330,6 +333,10 @@ export interface Player {
   /** Hidden injury resistance 0-200. */
   durability: number;
   morale: number; // 0-100
+  /** Individual development plan set by the GM (training focus and intensity). */
+  devPlan?: { focus: DevFocus; intensity: DevIntensity };
+  /** Attribute-group averages at the start of the season (to track progress). */
+  devStart?: { season: number; ca: number; groups: Record<string, number> };
   /** What drives his morale right now (the latest weekly target, by factor). */
   moraleParts?: MoraleParts;
   /** Faith in the GM's word, 0-100 (promises kept and broken). */

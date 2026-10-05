@@ -13,6 +13,7 @@ import { buildGameInput } from './gameInput';
 import { applyToStandings } from './standings';
 import { tallyCoachGame } from '../team/staffMarket';
 import { bookGame, fansWeekly } from '../front/finances';
+import { devPlansWeekly } from '../player/devPlan';
 import { addNews, isCpu, playersOf, teamName } from './helpers';
 import { makeInjury, injuryLabel } from '../player/injuries';
 import { developPlayer } from '../player/development';
@@ -189,6 +190,7 @@ function dailyUpdates(league: League): void {
   if (day % 7 === 6) {
     updateMorale(league);
     fansWeekly(league);
+    devPlansWeekly(league);
   }
   if (day % 21 === 20) inSeasonDevelopment(league, 21 / 190);
   if (day % 30 === 29) breakoutNews(league);

@@ -14,6 +14,7 @@ import { MENTAL_ATTRS, PHYSICAL_ATTRS, SKATING_ATTRS, IQ_ATTRS } from '../types'
 import { abilityWeights, computeCA } from './ability';
 import { ARCHETYPES } from './archetypes';
 import { PERSONALITIES } from './personality';
+import { focusWeight, intensityFactor } from './devPlan';
 
 /** Fraction of the remaining gap closed per year at a given (curve-adjusted) age. */
 function ageGrowth(age: number): number {
@@ -81,7 +82,7 @@ export function applyAbilityChange(p: Player, deltaCA: number, rng: Rng, age: nu
   for (const k of keys) {
     const head = deltaCA > 0 ? Math.max(0.05, (200 - p.attrs[k]) / 100) : 1;
     const emph = 1 + ((gen[k] ?? 0) > 0 ? 0.35 : 0);
-    const v = growthProfile(age, k) * emph * head * Math.exp(rng.normal(0, 0.35));
+    const v = growthProfile(age, k) * emph * head * focusWeight(p, k) * Math.exp(rng.normal(0, 0.35));
     u[k] = v;
     su += w[k]! * v;
   }
@@ -109,7 +110,7 @@ export function developPlayer(p: Player, ctx: DevContext): number {
   if (p.devCurve === 'plateau' && age >= 22) rate *= 0.45;
   const inj = ctx.injuryDays > 120 ? 0.65 : ctx.injuryDays > 45 ? 0.82 : ctx.injuryDays > 20 ? 0.93 : 1;
   const luck = devLuck(ctx.leagueSeed, ctx.season, p.id);
-  let growth = gap * rate * pers.dev * det * ice * ctx.environment * inj * luck * ctx.fraction;
+  let growth = gap * rate * pers.dev * det * ice * ctx.environment * inj * luck * ctx.fraction * intensityFactor(p, ctx.environment);
   // Rare breakout seasons for young players.
   if (ctx.fraction >= 0.5 && age <= 25 && gap > 15 && rng.chance(0.045)) growth += gap * 0.18;
   growth = Math.min(growth, gap);
