@@ -310,7 +310,7 @@ export function Dashboard() {
               </tbody>
             </table>
           </Card>
-          <Card title="Dressing room">
+          <Card title="Dressing room" right={<a href={href('room')}>Open →</a>}>
             <Gauge value={team.morale} label={`Team morale — ${morale.text}`} />
             <div style={{ height: 10 }} />
             <div className="list">
@@ -320,6 +320,7 @@ export function Dashboard() {
                 .map((p) => (
                   <div className="item" key={p.id}>
                     <PlayerLink p={p} />
+                    {p.tradeRequest && <span className="pill warn">wants a trade</span>}
                     <span className={`${moraleLabel(p.morale).cls}`} style={{ marginLeft: 'auto' }}>
                       {moraleLabel(p.morale).text}
                     </span>

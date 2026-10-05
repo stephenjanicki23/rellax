@@ -20,6 +20,7 @@ const CAT_ICON: Record<NewsCategory, string> = {
   streak: '🔥',
   league: '◉',
   development: '↑',
+  room: '💬',
 };
 
 export function NewsList({ items, compact }: { items: NewsItem[]; compact?: boolean }) {

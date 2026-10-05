@@ -32,6 +32,7 @@ import { PlayerPage } from './pages/PlayerPage';
 import { TeamPage } from './pages/TeamPage';
 import { CoachingPage } from './pages/Coaching';
 import { FiredDialog, OwnerPage } from './pages/Owner';
+import { RoomPage } from './pages/Room';
 import { CoachPage } from './pages/CoachPage';
 import { LiveGame } from './pages/LiveGame';
 import { SettingsPage } from './pages/Settings';
@@ -48,6 +49,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'lines', label: 'Lines', icon: '≡' },
       { id: 'tactics', label: 'Tactics', icon: '⚑' },
       { id: 'coaching', label: 'Coaching Staff', icon: '♟' },
+      { id: 'room', label: 'Dressing Room', icon: '💬' },
       { id: 'prospects', label: 'Prospects', icon: '✦' },
       { id: 'contracts', label: 'Contracts', icon: '✎' },
     ],
@@ -162,6 +164,7 @@ function Routes() {
     tactics: <TacticsPage />,
     coaching: <CoachingPage />,
     owner: <OwnerPage />,
+    room: <RoomPage />,
     coach: <CoachPage id={Number(r.param)} />,
     players: <PlayersPage />,
     prospects: <ProspectsPage />,
@@ -201,6 +204,8 @@ function useBadges(): Record<string, string | null> {
     const staff = league.teams[league.userTeamId].staff;
     if (staff.headCoach === null || league.coaches[staff.headCoach]?.interim) badges.coaching = '!';
     if (league.owner && league.owner.security < 30) badges.owner = '!';
+    const reqs = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && p.tradeRequest).length;
+    if (reqs) badges.room = String(reqs);
   }
   return badges;
 }

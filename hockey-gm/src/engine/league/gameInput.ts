@@ -1,3 +1,4 @@
+import { honourPromisesInLines } from './room';
 import { clamp } from '../core/math';
 import type { League, Lines, Player, Team } from '../types';
 import type { GameInput, GamePlayerInput, GameTeamInput } from '../sim/gameTypes';
@@ -62,6 +63,7 @@ export function teamGameInput(league: League, team: Team, day: number, playoff: 
   if (team.autoLines || team.id !== league.userTeamId) {
     // CPU teams (and users on auto) refresh lines every game.
     team.lines = autoLines(roster);
+    if (team.id === league.userTeamId) honourPromisesInLines(league, team.id);
   } else {
     repairLines(team.lines, roster);
   }
