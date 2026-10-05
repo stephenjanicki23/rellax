@@ -38,6 +38,7 @@ import { ComparePage } from './pages/Compare';
 import { DevelopmentPage } from './pages/Development';
 import { DeadlinePage } from './pages/Deadline';
 import { AwardsRacePage } from './pages/AwardsRace';
+import { MediaPage } from './pages/Media';
 import { CoachPage } from './pages/CoachPage';
 import { LiveGame } from './pages/LiveGame';
 import { SettingsPage } from './pages/Settings';
@@ -84,6 +85,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'compare', label: 'Compare', icon: '⚖' },
       { id: 'league', label: 'League', icon: '⌂' },
       { id: 'news', label: 'News', icon: '✉' },
+      { id: 'media', label: 'Media', icon: '📰' },
       { id: 'history', label: 'History', icon: '♛' },
     ],
   },
@@ -180,6 +182,7 @@ function Routes() {
     development: <DevelopmentPage />,
     deadline: <DeadlinePage />,
     awards: <AwardsRacePage />,
+    media: <MediaPage />,
     coach: <CoachPage id={Number(r.param)} />,
     players: <PlayersPage />,
     prospects: <ProspectsPage />,

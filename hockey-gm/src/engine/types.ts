@@ -100,6 +100,19 @@ export type PersonalityId =
   | 'leader'
   | 'easygoing';
 
+export interface Article {
+  id: number;
+  season: number;
+  day: number;
+  kind: 'preview' | 'power' | 'recap' | 'grade';
+  title: string;
+  body: string[];
+  teamIds: number[];
+  playerIds: number[];
+  gameId?: number;
+  grade?: string;
+}
+
 export interface DeadlineEvent {
   day: number;
   /** Clock time on deadline day. */
@@ -1083,6 +1096,8 @@ export interface League {
   ratingBaseline: number;
   /** Preseason projected points per team (for expectations / coach of the year). */
   projections: Record<number, number>;
+  /** Press coverage: previews, power rankings, recaps, trade grades. */
+  media?: { articles: Article[]; nextId: number; lastPower?: Record<number, number> };
   /** Weekly three stars (and the stat snapshot they're measured against). */
   weekly?: { season: number; snapshot: Record<number, { gp: number; g: number; pts: number; w: number; sa: number; ga: number }>; stars: { day: number; stars: { playerId: number; teamId: number; line: string }[] }[] };
   /** This season's All-Star rosters by conference. */

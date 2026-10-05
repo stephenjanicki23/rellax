@@ -32,6 +32,7 @@ import { stockCoachPool } from '../team/coachPool';
 import { closeCoachSeason } from '../team/staffMarket';
 import { ownerSeasonReview, setOwnerGoals } from '../front/owner';
 import { budgetMultiplier, closeBooks } from '../front/finances';
+import { seasonPreview } from '../front/media';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
 import { advanceContracts } from '../cba/contractService';
@@ -316,6 +317,7 @@ export function startNewSeason(league: League): void {
   league.ratingBaseline = ratingBaselineFor(league);
   league.phase = 'preseason';
   setOwnerGoals(league);
+  seasonPreview(league);
   rolloverLtir(league);
   addNews(league, { category: 'league', headline: `The ${league.season}-${(league.season + 1) % 100} season is set to begin. Salary cap: $${(league.cap.upper / 1000).toFixed(1)}M`, teamIds: [], playerIds: [], importance: 3 });
 }
