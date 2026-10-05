@@ -156,10 +156,10 @@ export function Seg<T extends string>({ options, value, onChange }: { options: {
   );
 }
 
-export function Modal({ children, onClose, title }: { children: ReactNode; onClose: () => void; title?: string }) {
+export function Modal({ children, onClose, title, wide }: { children: ReactNode; onClose: () => void; title?: string; wide?: boolean }) {
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal${wide ? ' wide' : ''}`} onClick={(e) => e.stopPropagation()}>
         {title && (
           <div className="row" style={{ marginBottom: 12 }}>
             <h2>{title}</h2>

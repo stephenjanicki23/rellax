@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame, mutate, toast } from '../store';
 import { Card, PlayerLink, Pos, Stars, TeamLogo } from '../components/common';
 import { playersOf } from '../../engine/league/helpers';
@@ -9,6 +9,8 @@ import { fmtMoney } from '../../engine/economy/contracts';
 import { trimRoster, ensureDressable } from '../../engine/economy/roster';
 import type { League } from '../../engine/types';
 import { shortDate } from '../format';
+import { TradeReview } from '../components/TradeReview';
+import { useRoute } from '../router';
 import { activeClause } from '../../engine/cba/contract';
 import { capSeason } from '../../engine/cba/capManager';
 
@@ -99,6 +101,8 @@ export function TradesPage() {
   const partnerTeam = league.teams[partner];
   const [counter, setCounter] = useState<Counter | null>(null);
   const [shop, setShop] = useState<{ playerId: number; offers: UserOffer[] } | null>(null);
+  // The trade on the review screen, and what accepting / countering / declining does.
+  const [review, setReview] = useState<{ proposal: TradeProposal; note?: string; accept: () => void; counter?: () => void; decline?: () => void; label?: string } | null>(null);
   const block = tradeBlock(league);
   const patience = gmPatience(league, partner);
   const execute = (p: TradeProposal) => {
@@ -167,6 +171,26 @@ export function TradesPage() {
     setRetain(Object.fromEntries((p.retain ?? []).map((r) => [r.playerId, r.pct])));
     setCounter(null);
   };
+  const counterIncoming = (id: number) => {
+    const o = league.tradeOffers.find((x) => x.id === id);
+    if (!o) return;
+    setPartner(o.from);
+    setGive(o.get);
+    setGet(o.give);
+    setCounter(null);
+  };
+  const reviewOffer = (id: number) => {
+    const o = league.tradeOffers.find((x) => x.id === id);
+    if (!o) return;
+    setReview({ proposal: { from: o.from, to: me, give: o.give, get: o.get }, note: o.note, accept: () => respond(id, true), counter: () => counterIncoming(id), decline: () => respond(id, false) });
+  };
+  // Arriving from the dashboard's "Review" button opens that offer straight away.
+  const route = useRoute();
+  const reviewId = Number(route.query.get('review'));
+  useEffect(() => {
+    if (reviewId) reviewOffer(reviewId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId]);
   const acceptShopOffer = (o: UserOffer) => {
     const errs = validateTrade(league, o.proposal);
     if (errs.length) return toast(errs[0], 'bad');
@@ -195,8 +219,8 @@ export function TradesPage() {
                     They offer: <b>{o.give.map((a) => describeAsset(league, a)).join(', ')}</b> — for <b>{o.get.map((a) => describeAsset(league, a)).join(', ')}</b>
                   </span>
                 </div>
-                <button className="btn small primary" onClick={() => respond(o.id, true)}>Accept</button>
-                <button className="btn small" onClick={() => { setPartner(o.from); setGive(o.get); setGet(o.give); }}>Counter…</button>
+                <button className="btn small primary" onClick={() => reviewOffer(o.id)}>Review</button>
+                <button className="btn small" onClick={() => counterIncoming(o.id)}>Counter…</button>
                 <button className="btn small danger" onClick={() => respond(o.id, false)}>Decline</button>
               </div>
             ))}
@@ -230,7 +254,7 @@ export function TradesPage() {
                     <b>{league.teams[o.proposal.from].abbr}</b> offer {o.proposal.give.map((a) => describeAsset(league, a)).join(', ')}
                     {o.proposal.retain?.length ? <span className="muted"> (with retention)</span> : null}
                   </span>
-                  <button className="btn small primary" onClick={() => acceptShopOffer(o)}>Accept</button>
+                  <button className="btn small primary" onClick={() => setReview({ proposal: o.proposal, accept: () => acceptShopOffer(o), counter: () => { loadProposal(o.proposal); setShop(null); } })}>Review</button>
                   <button className="btn small" onClick={() => { loadProposal(o.proposal); setShop(null); }}>Negotiate…</button>
                 </div>
               ))
@@ -357,7 +381,7 @@ export function TradesPage() {
                   You get: <b>{counter.proposal.get.map((a) => describeAsset(league, a)).join(', ') || 'nothing'}</b>
                 </div>
                 <div className="row" style={{ marginTop: 8 }}>
-                  <button className="btn small primary" onClick={acceptCounter}>Accept counter</button>
+                  <button className="btn small primary" onClick={() => setReview({ proposal: counter.proposal, accept: acceptCounter, counter: () => loadProposal(counter.proposal), label: 'Accept counter' })}>Review counter</button>
                   <button className="btn small" onClick={() => loadProposal(counter.proposal)}>Edit</button>
                   <button className="btn small ghost" onClick={() => setCounter(null)}>Dismiss</button>
                 </div>
@@ -402,6 +426,21 @@ export function TradesPage() {
           {!recent.length && <div className="muted">No trades yet.</div>}
         </div>
       </Card>
+      {review && (
+        <TradeReview
+          league={league}
+          proposal={review.proposal}
+          note={review.note}
+          acceptLabel={review.label}
+          onClose={() => setReview(null)}
+          onAccept={() => {
+            review.accept();
+            setReview(null);
+          }}
+          onCounter={review.counter && (() => { review.counter!(); setReview(null); })}
+          onDecline={review.decline && (() => { review.decline!(); setReview(null); })}
+        />
+      )}
     </>
   );
 }

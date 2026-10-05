@@ -16,6 +16,7 @@ import { expiringPlayers, FA_DAYS } from '../../engine/economy/freeAgency';
 import { dateForDay, pct, sv, PHASE_LABEL } from '../format';
 import { playoffRoundName } from '../../engine/league/playoffs';
 import { NewsList } from './News';
+import { describeAsset } from '../../engine/economy/trade';
 
 export function Dashboard() {
   const { league, version } = useGame();
@@ -135,6 +136,19 @@ export function Dashboard() {
         </div>
       </div>
       {banner}
+      {league.tradeOffers.length > 0 && (
+        <div className="banner" style={{ marginBottom: 14 }}>
+          <b>📞 {league.tradeOffers.length === 1 ? 'Trade offer' : `${league.tradeOffers.length} trade offers`}</b>
+          <span className="muted" style={{ flex: 1, minWidth: 200 }}>
+            {league.tradeOffers
+              .map((o) => `${league.teams[o.from].abbr} want ${o.get.map((a) => describeAsset(league, a)).join(', ')}`)
+              .join(' · ')}
+          </span>
+          <button className="btn primary small" onClick={() => navigate(`trades?review=${league.tradeOffers[0].id}`)}>
+            Review
+          </button>
+        </div>
+      )}
       <div className="grid g4" style={{ marginBottom: 14 }}>
         <Card>
           <Stat k="Record" v={rec ? recordString(rec) : '0-0-0'} sub={`${rec ? points(rec) : 0} pts · ${rec && rec.gp ? pct(points(rec) / (rec.gp * 2)) : '—'} pts%`} />
