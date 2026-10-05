@@ -268,6 +268,7 @@ export function simDays(league: League, n: number): DayReport[] {
   const out: DayReport[] = [];
   for (let i = 0; i < n; i++) {
     if (league.phase !== 'regular' && league.phase !== 'playoffs') break;
+    if (league.owner?.fired) break;
     out.push(advanceDay(league));
   }
   return out;
@@ -278,7 +279,7 @@ export function simToNextUserGame(league: League): DayReport[] {
   const out: DayReport[] = [];
   const phase = league.phase;
   while (league.phase === phase && (phase === 'regular' || phase === 'playoffs')) {
-    if (userGameToday(league)) break;
+    if (userGameToday(league) || league.owner?.fired) break;
     out.push(advanceDay(league));
     if (out.length > 400) break;
   }
@@ -291,6 +292,7 @@ export function simTo(league: League, target: SimTarget): DayReport[] {
   const out: DayReport[] = [];
   let guard = 0;
   while (guard++ < 1000) {
+    if (league.owner?.fired) break;
     if (target === 'tradeDeadline' && (league.phase !== 'regular' || league.day >= league.tradeDeadlineDay)) break;
     if (target === 'endRegular' && league.phase !== 'regular') break;
     if ((target === 'endPlayoffs' || target === 'endSeason') && league.phase !== 'regular' && league.phase !== 'playoffs') break;

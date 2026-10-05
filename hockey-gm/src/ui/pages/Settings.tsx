@@ -48,6 +48,12 @@ export function SettingsPage() {
                 <b>Assistant GM mode</b> <span className="muted">— let the AI handle your drafts, signings, call-ups and contracts</span>
               </span>
             </label>
+            <label className="row">
+              <input type="checkbox" checked={s.canBeFired !== false} onChange={(e) => mutate((l) => (l.settings.canBeFired = e.target.checked))} />
+              <span>
+                <b>Job security</b> <span className="muted">— the owner can fire you if results fall short of the season's goals</span>
+              </span>
+            </label>
             <label className="field">
               Injury frequency multiplier: <b>{s.injuryRate.toFixed(2)}×</b>
               <input type="range" min={0.25} max={2} step={0.05} value={s.injuryRate} onChange={(e) => mutate((l) => (l.settings.injuryRate = Number(e.target.value)))} />

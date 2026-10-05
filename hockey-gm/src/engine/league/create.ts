@@ -27,6 +27,7 @@ import { projectedPoints } from '../team/strength';
 import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
 import type { NhlSnapshot } from '../data/nhl/types';
 import { NHL_GMS } from '../data/nhl/staff';
+import { setOwnerGoals } from '../front/owner';
 import NHL_SNAPSHOT from '../data/nhl/rosters.json';
 
 /**
@@ -537,6 +538,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   // Front offices start the season with a plan: contend, stay the course, or rebuild.
   updateStrategies(league, true);
   league.projections = Object.fromEntries(teams.map((t) => [t.id, projectedPoints(league, t.id)]));
+  setOwnerGoals(league);
   return league;
 }
 

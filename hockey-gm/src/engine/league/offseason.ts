@@ -30,6 +30,7 @@ import { teamBudget } from '../economy/contracts';
 import { expectedToiFor } from '../player/generate';
 import { stockCoachPool } from '../team/coachPool';
 import { closeCoachSeason } from '../team/staffMarket';
+import { ownerSeasonReview, setOwnerGoals } from '../front/owner';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
 import { advanceContracts } from '../cba/contractService';
@@ -138,6 +139,7 @@ export function finishSeason(league: League): void {
   recordHistory(league, awards);
   finalizeRecords(league);
   updateRivalries(league);
+  ownerSeasonReview(league);
   offseasonCoaching(league);
   yearlyDevelopment(league);
   retirements(league);
@@ -311,6 +313,7 @@ export function startNewSeason(league: League): void {
   league.projections = Object.fromEntries(league.teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   league.ratingBaseline = ratingBaselineFor(league);
   league.phase = 'preseason';
+  setOwnerGoals(league);
   rolloverLtir(league);
   addNews(league, { category: 'league', headline: `The ${league.season}-${(league.season + 1) % 100} season is set to begin. Salary cap: $${(league.cap.upper / 1000).toFixed(1)}M`, teamIds: [], playerIds: [], importance: 3 });
 }

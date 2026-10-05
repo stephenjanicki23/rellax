@@ -23,8 +23,12 @@ import { aiCapHousekeeping } from './finance';
 import { holdoutDay } from '../cba/holdouts';
 import { startNegotiation } from '../cba/negotiation';
 import { fitNorm } from '../team/fit';
+import { ownerWeekly, setOwnerGoals } from '../front/owner';
 
 export function aiDaily(league: League): void {
+  // Older saves (or a new job mid-season) get this season's owner goals.
+  if (league.phase === 'regular' && league.owner?.season !== league.season) setOwnerGoals(league);
+  if (league.phase === 'regular' && league.day % 7 === 0) ownerWeekly(league);
   holdoutDay(league);
   for (const t of league.teams) ensureDressable(league, t.id);
   if (league.day % 7 === 3) weeklyScouting(league);
