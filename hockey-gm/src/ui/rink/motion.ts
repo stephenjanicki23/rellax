@@ -30,10 +30,11 @@ export interface Key extends Frame {
 const GAP: Partial<Record<GameEventType, number>> = {
   pass: 0.55,
   shot: 0.4,
-  save: 0.22,
-  goal: 0.25,
-  missed: 0.35,
-  blocked: 0.3,
+  // Shots: a beat for the release, then the flight.
+  save: 0.45,
+  goal: 0.45,
+  missed: 0.45,
+  blocked: 0.4,
   rebound: 0.45,
   battle: 0.5,
   hit: 0.4,

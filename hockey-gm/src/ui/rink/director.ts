@@ -516,14 +516,19 @@ export class RinkDirector {
         const dist = e.data?.dist ?? 30;
         this.carrier = e.p1 ?? null;
         this.puck = e.data?.en && dist > 80 ? { x: RINK.cx - d * (dist > 120 ? 45 : 0), y: RINK.cy + side * 15 } : this.shooterSpot(t, p, dist, seed, e.data?.angle);
-        return [this.frame(ice, 'carry')];
+        // He gets set before he shoots; a slap shot needs a proper wind-up.
+        const slap = /slap/i.test(e.data?.shotType ?? '');
+        return [{ ...this.frame(ice, 'carry'), at: slap ? -0.35 : -0.1 }];
       }
       case 'save': {
         // Saving team is e.team; the shot came at its own net.
         const net = ownNetX(t, p);
         const dd = attackDir(t, p);
         this.addShot({ ...this.puck, team: (1 - t) as 0 | 1, kind: 'save', period: p });
-        this.puck = { x: net + dd * 4, y: RINK.cy + (hash(seed, 8) - 0.5) * 5 };
+        // Most saves are smothered or dropped at the pads; some are kicked out to the side.
+        const kick = e.data?.big || hash(seed, 18) < 0.35;
+        const ks = this.puck.y < RINK.cy ? -1 : 1;
+        this.puck = kick ? { x: net + dd * (7 + hash(seed, 19) * 7), y: RINK.cy + ks * (9 + hash(seed, 20) * 10) } : { x: net + dd * 4, y: RINK.cy + (hash(seed, 8) - 0.5) * 5 };
         this.carrier = null;
         return [this.frame(ice, 'shot', e.data?.big ? this.flash('BIG SAVE!', 'save', t) : this.flash('SAVE', 'save', t))];
       }
