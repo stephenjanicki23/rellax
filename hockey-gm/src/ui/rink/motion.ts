@@ -113,14 +113,27 @@ interface Body {
   pos: Pt;
   vel: Pt;
   leaving: number;
+  /** Which way he's facing (radians); differs from his travel when skating backwards. */
+  face: number;
 }
 
-type PuckMode = { kind: 'carried'; carrier: number } | { kind: 'flying'; from: Pt; to: Pt; t0: number; t1: number } | { kind: 'loose' };
+/** Tightest turning radius at speed (feet): fast skaters carve, slow ones can pivot. */
+const TURN_R = 9;
+/** Braking (hockey stop) is quicker than accelerating. */
+const BRAKE = 1.6;
+/** Most sideways acceleration skate edges hold (ft/s²). */
+const GRIP = 34;
+/** How fast a skater can turn his body to face somewhere else (radians per second). */
+const FACE_RATE = 7;
+
+type PuckMode = { kind: 'carried'; carrier: number } | { kind: 'flying'; from: Pt; to: Pt; t0: number; t1: number; shot?: boolean } | { kind: 'loose' };
 
 const SPEED = { F: 29, D: 26, G: 10 };
 const ACCEL = { F: 36, D: 32, G: 30 };
 const PASS_SPEED = 62;
 const SHOT_SPEED = 115;
+/** Short passes are soft, long stretch passes are fired (ft/s). */
+const passSpeed = (len: number) => 48 + Math.min(34, len * 0.4);
 /** Below this line (feet from the bottom boards) players heading to the bench may leave the ice. */
 const CORNER_GATE = 6;
 
@@ -204,10 +217,11 @@ export class RinkMotion {
     const remaining = Math.max(0.3, target.s - this.P);
     // Start a pass/shot flight so it lands exactly on its keyframe.
     if ((target.motion === 'pass' || target.motion === 'shot') && this.flightFor !== this.k) {
-      const flyTime = Math.min(0.9, Math.max(0.1, dist(this.puck.pos, target.puck) / (target.motion === 'shot' ? SHOT_SPEED : PASS_SPEED)));
+      const len = dist(this.puck.pos, target.puck);
+      const flyTime = Math.min(0.9, Math.max(0.1, len / (target.motion === 'shot' ? SHOT_SPEED : passSpeed(len))));
       if (target.s - this.P <= flyTime) {
         // Never faster than the pass/shot speed: a late start lands just after the keyframe.
-        this.puck.mode = { kind: 'flying', from: { ...this.puck.pos }, to: onIce(target.puck), t0: this.P, t1: Math.max(target.s, this.P + flyTime) };
+        this.puck.mode = { kind: 'flying', from: { ...this.puck.pos }, to: onIce(target.puck), t0: this.P, t1: Math.max(target.s, this.P + flyTime), shot: target.motion === 'shot' };
         this.flightFor = this.k;
       }
     }
@@ -224,7 +238,7 @@ export class RinkMotion {
     if (goalie) pos = { x: (d > 0 ? RINK.goalL : RINK.goalR) + d * 3.5, y: RINK.cy };
     else if (at && (this.P < 1 || this.bodies.size < 6)) pos = { ...at };
     else pos = { x: RINK.cx + (d > 0 ? -18 : 18) + (hash(id, 41) - 0.5) * 16, y: RINK.h - 2 - hash(id, 42) * 3 }; // over the boards from the bench, spread along the gate
-    return { id, team, goalie, pos, vel: { x: 0, y: 0 }, leaving: 0 };
+    return { id, team, goalie, pos, vel: { x: 0, y: 0 }, leaving: 0, face: d > 0 ? 0 : Math.PI };
   }
 
   private reach(key: Key, idx: number): void {
@@ -293,6 +307,10 @@ export class RinkMotion {
         tgt = { x: w.x + Math.sin(this.P * 0.9 + ph) * amp, y: w.y + Math.cos(this.P * 0.7 + ph * 1.3) * amp };
         // The carrier skates the puck to where the next keyframe wants it.
         if (this.puck.mode.kind === 'carried' && this.puck.mode.carrier === b.id && target.carrier === b.id) tgt = { ...w };
+        if (b.goalie) {
+          tgt = this.goalieSpot(b);
+          T = 0.25;
+        }
       } else {
         // Line change: head for the bench and disappear (leaving the puck behind).
         b.leaving += dt;
@@ -306,7 +324,8 @@ export class RinkMotion {
       const desired = { x: (tgt.x - b.pos.x) / T, y: (tgt.y - b.pos.y) / T };
       // Goalies shuffle in the crease but skate hard when far out of position.
       // Setting up for a faceoff, everyone glides into place a little quicker than game speed.
-      const setup = target.faceoff && !b.goalie ? 1.7 : 1;
+      // (players coming a long way, e.g. off the bench for a faceoff in the far end, hurry more).
+      const setup = target.faceoff && !b.goalie ? (Math.hypot(tgt.x - b.pos.x, tgt.y - b.pos.y) > 35 ? 2.3 : 1.7) : 1;
       const vmax = (b.goalie && Math.hypot(tgt.x - b.pos.x, tgt.y - b.pos.y) > 6 ? 20 : SPEED[kind]) * setup;
       const cap = (v: Pt, m: number) => {
         const l = Math.hypot(v.x, v.y);
@@ -338,14 +357,31 @@ export class RinkMotion {
         cap(desired, vmax);
       }
       const dv = { x: desired.x - b.vel.x, y: desired.y - b.vel.y };
-      const dvl = Math.hypot(dv.x, dv.y);
-      const amax = ACCEL[kind] * setup * dt;
-      if (dvl > amax) {
-        dv.x *= amax / dvl;
-        dv.y *= amax / dvl;
+      const amax = ACCEL[kind] * setup;
+      const v = Math.hypot(b.vel.x, b.vel.y);
+      if (v > 1e-3 && !b.goalie) {
+        // Split the change into along-track (speed up / stop) and sideways (turning).
+        const tx = b.vel.x / v;
+        const ty = b.vel.y / v;
+        let along = dv.x * tx + dv.y * ty;
+        let side = -dv.x * ty + dv.y * tx;
+        along = Math.max(-amax * BRAKE * dt, Math.min(amax * dt, along));
+        // Turning: nearly stopped he can pivot; moving, the turn is limited by the tightest
+        // radius (v²/r) and by how much the edges can grip, so fast skaters carve wide arcs.
+        const sideMax = (v < 7 ? amax : Math.min(GRIP * Math.min(setup, 1.15), Math.max((v * v) / TURN_R, amax * 0.6))) * dt;
+        side = Math.max(-sideMax, Math.min(sideMax, side));
+        dv.x = along * tx - side * ty;
+        dv.y = along * ty + side * tx;
+      } else {
+        const dvl = Math.hypot(dv.x, dv.y);
+        if (dvl > amax * dt) {
+          dv.x *= (amax * dt) / dvl;
+          dv.y *= (amax * dt) / dvl;
+        }
       }
       b.vel.x += dv.x;
       b.vel.y += dv.y;
+      this.turnBody(b, dt);
       const nx = b.pos.x + b.vel.x * dt;
       const ny = b.pos.y + b.vel.y * dt;
       // Players leaving for the bench may step off the bottom edge; everyone else stays inside the boards.
@@ -354,10 +390,57 @@ export class RinkMotion {
     }
   }
 
+  /**
+   * Where a goalie stands right now: on the line from the puck to the middle
+   * of his net, further out when the puck is far away (cutting down the
+   * angle), sealing the post when it's behind the goal line.
+   */
+  private goalieSpot(b: Body): Pt {
+    const d = attackDir(b.team, this.period);
+    const netX = d > 0 ? RINK.goalL : RINK.goalR;
+    const p = this.puck.mode.kind === 'flying' ? this.puck.mode.to : this.puck.pos;
+    const ahead = (p.x - netX) * d;
+    if (ahead < 1) return { x: netX + d * 1.4, y: RINK.cy + (p.y < RINK.cy ? -2.6 : 2.6) };
+    // Only his own half matters; at the far end he sits at the top of his crease.
+    const far = ahead > 100;
+    const px = far ? netX + d * 100 : p.x;
+    const dx = px - netX;
+    const dy = p.y - RINK.cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const depth = Math.min(5.2, Math.max(2.4, len * 0.07));
+    const y = RINK.cy + (dy / len) * depth;
+    return { x: netX + (dx / len) * depth, y: Math.min(RINK.cy + 4.5, Math.max(RINK.cy - 4.5, y)) };
+  }
+
+  /**
+   * Face the way he's skating, except when backing into his own end with the
+   * play in front of him (a defender gapping up on a rush): then he skates
+   * backwards, facing the puck.
+   */
+  private turnBody(b: Body, dt: number): void {
+    const v = Math.hypot(b.vel.x, b.vel.y);
+    const own = -attackDir(b.team, this.period);
+    const carrier = this.puck.mode.kind === 'carried' ? this.puck.mode.carrier : null;
+    const theirs = carrier !== null && this.meta.get(carrier)?.team !== b.team;
+    const retreating = v > 4 && (b.vel.x * own) / v > 0.55;
+    const puckAhead = (this.puck.pos.x - b.pos.x) * own < -6;
+    let want: number;
+    if (!b.goalie && theirs && retreating && puckAhead) want = Math.atan2(this.puck.pos.y - b.pos.y, this.puck.pos.x - b.pos.x);
+    else if (v > 3) want = Math.atan2(b.vel.y, b.vel.x);
+    else if (b.goalie) want = own > 0 ? Math.PI : 0;
+    else return;
+    let da = want - b.face;
+    da = Math.atan2(Math.sin(da), Math.cos(da));
+    const step = FACE_RATE * dt;
+    b.face += Math.max(-step, Math.min(step, da));
+  }
+
   private movePuck(dt: number): void {
     const m = this.puck.mode;
     if (m.kind === 'flying') {
-      const u = Math.min(1, (this.P - m.t0) / Math.max(0.01, m.t1 - m.t0));
+      const lin = Math.min(1, (this.P - m.t0) / Math.max(0.01, m.t1 - m.t0));
+      // Passes come off the stick fast and slow on the ice; shots stay quick all the way.
+      const u = m.shot ? lin : 1 - Math.pow(1 - lin, 1.45);
       this.puck.pos = { x: m.from.x + (m.to.x - m.from.x) * u, y: m.from.y + (m.to.y - m.from.y) * u };
       if (u >= 1) {
         const c = this.pendingCarrier;

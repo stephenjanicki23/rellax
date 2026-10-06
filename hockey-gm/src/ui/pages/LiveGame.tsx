@@ -383,7 +383,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
               }
             />
           )}
-          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} playoff={playoff} onShown={pushEvents} seasonTotals={seasonTotals} onReplay={onReplay} />
+          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} tactics={[input.home.tactics, input.away.tactics]} playoff={playoff} onShown={pushEvents} seasonTotals={seasonTotals} onReplay={onReplay} />
           <div className="live-momentum" title="Momentum: which team is pushing the play">
             <span>{home.abbr}</span>
             <div className="momentum">

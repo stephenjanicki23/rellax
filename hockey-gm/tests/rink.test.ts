@@ -60,7 +60,7 @@ describe('continuous rink motion', () => {
   const sim = new GameSim(input);
   const players: RinkPlayer[] = ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null })));
   const meta = new Map(players.map((p) => [p.id, p]));
-  const tl = new RinkTimeline(new RinkDirector(meta, ['H', 'A']));
+  const tl = new RinkTimeline(new RinkDirector(meta, ['H', 'A'], [input.home.tactics, input.away.tactics]));
   while (!sim.finished) {
     const evs = sim.step();
     const s = sim.snapshot();
@@ -84,6 +84,12 @@ describe('continuous rink motion', () => {
   let longStill = 0;
   let offIce = 0;
   let crowdedFrames = 0;
+  let maxTurn = 0;
+  let goalieChecks = 0;
+  let goalieSquare = 0;
+  let backwards = 0;
+  let movingSamples = 0;
+  const lastVel = new Map<number, { x: number; y: number }>();
   let frameCount = 0;
   const outside = (p: { x: number; y: number }) => {
     const cx = p.x < CORNER_R ? CORNER_R : p.x > RINK.w - CORNER_R ? RINK.w - CORNER_R : null;
@@ -117,6 +123,28 @@ describe('continuous rink motion', () => {
     for (const b of motion.bodies.values()) {
       const sp = Math.hypot(b.vel.x, b.vel.y);
       if (!b.goalie && !settingUp) maxSkaterSpeed = Math.max(maxSkaterSpeed, sp);
+      const pv = lastVel.get(b.id);
+      if (!b.goalie && pv && sp > 15 && Math.hypot(pv.x, pv.y) > 15) {
+        const a = Math.atan2(b.vel.y, b.vel.x) - Math.atan2(pv.y, pv.x);
+        maxTurn = Math.max(maxTurn, (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) / dt) * (180 / Math.PI));
+      }
+      lastVel.set(b.id, { ...b.vel });
+      if (b.goalie && motion.puck.mode.kind !== 'flying') {
+        // Square to the puck: on the line from the puck to the middle of his net.
+        const netX = attackDir(b.team, motion.period) > 0 ? RINK.goalL : RINK.goalR;
+        const pk = motion.puck.pos;
+        const ahead = (pk.x - netX) * attackDir(b.team, motion.period);
+        if (ahead > 15 && ahead < 70) {
+          goalieChecks++;
+          const a1 = Math.atan2(pk.y - RINK.cy, pk.x - netX);
+          const a2 = Math.atan2(b.pos.y - RINK.cy, b.pos.x - netX);
+          if (Math.abs(Math.atan2(Math.sin(a1 - a2), Math.cos(a1 - a2))) < 0.35) goalieSquare++;
+        }
+      }
+      if (!b.goalie && sp > 6) {
+        movingSamples++;
+        if (Math.cos(b.face - Math.atan2(b.vel.y, b.vel.x)) < -0.3) backwards++;
+      }
       if (!Number.isFinite(b.pos.x + b.pos.y)) nan = true;
     }
     const p = motion.puck.pos;
@@ -156,6 +184,16 @@ describe('continuous rink motion', () => {
   });
   it('keeps the puck inside the rounded boards, where it can be seen', () => {
     expect(offIce).toBe(0);
+  });
+  it('keeps goalies square to the puck', () => {
+    expect(goalieChecks).toBeGreaterThan(100);
+    expect(goalieSquare / goalieChecks).toBeGreaterThan(0.8);
+  });
+  it('carves turns at speed instead of pivoting on the spot', () => {
+    expect(maxTurn).toBeLessThan(160);
+  });
+  it('has defenders skate backwards facing the play on rushes', () => {
+    expect(backwards / movingSamples).toBeGreaterThan(0.01);
   });
   it('gives players room: markers rarely stack on top of each other', () => {
     expect(crowdedFrames / frameCount).toBeLessThan(0.25);

@@ -111,3 +111,6 @@
 .rink-head .rink-chip { font-size: 11px; padding: 2px 8px; }
 @media (max-width: 640px) { .rink-head .rink-chip-row { display: none; } }
 .rink2 .puck-halo { fill: #fff; opacity: 0.6; filter: blur(0.25px); }
+.rink-system { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 8px; background: rgba(246, 196, 69, 0.16); color: #f6c445; border: 1px solid rgba(246, 196, 69, 0.4); white-space: nowrap; }
+.rink2 .pm .gbody { transition: transform 0.12s ease-out; transform-box: fill-box; transform-origin: center; }
+.rink2 .pm.butterfly .gbody { transform: scale(0.75, 1.45); }

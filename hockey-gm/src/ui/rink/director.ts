@@ -8,7 +8,8 @@
  * right in periods 1, 3 and overtime, and to the left in period 2.
  */
 import type { GameEvent } from '../../engine/sim/gameTypes';
-import type { Position } from '../../engine/types';
+import type { Position, Tactics } from '../../engine/types';
+import { systemSpots } from './systems';
 
 export const RINK = { w: 200, h: 85, cx: 100, cy: 42.5, goalL: 11, goalR: 189 } as const;
 
@@ -123,7 +124,7 @@ export function zoneOf(p: Pt, team: 0 | 1, period: number): Zone {
 }
 
 /** Where every player stands given the puck, who has it and the zone. */
-export function formation(ice: IceState, meta: Map<number, RinkPlayer>, puck: Pt, carrier: number | null, poss: 0 | 1, beat: number): Record<number, Pt> {
+export function formation(ice: IceState, meta: Map<number, RinkPlayer>, puck: Pt, carrier: number | null, poss: 0 | 1, beat: number, tactics?: [Tactics | undefined, Tactics | undefined]): Record<number, Pt> {
   const out: Record<number, Pt> = {};
   const { period } = ice;
   // The team with the puck sets up first; the other team reads off where its players are.
@@ -177,7 +178,17 @@ export function formation(ice: IceState, meta: Map<number, RinkPlayer>, puck: Pt
         const s = i < slots.length ? slots[i] : { x: (slots[i % slots.length].x + slots[(i + 1) % slots.length].x) / 2, y: (slots[i % slots.length].y + slots[(i + 1) % slots.length].y) / 2 };
         out[id] = { x: s.x + (hash(id, beat, 1) - 0.5) * 4, y: s.y + (hash(id, beat, 2) - 0.5) * 4 };
       });
-    if (!attacking && z === 'D' && Object.keys(marks).length >= 3) {
+    // The coach's system for this situation (forecheck, trap, power play, penalty kill, offensive style).
+    const them = ice.onIce[1 - team].filter((id) => id !== ice.goalies[1 - team]).length;
+    const sys = systemSpots({ d, zone: z, attacking, us: skaters.length, them, puckU: (puck.x - RINK.cx) * d, puckY: puck.y, tactics: tactics?.[team] });
+    if (sys) {
+      const jit = (id: number, p: Pt): Pt => ({ x: p.x + (hash(id, beat, 1) - 0.5) * 3, y: p.y + (hash(id, beat, 2) - 0.5) * 3 });
+      const order = [...ds, ...fs];
+      order.forEach((id, i) => {
+        const spot = i < sys.length ? sys[i] : { x: (sys[i % sys.length].x + sys[(i + 1) % sys.length].x) / 2, y: (sys[i % sys.length].y + sys[(i + 1) % sys.length].y) / 2 };
+        out[id] = jit(id, spot);
+      });
+    } else if (!attacking && z === 'D' && Object.keys(marks).length >= 3) {
       // Own-end coverage: one forward pressures the puck, defencemen take the attackers nearest
       // the net and the other forwards the ones further out, always goal-side of their man.
       const net = { x: oN, y: RINK.cy };
@@ -231,12 +242,14 @@ export class RinkDirector {
   constructor(
     private meta: Map<number, RinkPlayer>,
     private abbr: [string, string],
+    /** Each team's tactics (home, away): the systems the players set up in. */
+    private tactics?: [Tactics | undefined, Tactics | undefined],
   ) {}
 
   private frame(ice: IceState, motion: Frame['motion'], flash: Flash | null = null, goalLight: 0 | 1 | null = null, players?: Record<number, Pt>): Frame {
     this.beat++;
     this.puck = clampPt(this.puck, 2);
-    this.players = players ?? formation(ice, this.meta, this.puck, this.carrier, this.poss, this.beat);
+    this.players = players ?? formation(ice, this.meta, this.puck, this.carrier, this.poss, this.beat, this.tactics);
     const mark = this.pendingMark;
     this.pendingMark = undefined;
     return { puck: { ...this.puck }, motion, carrier: this.carrier, players: this.players, flash, goalLight, mark };
@@ -562,7 +575,7 @@ export class RinkDirector {
     }
     const lead = carrier ?? chaser;
     const team = lead !== null ? (this.meta.get(lead)?.team ?? this.poss) : this.poss;
-    const players = formation(ice, this.meta, puck, lead, team, this.beat);
+    const players = formation(ice, this.meta, puck, lead, team, this.beat, this.tactics);
     // On the first waypoint toward a loose puck the chaser is placed at it, but hasn't touched it yet.
     if (cur === null && first) carrier = null;
     return { puck, motion: 'carry', carrier, players, flash: null, goalLight: null };
