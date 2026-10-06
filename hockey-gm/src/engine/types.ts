@@ -620,6 +620,10 @@ export interface Team {
   deadStaff?: DeadStaffMoney[];
   /** Fans, attendance and the season's books. */
   fans?: FanState;
+  /** Numbers retired by the club (this league). */
+  retiredNumbers?: { number: number; playerId: number; name: string; season: number }[];
+  /** Team Hall of Fame inductees (this league). */
+  hallOfFame?: { playerId: number; name: string; pos: Position; season: number; line: string }[];
   lines: Lines;
   autoLines: boolean;
   tactics: Tactics;

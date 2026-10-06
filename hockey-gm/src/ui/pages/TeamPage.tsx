@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useGame } from '../store';
+import { useGame, mutate, toast } from '../store';
+import { franchiseLeaders, franchiseSeasonRecords, numberCandidates, retireNumber, summaryOf } from '../../engine/league/franchise';
 import { useRoute, href } from '../router';
 import { CoachLink, TraitChips, careerRecord } from '../components/CoachBits';
 import { ROLE_LABEL } from '../../engine/team/staffMarket';
-import { Card, Table, TeamLogo, TeamLink, Tabs, Stat, LineChart, type Column } from '../components/common';
+import { Card, PlayerLink, Table, TeamLogo, TeamLink, Tabs, Stat, LineChart, type Column } from '../components/common';
 import { playerColumns } from '../playerCells';
 import { playersOf, points } from '../../engine/league/helpers';
 import { recordString } from '../../engine/league/standings';
@@ -123,6 +124,130 @@ export function TeamPage({ id }: { id: number }) {
           </Card>
         </div>
       )}
+      {tab === 'history' && <FranchisePanel teamId={team.id} />}
     </>
+  );
+}
+
+const LEADER_LABEL: Record<string, string> = { gp: 'Games', g: 'Goals', a: 'Assists', pts: 'Points', w: 'Goalie wins' };
+
+/** Retired numbers, team Hall of Fame and franchise records (this league). */
+function FranchisePanel({ teamId }: { teamId: number }) {
+  const { league, version } = useGame();
+  const team = league.teams[teamId];
+  const mine = teamId === league.userTeamId;
+  const leaders = useMemo(() => franchiseLeaders(league, teamId), [league, version, teamId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const records = useMemo(() => franchiseSeasonRecords(league, teamId), [league, version, teamId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const candidates = mine ? numberCandidates(league, teamId) : [];
+  return (
+    <div className="grid" style={{ marginTop: 14 }}>
+      <Card title="In the rafters" right={<span className="dim" style={{ fontSize: 11 }}>Honours earned in this league</span>}>
+        {(team.retiredNumbers ?? []).length ? (
+          <div className="row" style={{ gap: 10 }}>
+            {team.retiredNumbers!.map((r) => (
+              <div key={r.number} className="banner-number" style={{ borderColor: team.colors[1], background: team.colors[0] }}>
+                <b style={{ fontSize: 26 }}>{r.number}</b>
+                <a href={href(`player/${r.playerId}`)} style={{ color: '#fff', fontSize: 11 }}>
+                  {r.name}
+                </a>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span className="muted">No numbers retired yet.</span>
+        )}
+        {candidates.length > 0 && (
+          <div className="stack" style={{ marginTop: 12, gap: 6 }}>
+            <b>Eligible for the rafters</b>
+            {candidates.map(({ p, f }) => (
+              <div key={p.id} className="row">
+                <PlayerLink p={p} />
+                <span className="muted" style={{ flex: 1, fontSize: 12 }}>
+                  No. {p.number} · {summaryOf(p, f)}
+                </span>
+                <button
+                  className="btn small primary"
+                  onClick={() => {
+                    const r = mutate((l) => retireNumber(l, l.teams[teamId], l.players[p.id]));
+                    toast(r.message, r.ok ? 'good' : 'bad');
+                  }}
+                >
+                  Retire No. {p.number}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <div className="grid g2">
+        <Card title="Team Hall of Fame" tight>
+          {(team.hallOfFame ?? []).length ? (
+            <table className="tbl">
+              <tbody>
+                {[...team.hallOfFame!].reverse().map((h) => (
+                  <tr key={h.playerId}>
+                    <td>
+                      <a href={href(`player/${h.playerId}`)}>{h.name}</a> <span className="dim">{h.pos}</span>
+                    </td>
+                    <td className="muted" style={{ fontSize: 12 }}>
+                      {h.line}
+                    </td>
+                    <td className="dim">{seasonLabel(h.season)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="muted" style={{ padding: 12 }}>Players are inducted when they retire after a standout career with the club.</div>
+          )}
+        </Card>
+        <Card title="Single-season records" tight>
+          {records.length ? (
+            <table className="tbl">
+              <tbody>
+                {records.map((r) => (
+                  <tr key={r.label}>
+                    <td className="muted">{r.label}</td>
+                    <td className="num">
+                      <b>{r.value}</b>
+                    </td>
+                    <td>
+                      <a href={href(`player/${r.playerId}`)}>{r.name}</a>
+                    </td>
+                    <td className="dim">{seasonLabel(r.season)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="muted" style={{ padding: 12 }}>No seasons played yet.</div>
+          )}
+        </Card>
+      </div>
+      <Card title="Franchise leaders" tight>
+        <div className="grid g3" style={{ padding: 10 }}>
+          {(Object.keys(leaders) as (keyof typeof leaders)[]).map((k) => (
+            <div key={k}>
+              <div className="dim" style={{ fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>
+                {LEADER_LABEL[k]}
+              </div>
+              {leaders[k].map((x, i) => (
+                <div key={x.playerId} className="row" style={{ fontSize: 13 }}>
+                  <span className="dim" style={{ width: 16 }}>
+                    {i + 1}
+                  </span>
+                  <a href={href(`player/${x.playerId}`)} style={{ flex: 1 }}>
+                    {x.name}
+                  </a>
+                  {x.active && <span className="pill">active</span>}
+                  <b>{x.value}</b>
+                </div>
+              ))}
+              {!leaders[k].length && <span className="muted">—</span>}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }

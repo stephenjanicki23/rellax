@@ -197,6 +197,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 .cmp td:first-child, .cmp th:first-child { min-width: 150px; position: sticky; left: 0; background: var(--panel); z-index: 1; }
 .cmp-section td { color: var(--accent); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; padding-top: 14px; }
 .cmp .cmp-best { color: var(--good); font-weight: 700; }
+.banner-number { width: 76px; height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #fff; border-bottom: 4px solid; clip-path: polygon(0 0, 100% 0, 100% 88%, 50% 100%, 0 88%); text-align: center; padding: 0 4px; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
 .kv .k { color: var(--muted); }
 .list { display: flex; flex-direction: column; }

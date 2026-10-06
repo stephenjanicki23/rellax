@@ -33,6 +33,7 @@ import { closeCoachSeason } from '../team/staffMarket';
 import { ownerSeasonReview, setOwnerGoals } from '../front/owner';
 import { budgetMultiplier, closeBooks } from '../front/finances';
 import { seasonPreview } from '../front/media';
+import { honourRetiree } from './franchise';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
 import { advanceContracts } from '../cba/contractService';
@@ -213,6 +214,7 @@ export function retirements(league: League): void {
       });
     }
     if (tid !== null) addTransaction(league, { kind: 'retirement', teamIds: [tid], playerIds: [p.id], description: `${fullName(p)} retires` });
+    honourRetiree(league, p);
   }
 }
 
