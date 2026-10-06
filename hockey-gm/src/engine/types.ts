@@ -163,6 +163,8 @@ export interface Injury {
   totalDays: number;
   season: number;
   dayInjured: number;
+  /** Setbacks during recovery. */
+  setbacks?: number;
 }
 
 /** One league year of a contract (money in thousands of dollars). */
@@ -356,6 +358,10 @@ export interface Player {
   /** Hidden injury resistance 0-200. */
   durability: number;
   morale: number; // 0-100
+  /** Playing through an injury: available, but less effective and at more risk. */
+  playingHurt?: { type: string; bodyPart: Injury['bodyPart']; severity: InjurySeverity; daysLeft: number };
+  /** Rested on the second night of back-to-backs. */
+  loadManaged?: boolean;
   /** Individual development plan set by the GM (training focus and intensity). */
   devPlan?: { focus: DevFocus; intensity: DevIntensity };
   /** Attribute-group averages at the start of the season (to track progress). */
@@ -620,6 +626,8 @@ export interface Team {
   deadStaff?: DeadStaffMoney[];
   /** Fans, attendance and the season's books. */
   fans?: FanState;
+  /** Medical staff level 1-5 (default from market size). */
+  medicalLevel?: number;
   /** Numbers retired by the club (this league). */
   retiredNumbers?: { number: number; playerId: number; name: string; season: number }[];
   /** Team Hall of Fame inductees (this league). */
