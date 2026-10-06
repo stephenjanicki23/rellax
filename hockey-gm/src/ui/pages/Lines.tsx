@@ -8,6 +8,7 @@ import { estimate } from '../../engine/economy/scouting';
 import type { Lines, Player } from '../../engine/types';
 import { ARCHETYPES } from '../../engine/player/archetypes';
 import { href } from '../router';
+import { LineInsights } from '../components/LineInsights';
 
 type Group = 'fwd' | 'def' | 'goalies' | 'pp' | 'pk';
 
@@ -198,6 +199,7 @@ export function LinesPage() {
           </div>
         </Card>
       </div>
+      <LineInsights />
       <Card title="Scratches" className="" right={<span className="muted">Healthy players not in the lineup</span>}>
         <div className="row">
           {roster
