@@ -5,8 +5,9 @@ import { Card, Headshot, Stars, TeamLogo, TeamLink, Pos, attrColor, Bar, LineCha
 import { NegotiationModal } from '../components/Negotiation';
 import { ContractDetails } from '../components/ContractDetails';
 import { SystemFit, SystemFitStrip } from '../components/SystemFit';
+import { ScoutReportCard } from '../components/ScoutReportCard';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
-import { attr20, roleForAbility } from '../../engine/player/ability';
+import { attr20 } from '../../engine/player/ability';
 import { ARCHETYPES } from '../../engine/player/archetypes';
 import { PERSONALITIES, TRAITS } from '../../engine/player/personality';
 import { estimate, displayedAttr, scoutReport, knowledgeOf } from '../../engine/economy/scouting';
@@ -197,16 +198,7 @@ export function PlayerPage({ id }: { id: number }) {
           </Card>
         </div>
         <div className="grid" style={{ alignContent: 'start' }}>
-          <Card title="Scouting report">
-            <div className="stack">
-              <span>{rep.projection}</span>
-              {rep.strengths.length > 0 && <span><span className="good">Strengths:</span> {rep.strengths.join(', ')}</span>}
-              {rep.weaknesses.length > 0 && <span><span className="bad">Weaknesses:</span> {rep.weaknesses.join(', ')}</span>}
-              {rep.injury && <span className="muted">{rep.injury}</span>}
-              <span className="muted" style={{ fontSize: 12 }}>{ARCHETYPES[p.archetype].description}</span>
-              <span className="muted" style={{ fontSize: 12 }}>Role today: {roleForAbility(p.pos, e.ca)}</span>
-            </div>
-          </Card>
+          <ScoutReportCard league={league} p={p} />
           <Card title="Profile">
             <div className="kv">
               <span className="k">Personality</span>

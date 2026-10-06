@@ -484,6 +484,9 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
       judgingPotential: Math.round(clamp(rng.normal(105, 25), 50, 190)),
       salary: rng.int(80, 250),
       assignment: i === 0 ? { kind: 'draft' } : i === 1 ? { kind: 'freeAgents' } : { kind: 'idle' },
+      homeRegion: i === 1 ? 'EU' : 'NA',
+      focus: i === 2 ? 'goalies' : rng.chance(0.5) ? 'skaters' : 'all',
+      experience: rng.int(2, 22),
     });
   }
 

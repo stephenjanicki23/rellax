@@ -585,6 +585,12 @@ export interface Scout {
   judgingPotential: number;
   salary: number;
   assignment: ScoutAssignment;
+  /** Where he knows the rinks and contacts (covers prospects there faster). */
+  homeRegion?: 'NA' | 'EU';
+  /** Skater or goalie specialist (sharper reads on his speciality). */
+  focus?: 'skaters' | 'goalies' | 'all';
+  /** Seasons of scouting experience (judgement improves with it). */
+  experience?: number;
 }
 
 export type ScoutAssignment =
@@ -1100,6 +1106,8 @@ export interface League {
     shortlist?: number[];
     /** Central Scouting rankings for the upcoming draft. */
     central?: CsRankings | null;
+    /** Weeks each scout has spent watching a player: playerId -> scoutId -> weeks. */
+    seenBy?: Record<number, Record<number, number>>;
   };
   /** Shared ice time between teammates: "minId-maxId" -> seconds. */
   chemistry: Record<string, number>;
