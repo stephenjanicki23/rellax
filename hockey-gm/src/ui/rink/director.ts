@@ -126,7 +126,9 @@ export function zoneOf(p: Pt, team: 0 | 1, period: number): Zone {
 export function formation(ice: IceState, meta: Map<number, RinkPlayer>, puck: Pt, carrier: number | null, poss: 0 | 1, beat: number): Record<number, Pt> {
   const out: Record<number, Pt> = {};
   const { period } = ice;
-  for (const team of [0, 1] as const) {
+  // The team with the puck sets up first; the other team reads off where its players are.
+  const marks: Record<number, Pt> = {};
+  for (const team of [poss, (1 - poss) as 0 | 1]) {
     const d = attackDir(team, period);
     const aN = attackNetX(team, period);
     const oN = ownNetX(team, period);
@@ -144,7 +146,7 @@ export function formation(ice: IceState, meta: Map<number, RinkPlayer>, puck: Pt
       if (z === 'O') {
         dSlots = [{ x: aBlue + d * 4, y: 21 }, { x: aBlue + d * 4, y: 64 }];
         fSlots = [
-          { x: aN - d * 9, y: RINK.cy + side * -3 },
+          { x: aN - d * 14, y: RINK.cy + side * -4 },
           { x: aN - d * 26, y: side < 0 ? 70 : 15 },
           { x: aN - d * 20, y: RINK.cy + side * 9 },
         ];
@@ -171,15 +173,42 @@ export function formation(ice: IceState, meta: Map<number, RinkPlayer>, puck: Pt
     }
     const place = (ids: number[], slots: Pt[]) =>
       ids.forEach((id, i) => {
-        const s = slots[i % slots.length];
+        // More players than slots (power play, extra attacker): the extra one takes the gap between two.
+        const s = i < slots.length ? slots[i] : { x: (slots[i % slots.length].x + slots[(i + 1) % slots.length].x) / 2, y: (slots[i % slots.length].y + slots[(i + 1) % slots.length].y) / 2 };
         out[id] = { x: s.x + (hash(id, beat, 1) - 0.5) * 4, y: s.y + (hash(id, beat, 2) - 0.5) * 4 };
       });
-    place(fs, fSlots);
-    place(ds, dSlots);
+    if (!attacking && z === 'D' && Object.keys(marks).length >= 3) {
+      // Own-end coverage: one forward pressures the puck, defencemen take the attackers nearest
+      // the net and the other forwards the ones further out, always goal-side of their man.
+      const net = { x: oN, y: RINK.cy };
+      const opp = Object.entries(marks)
+        .map(([id, pt]) => ({ id: +id, pt, dn: Math.hypot(pt.x - net.x, pt.y - net.y) }))
+        .filter((o) => o.id !== carrier)
+        .sort((a, b) => a.dn - b.dn);
+      // Between his man and the net, but never inside the crease area (the goalie's ice).
+      const goalSide = (pt: Pt, by: number): Pt => {
+        const len = Math.hypot(pt.x - net.x, pt.y - net.y) || 1;
+        const r = Math.max(10, len - by);
+        return { x: net.x + ((pt.x - net.x) / len) * r, y: net.y + ((pt.y - net.y) / len) * r };
+      };
+      const near = opp.slice(0, ds.length);
+      const far = opp.slice(ds.length);
+      ds.forEach((id, i) => (out[id] = near[i] ? goalSide(near[i].pt, 7) : dSlots[i % dSlots.length]));
+      const [presser, ...rest] = fs;
+      if (presser !== undefined) out[presser] = fSlots[0];
+      rest.forEach((id, i) => (out[id] = far[i] ? goalSide(far[i].pt, 8) : fSlots[(i + 1) % fSlots.length]));
+    } else {
+      place(fs, fSlots);
+      place(ds, dSlots);
+    }
     const g = ice.goalies[team];
     if (g !== null) out[g] = { x: oN + d * 3.5, y: lerp(RINK.cy, puck.y, 0.1) };
+    if (attacking) {
+      if (carrier !== null && out[carrier]) out[carrier] = { x: puck.x - 1.6 * d, y: puck.y + 1 };
+      for (const id of skaters) if (out[id]) marks[id] = out[id];
+    }
   }
-  if (carrier !== null && out[carrier]) out[carrier] = { x: puck.x - 1.6 * attackDir(meta.get(carrier)?.team ?? poss, ice.period), y: puck.y + 1 };
+  if (carrier !== null && out[carrier] && meta.get(carrier)?.team !== poss) out[carrier] = { x: puck.x - 1.6 * attackDir(meta.get(carrier)?.team ?? poss, ice.period), y: puck.y + 1 };
   for (const id of Object.keys(out)) out[+id] = clampPt(out[+id]);
   return out;
 }

@@ -223,7 +223,7 @@ export class RinkMotion {
     let pos: Pt;
     if (goalie) pos = { x: (d > 0 ? RINK.goalL : RINK.goalR) + d * 3.5, y: RINK.cy };
     else if (at && (this.P < 1 || this.bodies.size < 6)) pos = { ...at };
-    else pos = { x: RINK.cx + (d > 0 ? -18 : 18), y: RINK.h - 2 }; // over the boards from the bench
+    else pos = { x: RINK.cx + (d > 0 ? -18 : 18) + (hash(id, 41) - 0.5) * 16, y: RINK.h - 2 - hash(id, 42) * 3 }; // over the boards from the bench, spread along the gate
     return { id, team, goalie, pos, vel: { x: 0, y: 0 }, leaving: 0 };
   }
 
@@ -304,14 +304,38 @@ export class RinkMotion {
         T = 1.2;
       }
       const desired = { x: (tgt.x - b.pos.x) / T, y: (tgt.y - b.pos.y) / T };
-      const sp = Math.hypot(desired.x, desired.y);
       // Goalies shuffle in the crease but skate hard when far out of position.
       // Setting up for a faceoff, everyone glides into place a little quicker than game speed.
       const setup = target.faceoff && !b.goalie ? 1.7 : 1;
       const vmax = (b.goalie && Math.hypot(tgt.x - b.pos.x, tgt.y - b.pos.y) > 6 ? 20 : SPEED[kind]) * setup;
-      if (sp > vmax) {
-        desired.x *= vmax / sp;
-        desired.y *= vmax / sp;
+      const cap = (v: Pt, m: number) => {
+        const l = Math.hypot(v.x, v.y);
+        if (l > m) {
+          v.x *= m / l;
+          v.y *= m / l;
+        }
+      };
+      cap(desired, vmax);
+      const carrying = this.puck.mode.kind === 'carried' && this.puck.mode.carrier === b.id;
+      if (!b.goalie && want[b.id]) {
+        // Personal space: teammates spread out, opponents can close in to contact but don't stack up.
+        // Applied after the seek is capped, so hurrying to a spot never overrides it.
+        for (const o of this.bodies.values()) {
+          if (o === b || (o.leaving > 0 && !want[o.id])) continue;
+          const dx = b.pos.x - o.pos.x;
+          const dy = b.pos.y - o.pos.y;
+          const d = Math.hypot(dx, dy);
+          const R = o.goalie ? 7.5 : o.team === b.team ? 9 : target.faceoff ? 4 : 7.5;
+          if (d >= R) continue;
+          // The puck carrier holds his line; others give way to him.
+          const weight = carrying ? 0.35 : 1;
+          const push = ((R - d) / R) * 40 * weight;
+          const ux = d > 1e-3 ? dx / d : Math.cos(b.id);
+          const uy = d > 1e-3 ? dy / d : Math.sin(b.id);
+          desired.x += ux * push;
+          desired.y += uy * push;
+        }
+        cap(desired, vmax);
       }
       const dv = { x: desired.x - b.vel.x, y: desired.y - b.vel.y };
       const dvl = Math.hypot(dv.x, dv.y);

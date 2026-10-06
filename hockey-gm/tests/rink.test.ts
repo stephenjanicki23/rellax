@@ -83,6 +83,8 @@ describe('continuous rink motion', () => {
   let still = 0;
   let longStill = 0;
   let offIce = 0;
+  let crowdedFrames = 0;
+  let frameCount = 0;
   const outside = (p: { x: number; y: number }) => {
     const cx = p.x < CORNER_R ? CORNER_R : p.x > RINK.w - CORNER_R ? RINK.w - CORNER_R : null;
     const cy = p.y < CORNER_R ? CORNER_R : p.y > RINK.h - CORNER_R ? RINK.h - CORNER_R : null;
@@ -119,6 +121,11 @@ describe('continuous rink motion', () => {
     }
     const p = motion.puck.pos;
     if (outside(p)) offIce++;
+    // Markers stacked on each other (away from the puck, the crease and the bench).
+    frameCount++;
+    const carrierId = motion.puck.mode.kind === 'carried' ? motion.puck.mode.carrier : -1;
+    const live = [...motion.bodies.values()].filter((b) => !b.goalie && b.leaving === 0 && b.id !== carrierId);
+    if (live.some((a, i) => live.slice(i + 1).some((b) => Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y) < 5))) crowdedFrames++;
     // Live play: the puck shouldn't sit still for long (someone carries it or goes after it).
     if (!stopped && Math.hypot(p.x - p0.x, p.y - p0.y) / dt < 2) still += dt;
     else {
@@ -149,6 +156,9 @@ describe('continuous rink motion', () => {
   });
   it('keeps the puck inside the rounded boards, where it can be seen', () => {
     expect(offIce).toBe(0);
+  });
+  it('gives players room: markers rarely stack on top of each other', () => {
+    expect(crowdedFrames / frameCount).toBeLessThan(0.25);
   });
   it('keeps the puck moving during live play', () => {
     expect(longStill).toBeLessThan(8);
