@@ -145,7 +145,7 @@ export function formation(ice: IceState, meta: Map<number, RinkPlayer>, puck: Pt
     let fSlots: Pt[];
     if (attacking) {
       if (z === 'O') {
-        dSlots = [{ x: aBlue + d * 4, y: 21 }, { x: aBlue + d * 4, y: 64 }];
+        dSlots = [{ x: aBlue + d * 7, y: 21 }, { x: aBlue + d * 7, y: 64 }];
         fSlots = [
           { x: aN - d * 14, y: RINK.cy + side * -4 },
           { x: aN - d * 26, y: side < 0 ? 70 : 15 },
@@ -304,6 +304,43 @@ export class RinkDirector {
     }
   }
 
+  /**
+   * An odd-man rush: the carrier and a winger drive the net with speed, one
+   * defender back to take away the pass, the others caught up ice and
+   * chasing from behind.
+   */
+  private oddManRush(ice: IceState, t: 0 | 1, seed: number): Record<number, Pt> {
+    const p = ice.period;
+    const d = attackDir(t, p);
+    const u = (x: number) => (x - RINK.cx) * d;
+    const at = (uu: number, y: number): Pt => ({ x: RINK.cx + d * uu, y });
+    const pu = u(this.puck.x);
+    const side = this.puck.y < RINK.cy ? -1 : 1;
+    const out: Record<number, Pt> = {};
+    const atk = ice.onIce[t].filter((id) => id !== ice.goalies[t] && id !== this.carrier);
+    const def = ice.onIce[1 - t].filter((id) => id !== ice.goalies[1 - t]);
+    // The rushing winger on the far side, the rest trailing.
+    const fwdA = atk.filter((id) => this.meta.get(id)?.pos !== 'D');
+    const wide = fwdA[0] ?? atk[0];
+    atk.forEach((id, i) => {
+      if (id === wide) out[id] = at(pu + 2, RINK.cy - side * 18);
+      else out[id] = at(pu - 22 - i * 9, RINK.cy + (i % 2 ? 14 : -14));
+    });
+    if (this.carrier !== null) out[this.carrier] = { x: this.puck.x - 1.6 * d, y: this.puck.y + 1 };
+    // One defender back between the two attackers, everyone else behind the play.
+    const back = def.find((id) => this.meta.get(id)?.pos === 'D') ?? def[0];
+    def.forEach((id, i) => {
+      if (id === back) out[id] = at(Math.min(pu + 16, 72), RINK.cy + side * 4);
+      else out[id] = at(pu - 9 - i * 7 - hash(seed, id) * 6, RINK.cy + ((i % 2 ? 1 : -1) * (8 + i * 4)));
+    });
+    for (const team of [0, 1] as const) {
+      const g = ice.goalies[team];
+      if (g !== null) out[g] = { x: ownNetX(team, p) + attackDir(team, p) * 3.5, y: RINK.cy };
+    }
+    for (const id of Object.keys(out)) out[+id] = clampPt(out[+id]);
+    return out;
+  }
+
   /** Where the next faceoff is: centre after goals and period starts, the nearest neutral dot after offside. */
   private faceoffDot(e: GameEvent, ice: IceState, seed: number): Pt {
     const p = ice.period;
@@ -384,11 +421,13 @@ export class RinkDirector {
         this.carrier = e.p1 ?? null;
         this.puck = { x: RINK.cx - d * 27, y: 15 + hash(seed, 5) * 55 };
         return [this.frame(ice, 'carry')];
-      case 'entry':
+      case 'entry': {
         this.poss = t;
         this.carrier = e.p1 ?? null;
         this.puck = { x: RINK.cx + d * (32 + hash(seed, 6) * 14), y: 14 + hash(seed, 5) * 57 };
-        return [this.frame(ice, 'carry', e.data?.oddMan ? this.flash('ODD-MAN RUSH', 'info', t) : null)];
+        if (!e.data?.oddMan) return [this.frame(ice, 'carry')];
+        return [this.frame(ice, 'carry', this.flash('ODD-MAN RUSH', 'info', t), null, this.oddManRush(ice, t, seed))];
+      }
       case 'offside':
         this.puck = { x: RINK.cx + d * 25, y: 20 + hash(seed, 5) * 45 };
         this.carrier = null;
@@ -572,6 +611,15 @@ export class RinkDirector {
       const ny = len > 0.1 ? dx / len : 1;
       const bend = Math.sin(Math.PI * u) * amp * side;
       puck = onSurface({ x: a.x + dx * e + nx * bend, y: a.y + dy * e + ny * bend }, 4);
+      // A play that starts and ends in the same zone stays in it (no phantom exits and re-entries).
+      const owner = this.meta.get(carrier)?.team ?? this.poss;
+      const za = zoneOf(a, owner, ice.period);
+      if (za === zoneOf(b, owner, ice.period)) {
+        const dd = attackDir(owner, ice.period);
+        const uu = (puck.x - RINK.cx) * dd;
+        const [lo, hi] = za === 'O' ? [31, 95] : za === 'D' ? [-95, -31] : [-21, 21];
+        puck = onSurface({ x: RINK.cx + Math.min(hi, Math.max(lo, uu)) * dd, y: puck.y }, 4);
+      }
     }
     const lead = carrier ?? chaser;
     const team = lead !== null ? (this.meta.get(lead)?.team ?? this.poss) : this.poss;

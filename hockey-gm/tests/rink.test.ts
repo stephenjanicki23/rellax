@@ -86,6 +86,8 @@ describe('continuous rink motion', () => {
   let crowdedFrames = 0;
   let maxTurn = 0;
   let goalieChecks = 0;
+  let carriedNz = 0;
+  let offsideLooks = 0;
   let goalieSquare = 0;
   let backwards = 0;
   let movingSamples = 0;
@@ -149,6 +151,21 @@ describe('continuous rink motion', () => {
     }
     const p = motion.puck.pos;
     if (outside(p)) offIce++;
+    // Offside-looking: at the moment the carrier brings the puck over the blue line, a teammate is already in.
+    if (motion.puck.mode.kind === 'carried') {
+      const cid = motion.puck.mode.carrier;
+      const team = meta.get(cid)?.team;
+      if (team !== undefined) {
+        const dd = attackDir(team, motion.period);
+        const pu = (p.x - RINK.cx) * dd;
+        const before = (p0.x - RINK.cx) * dd;
+        if (before < 25 && pu >= 25 && pu < 40) {
+          carriedNz++;
+          const offs = [...motion.bodies.values()].filter((b) => b.team === team && !b.goalie && b.id !== cid && b.leaving === 0 && (b.pos.x - RINK.cx) * dd > 27);
+          if (offs.length) offsideLooks++;
+        }
+      }
+    }
     // Markers stacked on each other (away from the puck, the crease and the bench).
     frameCount++;
     const carrierId = motion.puck.mode.kind === 'carried' ? motion.puck.mode.carrier : -1;
@@ -184,6 +201,11 @@ describe('continuous rink motion', () => {
   });
   it('keeps the puck inside the rounded boards, where it can be seen', () => {
     expect(offIce).toBe(0);
+  });
+  it('keeps attackers onside: nobody over the blue line before the puck', () => {
+    expect(carriedNz).toBeGreaterThan(10);
+    // Was ~80% before attackers held the line; what's left is mostly a step over on a rush.
+    expect(offsideLooks / carriedNz).toBeLessThan(0.2);
   });
   it('keeps goalies square to the puck', () => {
     expect(goalieChecks).toBeGreaterThan(100);

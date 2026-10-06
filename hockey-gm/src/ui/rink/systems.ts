@@ -44,22 +44,22 @@ export function systemSpots(c: SystemContext): Pt[] | null {
     if (pp) {
       switch (t?.pp ?? 'umbrella') {
         case 'overload':
-          return [at(29, CY + s * 16), at(40, CY - s * 22), at(56, CY + s * 31), at(83, CY + s * 24), at(81, CY - s * 2)];
+          return [at(32, CY + s * 16), at(40, CY - s * 22), at(56, CY + s * 31), at(83, CY + s * 24), at(81, CY - s * 2)];
         case 'shooting':
-          return [at(29, CY - 18), at(29, CY + 18), at(58, CY + s * 29), at(67, CY - s * 23), at(81, CY + s * 2)];
+          return [at(32, CY - 18), at(32, CY + 18), at(58, CY + s * 29), at(67, CY - s * 23), at(81, CY + s * 2)];
         case 'netFront':
-          return [at(30, CY), at(56, CY + s * 27), at(56, CY - s * 27), at(81, CY - 4), at(81, CY + 4)];
+          return [at(32, CY), at(56, CY + s * 27), at(56, CY - s * 27), at(81, CY - 4), at(81, CY + 4)];
         default:
           // Umbrella (1-3-1): quarterback up top, two flanks on the half-walls, bumper in the slot, net front.
-          return [at(29, CY), at(57, CY + s * 27), at(57, CY - s * 27), at(66, CY), at(81, CY + s * 3)];
+          return [at(32, CY), at(57, CY + s * 27), at(57, CY - s * 27), at(66, CY), at(81, CY + s * 3)];
       }
     }
     if (c.us === 3 && c.them === 3) return [at(35, CY - s * 14), at(62, CY + s * 24), at(70, CY - s * 20)];
     switch (t?.offense) {
       case 'cycle':
-        return [at(28, CY - 19), at(28, CY + 19), at(83, CY + s * 27), at(60, CY + s * 31), at(76, CY - s * 4)];
+        return [at(32, CY - 19), at(32, CY + 19), at(83, CY + s * 27), at(60, CY + s * 31), at(76, CY - s * 4)];
       case 'dumpChase':
-        return [at(28, CY - 19), at(28, CY + 19), at(85, CY + s * 30), at(83, CY - s * 26), at(70, CY)];
+        return [at(32, CY - 19), at(32, CY + 19), at(85, CY + s * 30), at(83, CY - s * 26), at(70, CY)];
       case 'rush':
         return [at(34, CY - 16), at(34, CY + 16), at(58, CY), at(66, CY - s * 24), at(77, CY + s * 3)];
       default:
@@ -96,7 +96,7 @@ export function systemSpots(c: SystemContext): Pt[] | null {
         // One in deep, three across the top of the zone, one back.
         return [at(4, CY), at(40, CY), press, at(40, CY - 25), at(40, CY + 25)];
       default:
-        return [at(30, CY - 18), at(30, CY + 18), press, at(55, CY - s * 16), at(52, CY + s * 18)];
+        return [at(32, CY - 18), at(32, CY + 18), press, at(55, CY - s * 16), at(52, CY + s * 18)];
     }
   }
 

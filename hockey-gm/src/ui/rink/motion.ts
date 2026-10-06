@@ -292,6 +292,11 @@ export class RinkMotion {
       const id = +idStr;
       if (!this.bodies.has(id)) this.bodies.set(id, this.newBody(id, want[id]));
     }
+    // The team carrying the puck toward (but not yet over) the blue line it attacks.
+    const pc = this.puck.mode.kind === 'carried' ? this.puck.mode.carrier : null;
+    const pcTeam = pc !== null ? (this.meta.get(pc)?.team ?? null) : null;
+    const pu = pcTeam !== null ? (this.puck.pos.x - RINK.cx) * attackDir(pcTeam, this.period) : 0;
+    const onsideFor = pcTeam !== null && pu > -45 && pu < 25 ? pcTeam : null;
     for (const b of this.bodies.values()) {
       const m = this.meta.get(b.id);
       const kind = b.goalie ? 'G' : m?.pos === 'D' ? 'D' : 'F';
@@ -310,6 +315,14 @@ export class RinkMotion {
         if (b.goalie) {
           tgt = this.goalieSpot(b);
           T = 0.25;
+        }
+        // Onside: until the puck is in the zone, attackers hold at the blue line.
+        else if (onsideFor !== null && b.team === onsideFor && !(this.puck.mode.kind === 'carried' && this.puck.mode.carrier === b.id)) {
+          const dd = attackDir(b.team, this.period);
+          const lim = RINK.cx + dd * 22;
+          if ((tgt.x - lim) * dd > 0) tgt = { x: lim, y: tgt.y };
+          // Already in the zone: get out now (tag up).
+          if ((b.pos.x - lim) * dd > 0) T = Math.min(T, 0.5);
         }
       } else {
         // Line change: head for the bench and disappear (leaving the puck behind).
