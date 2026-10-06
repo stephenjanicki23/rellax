@@ -241,7 +241,8 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
       pb.hold += due.reduce((sum, e) => sum + whistleHold(e.type), 0);
     }
     setSnap(pb.cur.snap);
-    setDispT(t);
+    // The clock shows whole seconds: re-render the page only when it ticks over.
+    setDispT((prev) => (Math.floor(prev) === Math.floor(t) ? prev : t));
     if (sim.finished && !pb.queue.length && !pb.pending.length) {
       setFinished((was) => {
         if (!was) setFinalOpen(true);
@@ -383,7 +384,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
               }
             />
           )}
-          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} playoff={playoff} onShown={pushEvents} seasonTotals={seasonTotals} onReplay={onReplay} />
+          <LiveRink feed={feed} snap={s} home={home} away={away} players={rinkPlayers} tactics={[input.home.tactics, input.away.tactics]} playoff={playoff} onShown={pushEvents} seasonTotals={seasonTotals} onReplay={onReplay} />
           <div className="live-momentum" title="Momentum: which team is pushing the play">
             <span>{home.abbr}</span>
             <div className="momentum">

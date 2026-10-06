@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameEvent, GameSnapshot } from '../../engine/sim/gameTypes';
-import type { Team } from '../../engine/types';
+import type { Tactics, Team } from '../../engine/types';
 import { clockLabel, periodLabel } from '../../engine/sim/commentary';
 import { RINK, RinkDirector, attackDir, type RinkPlayer, type ShotMark } from './director';
 import { RinkMotion, RinkTimeline, type Key, type TimelineItem } from './motion';
@@ -34,6 +34,8 @@ export interface LiveRinkProps {
   away: RinkTeam;
   players: RinkPlayer[];
   playoff?: boolean;
+  /** Each team's tactics (home, away), so players set up in their coach's systems. */
+  tactics?: [Tactics | undefined, Tactics | undefined];
   /** A goal replay started (true) or ended (false); the live view pauses play meanwhile. */
   onReplay?: (on: boolean) => void;
 }
@@ -116,7 +118,7 @@ const REPLAY_BEFORE = 6.5;
 const REPLAY_AFTER = 1.4;
 const REPLAY_RATE = 0.45;
 
-export function LiveRink({ feed, snap, home, away, players, playoff = false, onShown, seasonTotals, onReplay }: LiveRinkProps) {
+export function LiveRink({ feed, snap, home, away, players, playoff = false, onShown, seasonTotals, onReplay, tactics }: LiveRinkProps) {
   const replayCb = useRef(onReplay);
   replayCb.current = onReplay;
   // Last goal shown (for the replay button) and the replay in progress.
@@ -133,7 +135,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
   shownRef.current = onShown;
   const engine = useRef<{ tl: RinkTimeline; motion: RinkMotion; consumed: number } | null>(null);
   if (!engine.current) {
-    const tl = new RinkTimeline(new RinkDirector(meta, [home.abbr, away.abbr]));
+    const tl = new RinkTimeline(new RinkDirector(meta, [home.abbr, away.abbr], tactics));
     engine.current = { tl, motion: new RinkMotion(tl, meta), consumed: 0 };
   }
   const els = useRef(new Map<number, SVGGElement>());
@@ -155,6 +157,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
   const [showMap, setShowMap] = useState(false);
   const [period, setPeriod] = useState(1);
   const [stop, setStop] = useState<Stoppage | null>(null);
+  const [impact, setImpact] = useState<{ x: number; y: number; n: number } | null>(null);
   const [foDot, setFoDot] = useState<{ x: number; y: number } | null>(null);
   const [logoOk, setLogoOk] = useState(true);
   const noise = useMemo(() => iceNoise(), []);
@@ -220,6 +223,15 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
         later(1400, () => setActive((prev) => (prev === actors ? [] : prev)));
       }
       switch (e.type) {
+        case 'hit': {
+          const v = e.p2 !== undefined ? k.players[e.p2] : undefined;
+          if (v) {
+            const n = ++seq.current;
+            setImpact({ x: v.x, y: v.y, n });
+            later(700, () => setImpact((cur) => (cur?.n === n ? null : cur)));
+          }
+          break;
+        }
         case 'goal': {
           lastGoal.current = { s: k.s, event: e };
           setReplayable(e);
@@ -345,14 +357,18 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
         shown = [];
       }
       // Paint players: position, plus a heading chevron when skating.
+      const pm = motion.puck.mode;
       for (const [id, b] of motion.bodies) {
         const el = els.current.get(id);
         if (el) el.setAttribute('transform', `translate(${b.pos.x.toFixed(2)} ${b.pos.y.toFixed(2)})`);
+        // Goalies drop into the butterfly when a shot is on its way to them.
+        if (el && b.goalie) el.classList.toggle('butterfly', pm.kind === 'flying' && Math.hypot(pm.to.x - b.pos.x, pm.to.y - b.pos.y) < 9 && Math.hypot(pm.to.x - pm.from.x, pm.to.y - pm.from.y) > 12);
         const hd = heads.current.get(id);
         if (hd) {
           const sp = Math.hypot(b.vel.x, b.vel.y);
           if (sp > 5 && !b.goalie) {
-            hd.setAttribute('transform', `rotate(${((Math.atan2(b.vel.y, b.vel.x) * 180) / Math.PI).toFixed(1)})`);
+            // Facing, not travel: a defender backing up on a rush faces the play.
+            hd.setAttribute('transform', `rotate(${((b.face * 180) / Math.PI).toFixed(1)})`);
             hd.style.opacity = String(Math.min(1, (sp - 5) / 12));
           } else hd.style.opacity = '0';
         }
@@ -417,6 +433,17 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
     replayCb.current?.(true);
   };
 
+  // Special teams: name the systems on the ice (from the coaches' tactics).
+  const PP_LABEL: Record<string, string> = { umbrella: 'Umbrella', overload: 'Overload', shooting: 'Shooting', netFront: 'Net-front' };
+  const PK_LABEL: Record<string, string> = { box: 'Box', diamond: 'Diamond', aggressive: 'Aggressive', passive: 'Passive' };
+  const [s0, s1] = snap.strength;
+  // Not with the goalie pulled (an extra attacker is not a power play).
+  const pulled = snap.goalies[0] === null || snap.goalies[1] === null;
+  const ppTeam = pulled ? null : s0 > s1 ? 0 : s1 > s0 ? 1 : null;
+  const systemTag =
+    ppTeam !== null && tactics?.[ppTeam] && tactics[1 - ppTeam]
+      ? `${(ppTeam === 0 ? home : away).abbr} PP · ${PP_LABEL[tactics[ppTeam]!.pp] ?? tactics[ppTeam]!.pp}  /  ${(ppTeam === 0 ? away : home).abbr} PK · ${PK_LABEL[tactics[1 - ppTeam]!.pk] ?? tactics[1 - ppTeam]!.pk}`
+      : null;
   const homeDir = attackDir(0, period);
   const teams = [home, away] as const;
   const colors = [home.colors, away.colors] as const;
@@ -438,6 +465,15 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           {possTeam === 0 && <em className="poss-dot" title="Has the puck" />}
         </span>
         <span className="rink-tools">
+          {systemTag && <span className="rink-system" title="The coaches' special-teams systems">{systemTag}</span>}
+          <span className="rink-chip-row">
+          {chips.map((c) => (
+            <span key={c.id} className={`rink-chip ${c.tone}`} style={c.team !== null ? ({ '--tc': teamBar(colors[c.team]) } as React.CSSProperties) : undefined}>
+              {c.text}
+            </span>
+          ))}
+          </span>
+
           <button className={`rink-toggle ${showMap ? 'on' : ''}`} onClick={() => setShowMap((v) => !v)} title="Show every shot this period">
             Shot map
           </button>
@@ -548,6 +584,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
                   ),
                 )}
             {foDot && <circle className="fo-dot" cx={foDot.x} cy={foDot.y} r="4" />}
+            {impact && <circle key={impact.n} className="hit-ring" cx={impact.x} cy={impact.y} r="3" />}
             {/* Shot trajectories (fade out) */}
             {trajs.map((t) => (
               <g key={t.id} className={`traj ${t.kind}`}>
@@ -593,7 +630,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
                   {isCarrier && <circle className="carrier-ring" r="4.9" style={{ stroke: m.team === 0 ? c1 : c1 }} />}
                   {savePulse?.id === id && <circle key={savePulse.n} className="save-pulse" r="4" />}
                   {isG ? (
-                    <g>
+                    <g className="gbody">
                       <rect x="-3.6" y="-3.1" width="7.2" height="6.2" rx="2.2" fill={fill} stroke={ring} strokeWidth="0.7" />
                       <rect x="-3.6" y="-0.45" width="7.2" height="0.9" fill={ring} opacity="0.55" />
                     </g>
@@ -627,8 +664,10 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
             {/* Puck */}
             <polyline ref={trailEl} className="puck-trail" points="" />
             <g ref={puckEl} transform={`translate(${motion.puck.pos.x} ${motion.puck.pos.y})`}>
-              <ellipse cx="0.35" cy="0.5" rx="1.05" ry="0.85" fill="#000" opacity="0.25" />
-              <circle r="0.95" fill="#0c0c0c" stroke="#ffffff" strokeWidth="0.28" />
+              {/* A soft halo so the puck reads against dark jerseys and the boards. */}
+              <circle r="2.3" className="puck-halo" />
+              <ellipse cx="0.35" cy="0.5" rx="1.2" ry="0.95" fill="#000" opacity="0.25" />
+              <circle r="1.15" fill="#0c0c0c" stroke="#ffffff" strokeWidth="0.35" />
             </g>
           </g>
         </svg>
@@ -642,13 +681,6 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
               </span>
             </div>
           )}
-          <div className="rink-chip-row">
-          {chips.map((c) => (
-            <span key={c.id} className={`rink-chip ${c.tone}`} style={c.team !== null ? ({ '--tc': teamBar(colors[c.team]) } as React.CSSProperties) : undefined}>
-              {c.text}
-            </span>
-          ))}
-          </div>
         </div>
         {replaying && replayable && (
           <div className="replay-banner" style={{ '--tc': teamBar(colors[replayable.team]) } as React.CSSProperties}>
