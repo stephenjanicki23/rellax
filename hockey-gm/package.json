@@ -18,7 +18,8 @@
     "fetch:coaches": "node scripts/fetch-coaches.mjs",
     "fetch:draftclass": "node scripts/fetch-draft-class.mjs",
     "import:draftboard": "node scripts/import-draft-board.mjs",
-    "fetch:nhl": "node scripts/fetch-nhl.mjs"
+    "fetch:nhl": "node scripts/fetch-nhl.mjs",
+    "rink:check": "tsx scripts/rink-check.ts"
   },
   "dependencies": {
     "react": "^19.3.0",

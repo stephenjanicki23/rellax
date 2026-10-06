@@ -343,6 +343,13 @@ export class RinkDirector {
     return out;
   }
 
+  /** Turnovers happen in the zone the engine says (e.g. a neutral-zone takeaway isn't drawn on the blue line). */
+  private puckInZone(e: GameEvent): void {
+    if (e.data?.zone !== 'N') return;
+    const u = this.puck.x - RINK.cx;
+    if (Math.abs(u) > 19) this.puck = { x: RINK.cx + Math.sign(u) * (12 + hash(e.t, 17) * 7), y: this.puck.y };
+  }
+
   /** A hit: the hitter arrives on his man and knocks him off his line. */
   private hitPlayers(ice: IceState, e: GameEvent): Record<number, Pt> {
     const out = formation(ice, this.meta, this.puck, this.carrier, this.poss, this.beat, this.tactics);
@@ -490,10 +497,12 @@ export class RinkDirector {
       case 'takeaway':
         this.poss = t;
         this.carrier = e.p1 ?? null;
+        this.puckInZone(e);
         return [this.frame(ice, 'carry')];
       case 'giveaway':
         this.poss = (1 - t) as 0 | 1;
         this.carrier = e.p2 ?? null;
+        this.puckInZone(e);
         return [this.frame(ice, 'carry')];
       case 'pass': {
         this.poss = t;
