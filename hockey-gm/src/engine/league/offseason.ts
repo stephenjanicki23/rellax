@@ -31,6 +31,9 @@ import { expectedToiFor } from '../player/generate';
 import { stockCoachPool } from '../team/coachPool';
 import { closeCoachSeason } from '../team/staffMarket';
 import { ownerSeasonReview, setOwnerGoals } from '../front/owner';
+import { budgetMultiplier, closeBooks } from '../front/finances';
+import { seasonPreview } from '../front/media';
+import { honourRetiree } from './franchise';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
 import { advanceContracts } from '../cba/contractService';
@@ -140,6 +143,7 @@ export function finishSeason(league: League): void {
   finalizeRecords(league);
   updateRivalries(league);
   ownerSeasonReview(league);
+  closeBooks(league);
   offseasonCoaching(league);
   yearlyDevelopment(league);
   retirements(league);
@@ -210,6 +214,7 @@ export function retirements(league: League): void {
       });
     }
     if (tid !== null) addTransaction(league, { kind: 'retirement', teamIds: [tid], playerIds: [p.id], description: `${fullName(p)} retires` });
+    honourRetiree(league, p);
   }
 }
 
@@ -255,7 +260,7 @@ export function startNewSeason(league: League): void {
   const capRules = rulesFor(league.season);
   league.cap = { upper: capRules.upperLimit, floor: capRules.lowerLimit, minSalary: capRules.minimumSalary };
   pruneLedger(league);
-  for (const t of league.teams) t.budget = teamBudget(t, league.cap.upper);
+  for (const t of league.teams) t.budget = Math.round(teamBudget(t, league.cap.upper) * budgetMultiplier(t.fans));
   const rng = new Rng(league.rng);
   league.schedule = generateSchedule(league.teams, cfg, rng, league.nextId.game);
   league.nextId.game += league.schedule.length;
@@ -314,6 +319,7 @@ export function startNewSeason(league: League): void {
   league.ratingBaseline = ratingBaselineFor(league);
   league.phase = 'preseason';
   setOwnerGoals(league);
+  seasonPreview(league);
   rolloverLtir(league);
   addNews(league, { category: 'league', headline: `The ${league.season}-${(league.season + 1) % 100} season is set to begin. Salary cap: $${(league.cap.upper / 1000).toFixed(1)}M`, teamIds: [], playerIds: [], importance: 3 });
 }

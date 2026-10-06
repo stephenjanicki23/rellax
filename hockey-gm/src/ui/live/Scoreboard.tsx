@@ -58,9 +58,11 @@ export interface ScoreboardProps {
   finalActions: ReactNode;
   /** Player id → "#17 Kessel" for penalty listings. */
   label: (id: number) => string;
+  /** Between periods: the period that just ended (shown as "End 1st · INT"). */
+  intermissionAfter?: number;
 }
 
-export function Scoreboard({ home, away, snap: s, period, clock, playoff, info, records, speed, onSpeed, onInstant, finished, finalActions, label }: ScoreboardProps) {
+export function Scoreboard({ home, away, snap: s, period, clock, playoff, info, records, speed, onSpeed, onInstant, finished, finalActions, label, intermissionAfter }: ScoreboardProps) {
   const teams = [home, away] as const;
   const st = gameState(s, [home.abbr, away.abbr]);
   const fo = (t: 0 | 1) => {
@@ -122,8 +124,10 @@ export function Scoreboard({ home, away, snap: s, period, clock, playoff, info, 
             {s.score[0]}
           </div>
           <div className="sb-clock">
-            <div className="sb-period">{finished ? `Final${s.inShootout ? ' / SO' : s.period > 3 ? ' / OT' : ''}` : s.inShootout ? 'Shootout' : periodLabel(period, playoff)}</div>
-            {!finished && !s.inShootout && <div className="sb-time">{clockLabel(clock, s.periodLength)}</div>}
+            <div className="sb-period">
+              {finished ? `Final${s.inShootout ? ' / SO' : s.period > 3 ? ' / OT' : ''}` : s.inShootout ? 'Shootout' : intermissionAfter ? `End ${periodLabel(intermissionAfter, playoff)}` : periodLabel(period, playoff)}
+            </div>
+            {!finished && !s.inShootout && <div className="sb-time">{intermissionAfter ? 'INT' : clockLabel(clock, s.periodLength)}</div>}
             <div className="sb-info">{info}</div>
           </div>
           <div className="sb-score" key={`a${s.score[1]}`}>

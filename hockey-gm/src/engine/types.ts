@@ -100,6 +100,32 @@ export type PersonalityId =
   | 'leader'
   | 'easygoing';
 
+export interface Article {
+  id: number;
+  season: number;
+  day: number;
+  kind: 'preview' | 'power' | 'recap' | 'grade';
+  title: string;
+  body: string[];
+  teamIds: number[];
+  playerIds: number[];
+  gameId?: number;
+  grade?: string;
+}
+
+export interface DeadlineEvent {
+  day: number;
+  /** Clock time on deadline day. */
+  time?: string;
+  kind: 'trade' | 'rumor' | 'call' | 'close';
+  text: string;
+  teamIds: number[];
+  playerIds: number[];
+}
+
+export type DevFocus = 'balanced' | 'skating' | 'shooting' | 'puck' | 'iq' | 'defense' | 'physical' | 'reflexes' | 'technique';
+export type DevIntensity = 'light' | 'normal' | 'intense';
+
 export interface MoraleParts {
   role: number;
   winning: number;
@@ -330,6 +356,10 @@ export interface Player {
   /** Hidden injury resistance 0-200. */
   durability: number;
   morale: number; // 0-100
+  /** Individual development plan set by the GM (training focus and intensity). */
+  devPlan?: { focus: DevFocus; intensity: DevIntensity };
+  /** Attribute-group averages at the start of the season (to track progress). */
+  devStart?: { season: number; ca: number; groups: Record<string, number> };
   /** What drives his morale right now (the latest weekly target, by factor). */
   moraleParts?: MoraleParts;
   /** Faith in the GM's word, 0-100 (promises kept and broken). */
@@ -515,6 +545,21 @@ export interface Coach {
   grudge?: Record<number, number>;
 }
 
+/** A club's fans and money (thousands of dollars). */
+export interface FanState {
+  /** 0-100. */
+  mood: number;
+  /** Ticket price relative to the market price (1 = market). */
+  priceFactor: number;
+  season: { gate: number; concessions: number; media: number; playoffs: number; payroll: number; staff: number; operations: number; projects: number; homeGames: number; attendance: number };
+  history: { season: number; revenue: number; expenses: number; profit: number; avgAttendance: number; fill: number; mood: number; priceFactor: number }[];
+  /** Recent regular-season home games. */
+  games: { day: number; opp: string; att: number; cap: number }[];
+  lastProfit?: number;
+  /** Season a facility project was last funded. */
+  projectSeason?: number;
+}
+
 /** Salary still owed to a coach who was let go (thousands, per season). */
 export interface DeadStaffMoney {
   coachId: number;
@@ -573,6 +618,12 @@ export interface Team {
   staff: { headCoach: number | null; assistant: number | null; goalieCoach: number | null };
   /** Coaches the club fired but is still paying. */
   deadStaff?: DeadStaffMoney[];
+  /** Fans, attendance and the season's books. */
+  fans?: FanState;
+  /** Numbers retired by the club (this league). */
+  retiredNumbers?: { number: number; playerId: number; name: string; season: number }[];
+  /** Team Hall of Fame inductees (this league). */
+  hallOfFame?: { playerId: number; name: string; pos: Position; season: number; line: string }[];
   lines: Lines;
   autoLines: boolean;
   tactics: Tactics;
@@ -973,7 +1024,7 @@ export interface LeagueSettings {
 export type OwnerPriority = 'winNow' | 'patient' | 'frugal' | 'youth';
 
 export interface OwnerGoal {
-  kind: 'playoffs' | 'round' | 'points' | 'improve' | 'division' | 'youth' | 'budget';
+  kind: 'playoffs' | 'round' | 'points' | 'improve' | 'division' | 'youth' | 'budget' | 'profit';
   label: string;
   target: number;
   weight: number;
@@ -1049,6 +1100,14 @@ export interface League {
   ratingBaseline: number;
   /** Preseason projected points per team (for expectations / coach of the year). */
   projections: Record<number, number>;
+  /** Press coverage: previews, power rankings, recaps, trade grades. */
+  media?: { articles: Article[]; nextId: number; lastPower?: Record<number, number> };
+  /** Weekly three stars (and the stat snapshot they're measured against). */
+  weekly?: { season: number; snapshot: Record<number, { gp: number; g: number; pts: number; w: number; sa: number; ga: number }>; stars: { day: number; stars: { playerId: number; teamId: number; line: string }[] }[] };
+  /** This season's All-Star rosters by conference. */
+  allStars?: { season: number; day: number; rosters: Record<string, number[]> };
+  /** Deals, rumours and calls in the run-up to the trade deadline. */
+  deadlineFeed?: { season: number; events: DeadlineEvent[] };
   /** The user's owner (goals and job security). */
   owner?: OwnerState;
   /** Per-team in-season performance memory used by AI GMs. */

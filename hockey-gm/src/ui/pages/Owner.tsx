@@ -4,6 +4,7 @@ import { Bar, Card, Modal, Stat, TeamLink, TeamLogo } from '../components/common
 import { FIRE_LINE, PRIORITY_LABEL, goalProgress, goalScore, gradeFor, securityLabel, stayOn, takeJob } from '../../engine/front/owner';
 import { seasonLabel } from '../format';
 import { href } from '../router';
+import { capacityOf } from '../../engine/front/finances';
 
 /** Goals with progress bars (shared by the Owner page and the dashboard). */
 export function OwnerGoals({ league, o }: { league: League; o: OwnerState }) {
@@ -166,6 +167,7 @@ export function OwnerCard({ league }: { league: League }) {
     <Card title="Owner's goals" right={<a href={href('owner')}>Details →</a>}>
       <div className="stack" style={{ gap: 12 }}>
         <SecurityMeter o={o} />
+        <FanLine league={league} />
         <OwnerGoals league={league} o={o} />
       </div>
     </Card>
@@ -221,5 +223,24 @@ export function FiredDialog({ league }: { league: League }) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+function FanLine({ league }: { league: League }) {
+  const t = league.teams[league.userTeamId];
+  const f = t.fans;
+  if (!f) return null;
+  const att = f.season.homeGames ? f.season.attendance / f.season.homeGames : 0;
+  return (
+    <a href={href('finances')} className="row" style={{ fontSize: 12, gap: 10 }}>
+      <span className="muted">Fans</span>
+      <b className={f.mood >= 60 ? 'txt-good' : f.mood < 40 ? 'txt-bad' : ''}>{Math.round(f.mood)}</b>
+      {att > 0 && (
+        <>
+          <span className="muted">Crowds</span>
+          <b>{Math.round((att / capacityOf(t)) * 100)}%</b>
+        </>
+      )}
+    </a>
   );
 }

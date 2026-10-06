@@ -12,6 +12,10 @@ import { simulateGame } from '../sim/engine';
 import { buildGameInput } from './gameInput';
 import { applyToStandings } from './standings';
 import { tallyCoachGame } from '../team/staffMarket';
+import { bookGame, fansWeekly } from '../front/finances';
+import { devPlansWeekly } from '../player/devPlan';
+import { allStarDay, selectAllStars, weeklyStars } from './race';
+import { gameRecap, powerRankingsColumn } from '../front/media';
 import { addNews, isCpu, playersOf, teamName } from './helpers';
 import { makeInjury, injuryLabel } from '../player/injuries';
 import { developPlayer } from '../player/development';
@@ -80,6 +84,9 @@ export function applyGameResult(league: League, g: ScheduledGame, r: GameResult)
   const homeWon = r.homeGoals > r.awayGoals;
   tallyCoachGame(league, g.home, homeWon, !!r.ot, playoff);
   tallyCoachGame(league, g.away, !homeWon, !!r.ot, playoff);
+  bookGame(league, g.home, true, g.away, playoff, homeWon, !!r.ot);
+  bookGame(league, g.away, false, g.home, playoff, !homeWon, !!r.ot);
+  gameRecap(league, g);
   for (const id of teams) learnSystem(league, league.teams[id]);
   const prevAway = league.schedule.find((x) => x.day === g.day - 1 && x.played && x.away === g.away);
   const roadTrip: [boolean, boolean] = [false, !!prevAway];
@@ -183,8 +190,15 @@ function dailyUpdates(league: League): void {
     trimRoster(league, p.teamId);
     enforceCap(league, p.teamId);
   }
-  if (day % 7 === 6) updateMorale(league);
+  if (day % 7 === 6) {
+    updateMorale(league);
+    fansWeekly(league);
+    devPlansWeekly(league);
+    weeklyStars(league);
+    powerRankingsColumn(league);
+  }
   if (day % 21 === 20) inSeasonDevelopment(league, 21 / 190);
+  if (league.phase === 'regular' && day >= allStarDay(league) && league.allStars?.season !== league.season) selectAllStars(league);
   if (day % 30 === 29) breakoutNews(league);
   ahlDay(league);
   if (day % 30 === 14) affiliateReport(league);

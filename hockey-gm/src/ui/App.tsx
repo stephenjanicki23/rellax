@@ -33,6 +33,12 @@ import { TeamPage } from './pages/TeamPage';
 import { CoachingPage } from './pages/Coaching';
 import { FiredDialog, OwnerPage } from './pages/Owner';
 import { RoomPage } from './pages/Room';
+import { FinancesPage } from './pages/Finances';
+import { ComparePage } from './pages/Compare';
+import { DevelopmentPage } from './pages/Development';
+import { DeadlinePage } from './pages/Deadline';
+import { AwardsRacePage } from './pages/AwardsRace';
+import { MediaPage } from './pages/Media';
 import { CoachPage } from './pages/CoachPage';
 import { LiveGame } from './pages/LiveGame';
 import { SettingsPage } from './pages/Settings';
@@ -51,6 +57,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'coaching', label: 'Coaching Staff', icon: '♟' },
       { id: 'room', label: 'Dressing Room', icon: '💬' },
       { id: 'prospects', label: 'Prospects', icon: '✦' },
+      { id: 'development', label: 'Development', icon: '↑' },
       { id: 'contracts', label: 'Contracts', icon: '✎' },
     ],
   },
@@ -60,7 +67,9 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'owner', label: 'Owner', icon: '★' },
       { id: 'scouting', label: 'Scouting', icon: '◎' },
       { id: 'cap', label: 'Salary Cap', icon: '$' },
+      { id: 'finances', label: 'Finances', icon: '¤' },
       { id: 'trades', label: 'Trades', icon: '⇄' },
+      { id: 'deadline', label: 'Deadline Centre', icon: '⏱' },
       { id: 'freeagency', label: 'Free Agency', icon: '✚' },
       { id: 'draft', label: 'Draft', icon: '⬇' },
     ],
@@ -71,9 +80,12 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'schedule', label: 'Schedule', icon: '▦' },
       { id: 'standings', label: 'Standings', icon: '▤' },
       { id: 'stats', label: 'Statistics', icon: '∑' },
+      { id: 'awards', label: 'Awards Race', icon: '🏆' },
       { id: 'players', label: 'Players', icon: '☺' },
+      { id: 'compare', label: 'Compare', icon: '⚖' },
       { id: 'league', label: 'League', icon: '⌂' },
       { id: 'news', label: 'News', icon: '✉' },
+      { id: 'media', label: 'Media', icon: '📰' },
       { id: 'history', label: 'History', icon: '♛' },
     ],
   },
@@ -165,6 +177,12 @@ function Routes() {
     coaching: <CoachingPage />,
     owner: <OwnerPage />,
     room: <RoomPage />,
+    finances: <FinancesPage />,
+    compare: <ComparePage />,
+    development: <DevelopmentPage />,
+    deadline: <DeadlinePage />,
+    awards: <AwardsRacePage />,
+    media: <MediaPage />,
     coach: <CoachPage id={Number(r.param)} />,
     players: <PlayersPage />,
     prospects: <ProspectsPage />,
@@ -206,6 +224,8 @@ function useBadges(): Record<string, string | null> {
     if (league.owner && league.owner.security < 30) badges.owner = '!';
     const reqs = Object.values(league.players).filter((p) => p.teamId === league.userTeamId && p.tradeRequest).length;
     if (reqs) badges.room = String(reqs);
+    const dd = league.phase === 'regular' ? league.tradeDeadlineDay - league.day : -1;
+    if (dd >= 0 && dd <= 7) badges.deadline = dd === 0 ? 'TODAY' : `${dd}d`;
   }
   return badges;
 }

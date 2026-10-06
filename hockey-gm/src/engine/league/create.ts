@@ -28,6 +28,7 @@ import { buildRealPlayers, snapshotHasRosters } from '../data/nhl/realPlayers';
 import type { NhlSnapshot } from '../data/nhl/types';
 import { NHL_GMS } from '../data/nhl/staff';
 import { setOwnerGoals } from '../front/owner';
+import { seasonPreview } from '../front/media';
 import NHL_SNAPSHOT from '../data/nhl/rosters.json';
 
 /**
@@ -539,6 +540,7 @@ export function createLeague(opts: CreateLeagueOptions = {}): League {
   updateStrategies(league, true);
   league.projections = Object.fromEntries(teams.map((t) => [t.id, projectedPoints(league, t.id)]));
   setOwnerGoals(league);
+  seasonPreview(league);
   return league;
 }
 

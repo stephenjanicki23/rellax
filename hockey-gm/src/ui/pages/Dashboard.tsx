@@ -17,6 +17,7 @@ import { dateForDay, pct, sv, PHASE_LABEL } from '../format';
 import { playoffRoundName } from '../../engine/league/playoffs';
 import { NewsList } from './News';
 import { OwnerCard } from './Owner';
+import { ArticleView } from './Media';
 import { describeAsset } from '../../engine/economy/trade';
 
 export function Dashboard() {
@@ -137,6 +138,15 @@ export function Dashboard() {
         </div>
       </div>
       {banner}
+      {league.phase === 'regular' && league.tradeDeadlineDay - league.day >= 0 && league.tradeDeadlineDay - league.day <= 7 && (
+        <div className="banner" style={{ marginBottom: 14 }}>
+          <b>⏱ {league.tradeDeadlineDay === league.day ? 'Trade deadline today' : `Trade deadline in ${league.tradeDeadlineDay - league.day} day${league.tradeDeadlineDay - league.day === 1 ? '' : 's'}`}</b>
+          <span className="muted" style={{ flex: 1 }}>{league.tradeDeadlineDay === league.day ? 'Deals close at 3 PM ET.' : 'Buyers and sellers are working the phones.'}</span>
+          <button className="btn small" onClick={() => navigate('deadline')}>
+            Deadline Centre
+          </button>
+        </div>
+      )}
       {league.tradeOffers.length > 0 && (
         <div className="banner" style={{ marginBottom: 14 }}>
           <b>📞 {league.tradeOffers.length === 1 ? 'Trade offer' : `${league.tradeOffers.length} trade offers`}</b>
@@ -267,6 +277,14 @@ export function Dashboard() {
               </table>
             </Card>
           </div>
+          {league.media?.articles[0] && (
+            <div>
+              <ArticleView a={league.media.articles[0]} compact />
+              <div style={{ textAlign: 'right', marginTop: 4 }}>
+                <a href={href('media')} style={{ fontSize: 12 }}>More from the press →</a>
+              </div>
+            </div>
+          )}
           <Card title="League news" right={<a href={href('news')}>All news →</a>}>
             <NewsList items={league.news.slice(0, 10)} compact />
           </Card>

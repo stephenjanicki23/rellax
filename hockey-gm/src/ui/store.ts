@@ -159,6 +159,7 @@ export async function runSim(kind: SimKind, overrides?: Map<number, GameResult>)
   const league = getLeague();
   if (state.busy) return [];
   let cancelled = false;
+  let deadlineStop = false;
   const startPhase = league.phase;
   const startDay = league.day;
   const totalDays = Math.max(1, (league.schedule.filter((g) => !g.playoff).reduce((m, g) => Math.max(m, g.day), 0) || 190) - league.day);
@@ -167,6 +168,11 @@ export async function runSim(kind: SimKind, overrides?: Map<number, GameResult>)
     if (cancelled) return true;
     if (league.phase !== 'regular' && league.phase !== 'playoffs') return true;
     const n = league.day - startDay;
+    // Longer sims stop on the morning of deadline day so the GM can make moves before it closes.
+    if (kind !== 'day' && league.phase === 'regular' && startDay < league.tradeDeadlineDay && league.day === league.tradeDeadlineDay && !league.settings.autoManageUser) {
+      deadlineStop = true;
+      return true;
+    }
     switch (kind) {
       case 'day':
         return n >= 1;
@@ -177,7 +183,7 @@ export async function runSim(kind: SimKind, overrides?: Map<number, GameResult>)
       case 'toUserGame':
         return n >= 1 && !!userGameToday(league);
       case 'deadline':
-        return league.phase !== 'regular' || league.day > league.tradeDeadlineDay;
+        return league.phase !== 'regular' || league.day >= league.tradeDeadlineDay;
       case 'endRegular':
         return league.phase !== 'regular';
       case 'endPlayoffs':
@@ -202,6 +208,7 @@ export async function runSim(kind: SimKind, overrides?: Map<number, GameResult>)
     set({ busy: null, version: state.version + 1 });
     scheduleSave();
   }
+  if (deadlineStop) toast('It\'s trade deadline day: deals close at 3 PM ET. Check the Deadline Centre.', 'info');
   return reports;
 }
 

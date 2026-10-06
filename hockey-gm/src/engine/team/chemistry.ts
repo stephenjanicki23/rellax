@@ -46,6 +46,57 @@ export function pairChemistry(a: Player, b: Player, sharedSeconds: number, teamM
   return clamp(c, -1, 1);
 }
 
+export interface ChemistryParts {
+  style: number;
+  hands: number;
+  personality: number;
+  passing: number;
+  together: number;
+  morale: number;
+  nation: number;
+  total: number;
+}
+
+/** The same calculation as pairChemistry, itemised (for the Lines screen). */
+export function chemistryParts(a: Player, b: Player, sharedSeconds: number, teamMorale: number): ChemistryParts {
+  const parts = {
+    style: styleFit(a.archetype, b.archetype),
+    hands: a.pos === 'D' && b.pos === 'D' ? (a.shoots !== b.shoots ? 0.1 : -0.06) : 0,
+    personality: (PERSONALITIES[a.personality].chemistry + PERSONALITIES[b.personality].chemistry) / 2,
+    passing: ((a.attrs.passing + b.attrs.passing) / 2 - 120) / 400,
+    together: familiarity(sharedSeconds) * 0.4 - 0.1,
+    morale: ((teamMorale - 55) / 45) * 0.1,
+    nation: a.nat === b.nat && a.nat !== 'CAN' && a.nat !== 'USA' ? 0.05 : 0,
+  };
+  const total = clamp(Object.values(parts).reduce((x, y) => x + y, 0), -1, 1);
+  return { ...parts, total };
+}
+
+/** Teammate pairs with the best chemistry who aren't currently on the same unit. */
+export function untappedPairs(players: Player[], shared: Record<string, number>, teamMorale: number, together: (a: number, b: number) => boolean, top = 5): { a: Player; b: Player; value: number }[] {
+  const out: { a: Player; b: Player; value: number }[] = [];
+  for (let i = 0; i < players.length; i++)
+    for (let j = i + 1; j < players.length; j++) {
+      const a = players[i];
+      const b = players[j];
+      const bothF = a.pos !== 'D' && a.pos !== 'G' && b.pos !== 'D' && b.pos !== 'G';
+      const bothD = a.pos === 'D' && b.pos === 'D';
+      if (!(bothF || bothD) || together(a.id, b.id)) continue;
+      out.push({ a, b, value: pairChemistry(a, b, shared[pairKey(a.id, b.id)] ?? 0, teamMorale) });
+    }
+  // Spread the suggestions around: nobody appears in more than two duos.
+  const seen = new Map<number, number>();
+  const picked: typeof out = [];
+  for (const d of out.sort((x, y) => y.value - x.value)) {
+    if ((seen.get(d.a.id) ?? 0) >= 2 || (seen.get(d.b.id) ?? 0) >= 2) continue;
+    picked.push(d);
+    seen.set(d.a.id, (seen.get(d.a.id) ?? 0) + 1);
+    seen.set(d.b.id, (seen.get(d.b.id) ?? 0) + 1);
+    if (picked.length >= top) break;
+  }
+  return picked;
+}
+
 export function lineChemistry(players: Player[], shared: Record<string, number>, teamMorale: number): number {
   let s = 0;
   let n = 0;

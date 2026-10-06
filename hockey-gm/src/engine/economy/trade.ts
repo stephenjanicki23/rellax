@@ -7,6 +7,9 @@
  * through their own (imperfect) scouting.
  */
 import { onPlayerTraded } from '../league/room';
+import { onFavouriteTraded } from '../front/finances';
+import { inDeadlineWindow, recordDeadlineEvent } from '../league/deadline';
+import { gradeTrade } from '../front/media';
 import { clamp } from '../core/math';
 import { describeTradeAsset, executeMoves, tradeConsent, validateMoves, type TradeAsset, type TradeCheck, type TradeMove } from '../cba/tradeRules';
 import { fullCapHit, remainingYears } from '../cba/contract';
@@ -218,8 +221,18 @@ export function executeMultiTrade(league: League, moves: TradeMove[]): void {
 
 export function executeTrade(league: League, t: TradeProposal): void {
   const moved = [...t.give, ...t.get].filter((a) => a.kind === 'player').map((a) => league.players[a.id]).filter(Boolean);
+  const from = new Map(moved.map((p) => [p.id, p.teamId]));
+  const summary = inDeadlineWindow(league)
+    ? `${league.teams[t.to].abbr} acquire ${t.give.map((a) => describeTradeAsset(league, a)).join(', ') || 'future considerations'} from ${league.teams[t.from].abbr} for ${t.get.map((a) => describeTradeAsset(league, a)).join(', ') || 'future considerations'}`
+    : null;
+  gradeTrade(league, t);
   executeMoves(league, proposalMoves(t));
-  for (const p of moved) onPlayerTraded(league, p);
+  if (summary) recordDeadlineEvent(league, 'trade', summary, [t.from, t.to], moved.map((p) => p.id));
+  for (const p of moved) {
+    onPlayerTraded(league, p);
+    const old = from.get(p.id);
+    if (old != null && p.status === 'active') onFavouriteTraded(league, old, p.traits.includes('fanFavorite'), p.ca);
+  }
 }
 
 /** Ask the CPU team what it would want added to make a proposal work. */
