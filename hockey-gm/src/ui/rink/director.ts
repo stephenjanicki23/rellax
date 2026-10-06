@@ -67,7 +67,29 @@ export interface IceState {
   goalies: [number | null, number | null];
 }
 
-const clampPt = (p: Pt, m = 3.5): Pt => ({ x: Math.min(RINK.w - m, Math.max(m, p.x)), y: Math.min(RINK.h - m, Math.max(m, p.y)) });
+/** Corner radius of the boards (the drawn rink uses the same). */
+export const CORNER_R = 28;
+
+/** Keep a point on the ice surface, `m` feet inside the boards, including the rounded corners. */
+export function onSurface(p: Pt, m = 2): Pt {
+  let x = Math.min(RINK.w - m, Math.max(m, p.x));
+  let y = Math.min(RINK.h - m, Math.max(m, p.y));
+  const cx = x < CORNER_R ? CORNER_R : x > RINK.w - CORNER_R ? RINK.w - CORNER_R : null;
+  const cy = y < CORNER_R ? CORNER_R : y > RINK.h - CORNER_R ? RINK.h - CORNER_R : null;
+  if (cx !== null && cy !== null) {
+    const dx = x - cx;
+    const dy = y - cy;
+    const d = Math.hypot(dx, dy);
+    const lim = CORNER_R - m;
+    if (d > lim) {
+      x = cx + (dx / d) * lim;
+      y = cy + (dy / d) * lim;
+    }
+  }
+  return { x, y };
+}
+
+const clampPt = (p: Pt, m = 3.5): Pt => onSurface(p, m);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** Deterministic 0..1 noise from a few integers. */
@@ -333,6 +355,8 @@ export class RinkDirector {
         // Fired into the corner, then it rims around the boards behind the net.
         this.poss = t;
         this.carrier = e.p1 ?? this.carrier;
+        // Dumped in from over the red line (from his own side it would be icing).
+        this.puck = { x: RINK.cx + d * (4 + hash(seed, 14) * 14), y: Math.min(68, Math.max(17, this.puck.y)) };
         const release = { ...this.frame(ice, 'carry'), at: 0 };
         this.carrier = null;
         const net = attackNetX(t, p);
@@ -423,6 +447,11 @@ export class RinkDirector {
         this.puck = { x: attackNetX(t, p) + d * 6, y: side < 0 ? 9 : 76 };
         return [this.frame(ice, 'pass', this.flash('ICING', 'info'))];
       case 'hit':
+        // A loose puck: the player who got hit was the one going for it.
+        if (this.carrier === null && e.p2 !== undefined) {
+          this.carrier = e.p2;
+          this.poss = (1 - t) as 0 | 1;
+        }
         return [this.frame(ice, 'carry', this.flash('HIT', 'info', t))];
       case 'penalty':
         return [this.frame(ice, 'still', this.flash(`PENALTY · ${this.abbr[t]}`, 'penalty', t))];
@@ -458,20 +487,56 @@ export class RinkDirector {
     this.pendingMark = m;
   }
 
-  /** Small movement between events so the play never looks frozen. */
-  idle(ice: IceState): Frame {
-    const d = attackDir(this.poss, ice.period);
-    const z = zoneOf(this.puck, this.poss, ice.period);
-    if (this.carrier !== null) {
-      const step = z === 'O' ? (hash(this.beat, 21) - 0.45) * 8 : (hash(this.beat, 21) + 0.2) * 6;
-      this.puck = { x: this.puck.x + d * step, y: this.puck.y + (hash(this.beat, 22) - 0.5) * 9 };
-      // Stay inside the current zone so the picture never contradicts the sim.
-      const u = (this.puck.x - RINK.cx) * d;
-      const lim = z === 'O' ? [27, 88] : z === 'N' ? [-23, 23] : [-88, -27];
-      const uc = Math.min(lim[1], Math.max(lim[0], u));
-      this.puck.x = RINK.cx + uc * d;
+  /**
+   * A waypoint between two keyframes during live play: the carrier skates the
+   * puck toward where the next play happens (curving, cycling when it's close),
+   * and a loose puck is chased down by whoever wins it next. Doesn't change the
+   * director's own state.
+   */
+  tween(ice: IceState, from: Frame, to: Frame, u: number, first: boolean): Frame {
+    this.beat++;
+    const onIce = new Set([...ice.onIce[0], ...ice.onIce[1]]);
+    const next = to.carrier !== null && onIce.has(to.carrier) ? to.carrier : null;
+    const cur = from.carrier !== null && onIce.has(from.carrier) ? from.carrier : null;
+    let carrier = cur ?? next;
+    let chaser: number | null = null;
+    let puck: Pt;
+    if (carrier === null) {
+      // A loose puck nobody wins yet: the nearest skater goes after it.
+      puck = { ...from.puck };
+      let best = Infinity;
+      for (const [id, pt] of Object.entries(from.players)) {
+        if (ice.goalies.includes(+id) || !onIce.has(+id)) continue;
+        const dd = Math.hypot(pt.x - puck.x, pt.y - puck.y);
+        if (dd < best) {
+          best = dd;
+          chaser = +id;
+        }
+      }
+    } else if (cur === null && first) {
+      // Loose puck: the next carrier gets to it first, then picks it up.
+      puck = { ...from.puck };
+    } else {
+      const a = from.puck;
+      const b = to.puck;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      const e = u * u * (3 - 2 * u);
+      const side = hash(this.beat, from.puck.x, 31) < 0.5 ? -1 : 1;
+      // Close by: cycle around (a loop); far: a gentle curve up ice.
+      const amp = len < 25 ? 14 : Math.min(10, len * 0.15);
+      const nx = len > 0.1 ? -dy / len : 0;
+      const ny = len > 0.1 ? dx / len : 1;
+      const bend = Math.sin(Math.PI * u) * amp * side;
+      puck = onSurface({ x: a.x + dx * e + nx * bend, y: a.y + dy * e + ny * bend }, 4);
     }
-    return this.frame(ice, 'carry');
+    const lead = carrier ?? chaser;
+    const team = lead !== null ? (this.meta.get(lead)?.team ?? this.poss) : this.poss;
+    const players = formation(ice, this.meta, puck, lead, team, this.beat);
+    // On the first waypoint toward a loose puck the chaser is placed at it, but hasn't touched it yet.
+    if (cur === null && first) carrier = null;
+    return { puck, motion: 'carry', carrier, players, flash: null, goalLight: null };
   }
 }
 

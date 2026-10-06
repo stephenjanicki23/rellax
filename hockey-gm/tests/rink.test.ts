@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../src/engine/league/create';
 import { buildGameInput } from '../src/engine/league/gameInput';
 import { GameSim } from '../src/engine/sim/engine';
-import { RINK, RinkDirector, attackDir, whistleHold, type Frame, type RinkPlayer } from '../src/ui/rink/director';
+import { CORNER_R, RINK, RinkDirector, attackDir, whistleHold, type Frame, type RinkPlayer } from '../src/ui/rink/director';
 
 describe('live rink director', () => {
   const league = createLeague({ seed: 'rink' });
@@ -79,12 +79,25 @@ describe('continuous rink motion', () => {
   const stoppages: number[] = [];
   let whistleAt: number | null = null;
   let lastDrop = -10;
+  let stopped = false;
+  let still = 0;
+  let longStill = 0;
+  let offIce = 0;
+  const outside = (p: { x: number; y: number }) => {
+    const cx = p.x < CORNER_R ? CORNER_R : p.x > RINK.w - CORNER_R ? RINK.w - CORNER_R : null;
+    const cy = p.y < CORNER_R ? CORNER_R : p.y > RINK.h - CORNER_R ? RINK.h - CORNER_R : null;
+    return cx !== null && cy !== null && Math.hypot(p.x - cx, p.y - cy) > CORNER_R - 0.5;
+  };
   while (motion.P < until) {
     let reset = false;
+    const p0 = { ...motion.puck.pos };
     motion.step(dt, (k) => {
       if (k.goalLight !== null && k.period <= 3) goalPucks.push(k.puck.x);
       if (k.motion === 'still') reset = true;
-      if (k.event && whistleHold(k.event.type) > 0) whistleAt = k.s;
+      if (k.event && whistleHold(k.event.type) > 0) {
+        whistleAt = k.s;
+        stopped = true;
+      }
       if (k.faceoff?.phase === 'drop') {
         // Everyone on his mark when the puck drops.
         for (const [id, pt] of Object.entries(k.players)) {
@@ -92,6 +105,7 @@ describe('continuous rink motion', () => {
           if (b) dropMiss.push(Math.hypot(b.pos.x - pt.x, b.pos.y - pt.y));
         }
         lastDrop = k.s;
+        stopped = false;
         if (whistleAt !== null) stoppages.push(k.s - whistleAt);
         whistleAt = null;
       }
@@ -104,6 +118,13 @@ describe('continuous rink motion', () => {
       if (!Number.isFinite(b.pos.x + b.pos.y)) nan = true;
     }
     const p = motion.puck.pos;
+    if (outside(p)) offIce++;
+    // Live play: the puck shouldn't sit still for long (someone carries it or goes after it).
+    if (!stopped && Math.hypot(p.x - p0.x, p.y - p0.y) / dt < 2) still += dt;
+    else {
+      if (still > 3) longStill++;
+      still = 0;
+    }
     const jump = Math.hypot(p.x - prev.x, p.y - prev.y);
     if (!reset && motion.puck.mode.kind !== 'flying') {
       maxPuckJump = Math.max(maxPuckJump, jump);
@@ -125,6 +146,21 @@ describe('continuous rink motion', () => {
     // 60 fps: a carried or sliding puck moves well under a foot per frame; only faceoff resets snap.
     expect(jumps).toBe(0);
     expect(maxPuckJump).toBeLessThan(4);
+  });
+  it('keeps the puck inside the rounded boards, where it can be seen', () => {
+    expect(offIce).toBe(0);
+  });
+  it('keeps the puck moving during live play', () => {
+    expect(longStill).toBeLessThan(8);
+  });
+  it('dumps the puck in from over the red line, not from the defensive end', () => {
+    // The release frame comes just before the corner and rim frames of each dump-in.
+    const releases = tl.keys.filter((k, i) => k.motion === 'carry' && k.carrier !== null && tl.keys.slice(i + 1, i + 3).some((x) => x.event?.type === 'dumpIn'));
+    expect(releases.length).toBeGreaterThan(3);
+    for (const r of releases) {
+      const team = meta.get(r.carrier!)!.team;
+      expect((r.puck.x - RINK.cx) * attackDir(team, r.period)).toBeGreaterThan(0);
+    }
   });
   it('lines everyone up at the dot before the puck drops', () => {
     expect(dropMiss.length).toBeGreaterThan(20);

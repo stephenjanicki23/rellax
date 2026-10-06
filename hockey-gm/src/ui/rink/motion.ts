@@ -13,7 +13,7 @@
  * with friction.
  */
 import type { GameEvent, GameEventType } from '../../engine/sim/gameTypes';
-import { RINK, attackDir, hash, whistleHold, type Frame, type IceState, type Pt, type RinkDirector, type RinkPlayer } from './director';
+import { RINK, attackDir, hash, onSurface, whistleHold, type Frame, type IceState, type Pt, type RinkDirector, type RinkPlayer } from './director';
 
 export interface TimelineItem {
   e: GameEvent;
@@ -43,7 +43,7 @@ const GAP: Partial<Record<GameEventType, number>> = {
   ppEnd: 0.05,
   periodStart: 0.1,
 };
-const WAYPOINT_EVERY = 1.6;
+const WAYPOINT_EVERY = 1.1;
 
 export class RinkTimeline {
   keys: Key[] = [];
@@ -70,13 +70,20 @@ export class RinkTimeline {
       // leaving the rest of the pause for everyone to line up for the faceoff.
       const housekeeping = this.stopped && e.type !== 'faceoff' && e.type !== 'periodStart' && whistleHold(e.type) === 0;
       const s = housekeeping ? this.lastS + Math.max(gap, 0.4) : Math.max(this.lastS + gap, e.t + this.holdSum);
-      // Waypoints so long possessions keep moving (not during stoppages).
-      if (this.lastIce && !this.stopped && s - this.lastS > WAYPOINT_EVERY * 1.5) {
-        const n = Math.floor((s - this.lastS) / WAYPOINT_EVERY);
-        for (let i = 1; i < n; i++) this.push(this.director.idle(this.lastIce), this.lastS + ((s - this.lastS) * i) / n, this.lastIce.period);
-      }
       const frames = this.director.apply(e, ice);
       let placed = this.lastS;
+      // Waypoints so play keeps moving between engine events (not during stoppages):
+      // toward where the next play happens.
+      const prev = this.keys[this.keys.length - 1];
+      const firstAt = frames[0].at !== undefined ? s + frames[0].at : s - (frames.length - 1) * 0.32;
+      if (prev && this.lastIce && !this.stopped && firstAt - this.lastS > WAYPOINT_EVERY * 1.2) {
+        const span = firstAt - this.lastS;
+        const n = Math.max(2, Math.round(span / WAYPOINT_EVERY));
+        for (let i = 1; i < n; i++) {
+          placed = this.lastS + (span * i) / n;
+          this.push(this.director.tween(this.lastIce, prev, frames[0], i / n, i === 1), placed, this.lastIce.period);
+        }
+      }
       frames.forEach((f, i) => {
         // Staged frames carry their own offset; otherwise lead-in frames are spaced just before the event.
         const want = f.at !== undefined ? s + f.at : s - (frames.length - 1 - i) * 0.32;
@@ -114,10 +121,12 @@ const SPEED = { F: 29, D: 26, G: 10 };
 const ACCEL = { F: 36, D: 32, G: 30 };
 const PASS_SPEED = 62;
 const SHOT_SPEED = 115;
+/** Below this line (feet from the bottom boards) players heading to the bench may leave the ice. */
+const CORNER_GATE = 6;
 
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 /** Keep a puck position on the ice surface. */
-const onIce = (p: Pt): Pt => ({ x: Math.min(RINK.w - 2, Math.max(2, p.x)), y: Math.min(RINK.h - 2, Math.max(2, p.y)) });
+const onIce = (p: Pt): Pt => onSurface(p, 2);
 
 export class RinkMotion {
   P = 0;
@@ -313,8 +322,10 @@ export class RinkMotion {
       }
       b.vel.x += dv.x;
       b.vel.y += dv.y;
-      b.pos.x = Math.min(RINK.w - 2, Math.max(2, b.pos.x + b.vel.x * dt));
-      b.pos.y = Math.min(RINK.h + 3, Math.max(2, b.pos.y + b.vel.y * dt));
+      const nx = b.pos.x + b.vel.x * dt;
+      const ny = b.pos.y + b.vel.y * dt;
+      // Players leaving for the bench may step off the bottom edge; everyone else stays inside the boards.
+      b.pos = !want[b.id] && ny > RINK.h - CORNER_GATE ? { x: Math.min(RINK.w - 2, Math.max(2, nx)), y: Math.min(RINK.h + 3, ny) } : onSurface({ x: nx, y: ny }, 2);
       if (!want[b.id] && (b.leaving > 2.5 || b.pos.y > RINK.h)) this.bodies.delete(b.id);
     }
   }
@@ -344,8 +355,8 @@ export class RinkMotion {
       const sp = Math.hypot(b.vel.x, b.vel.y);
       const dir = sp > 3 ? { x: b.vel.x / sp, y: b.vel.y / sp } : { x: attackDir(b.team, this.period), y: 0 };
       // On the blade, just outside the jersey so the puck stays visible.
-      const tx = b.pos.x + dir.x * 3.6 + dir.y * 1.2;
-      const ty = b.pos.y + dir.y * 3.6 - dir.x * 1.2 + 0.4;
+      const tx = b.pos.x + dir.x * 4.6 + dir.y * 1.2;
+      const ty = b.pos.y + dir.y * 4.6 - dir.x * 1.2 + 0.4;
       // Stickhandling: ease toward the blade, never faster than a quick pass.
       const ease = Math.min(1, dt * 14);
       let mx = (tx - this.puck.pos.x) * ease;
@@ -357,23 +368,28 @@ export class RinkMotion {
         my *= cap / ml;
       }
       // The puck never leaves the ice surface, even if its carrier heads off over the boards.
-      this.puck.pos = { x: Math.min(RINK.w - 2, Math.max(2, this.puck.pos.x + mx)), y: Math.min(RINK.h - 2, Math.max(2, this.puck.pos.y + my)) };
+      this.puck.pos = onIce({ x: this.puck.pos.x + mx, y: this.puck.pos.y + my });
       return;
     }
     // Loose: slide with friction, bounce off the boards.
     const f = Math.exp(-1.4 * dt);
     this.puck.vel.x *= f;
     this.puck.vel.y *= f;
-    let x = this.puck.pos.x + this.puck.vel.x * dt;
-    let y = this.puck.pos.y + this.puck.vel.y * dt;
-    if (x < 2 || x > RINK.w - 2) {
-      this.puck.vel.x *= -0.5;
-      x = Math.min(RINK.w - 2, Math.max(2, x));
+    const want = { x: this.puck.pos.x + this.puck.vel.x * dt, y: this.puck.pos.y + this.puck.vel.y * dt };
+    const at = onIce(want);
+    if (Math.abs(at.x - want.x) > 1e-6 || Math.abs(at.y - want.y) > 1e-6) {
+      // Off the boards: bounce back along the inward normal, losing speed.
+      const nx = at.x - want.x;
+      const ny = at.y - want.y;
+      const nl = Math.hypot(nx, ny) || 1;
+      const vn = (this.puck.vel.x * nx + this.puck.vel.y * ny) / nl;
+      if (vn < 0) {
+        this.puck.vel.x -= 1.5 * vn * (nx / nl);
+        this.puck.vel.y -= 1.5 * vn * (ny / nl);
+      }
+      this.puck.vel.x *= 0.7;
+      this.puck.vel.y *= 0.7;
     }
-    if (y < 2 || y > RINK.h - 2) {
-      this.puck.vel.y *= -0.5;
-      y = Math.min(RINK.h - 2, Math.max(2, y));
-    }
-    this.puck.pos = { x, y };
+    this.puck.pos = at;
   }
 }

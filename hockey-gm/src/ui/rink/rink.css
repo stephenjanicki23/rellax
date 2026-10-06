@@ -104,3 +104,10 @@
 .rink2 .fo-dot { fill: none; stroke: #f6c445; stroke-width: 0.5; opacity: 0.9; animation: fo-pulse 1s ease-in-out infinite; }
 @keyframes fo-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .rink2 .fo-dot, .rink-stop { animation: none; } }
+/* Play chips live in the header bar so they never cover the ice. */
+.rink-head { min-height: 28px; }
+.rink-tools { align-items: center; flex-wrap: wrap; justify-content: center; }
+.rink-head .rink-chip-row { display: inline-flex; gap: 4px; }
+.rink-head .rink-chip { font-size: 11px; padding: 2px 8px; }
+@media (max-width: 640px) { .rink-head .rink-chip-row { display: none; } }
+.rink2 .puck-halo { fill: #fff; opacity: 0.6; filter: blur(0.25px); }

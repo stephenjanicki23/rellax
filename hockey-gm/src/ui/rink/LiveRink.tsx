@@ -438,6 +438,14 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           {possTeam === 0 && <em className="poss-dot" title="Has the puck" />}
         </span>
         <span className="rink-tools">
+          <span className="rink-chip-row">
+          {chips.map((c) => (
+            <span key={c.id} className={`rink-chip ${c.tone}`} style={c.team !== null ? ({ '--tc': teamBar(colors[c.team]) } as React.CSSProperties) : undefined}>
+              {c.text}
+            </span>
+          ))}
+          </span>
+
           <button className={`rink-toggle ${showMap ? 'on' : ''}`} onClick={() => setShowMap((v) => !v)} title="Show every shot this period">
             Shot map
           </button>
@@ -627,8 +635,10 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
             {/* Puck */}
             <polyline ref={trailEl} className="puck-trail" points="" />
             <g ref={puckEl} transform={`translate(${motion.puck.pos.x} ${motion.puck.pos.y})`}>
-              <ellipse cx="0.35" cy="0.5" rx="1.05" ry="0.85" fill="#000" opacity="0.25" />
-              <circle r="0.95" fill="#0c0c0c" stroke="#ffffff" strokeWidth="0.28" />
+              {/* A soft halo so the puck reads against dark jerseys and the boards. */}
+              <circle r="2.3" className="puck-halo" />
+              <ellipse cx="0.35" cy="0.5" rx="1.2" ry="0.95" fill="#000" opacity="0.25" />
+              <circle r="1.15" fill="#0c0c0c" stroke="#ffffff" strokeWidth="0.35" />
             </g>
           </g>
         </svg>
@@ -642,13 +652,6 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
               </span>
             </div>
           )}
-          <div className="rink-chip-row">
-          {chips.map((c) => (
-            <span key={c.id} className={`rink-chip ${c.tone}`} style={c.team !== null ? ({ '--tc': teamBar(colors[c.team]) } as React.CSSProperties) : undefined}>
-              {c.text}
-            </span>
-          ))}
-          </div>
         </div>
         {replaying && replayable && (
           <div className="replay-banner" style={{ '--tc': teamBar(colors[replayable.team]) } as React.CSSProperties}>
