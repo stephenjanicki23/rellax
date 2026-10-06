@@ -114,3 +114,10 @@
 .rink-system { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 8px; background: rgba(246, 196, 69, 0.16); color: #f6c445; border: 1px solid rgba(246, 196, 69, 0.4); white-space: nowrap; }
 .rink2 .pm .gbody { transition: transform 0.12s ease-out; transform-box: fill-box; transform-origin: center; }
 .rink2 .pm.butterfly .gbody { transform: scale(0.75, 1.45); }
+/* A hit: a quick shock ring where the contact happened. */
+.rink2 .hit-ring { fill: none; stroke: #ff6b3d; stroke-width: 0.6; transform-box: fill-box; transform-origin: center; animation: hit-ring 0.6s ease-out forwards; }
+@keyframes hit-ring { from { opacity: 0.95; transform: scale(0.6); } to { opacity: 0; transform: scale(2.2); } }
+/* Names: full strength for the players in the play, quieter for everyone else. */
+.rink2 .pm .nm { opacity: 0.6; transition: opacity 0.25s; }
+.rink2 .pm.carrying .nm, .rink2 .pm.active .nm { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .rink2 .hit-ring { animation: none; opacity: 0; } }

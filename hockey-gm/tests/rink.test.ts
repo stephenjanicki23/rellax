@@ -73,7 +73,7 @@ describe('continuous rink motion', () => {
   let nan = false;
   const goalPucks: number[] = [];
   let prev = { ...motion.puck.pos };
-  const until = Math.min(tl.end, 1500);
+  const until = Math.min(tl.end, 3700);
   let jumps = 0;
   const dropMiss: number[] = [];
   const stoppages: number[] = [];
@@ -87,6 +87,9 @@ describe('continuous rink motion', () => {
   let maxTurn = 0;
   let goalieChecks = 0;
   let carriedNz = 0;
+  const sentOff = new Set<number>();
+  const lastPos = new Map<number, { x: number; y: number }>();
+  const boxExits: number[] = [];
   let offsideLooks = 0;
   let goalieSquare = 0;
   let backwards = 0;
@@ -104,6 +107,7 @@ describe('continuous rink motion', () => {
     motion.step(dt, (k) => {
       if (k.goalLight !== null && k.period <= 3) goalPucks.push(k.puck.x);
       if (k.motion === 'still') reset = true;
+      if (k.event?.type === 'penalty' && k.event.p1 !== undefined) sentOff.add(k.event.p1);
       if (k.event && whistleHold(k.event.type) > 0) {
         whistleAt = k.s;
         stopped = true;
@@ -151,6 +155,14 @@ describe('continuous rink motion', () => {
     }
     const p = motion.puck.pos;
     if (outside(p)) offIce++;
+    for (const [id, pos] of lastPos) {
+      if (!motion.bodies.has(id) && sentOff.has(id)) {
+        boxExits.push(pos.y);
+        sentOff.delete(id);
+      }
+    }
+    lastPos.clear();
+    for (const b of motion.bodies.values()) lastPos.set(b.id, { ...b.pos });
     // Offside-looking: at the moment the carrier brings the puck over the blue line, a teammate is already in.
     if (motion.puck.mode.kind === 'carried') {
       const cid = motion.puck.mode.carrier;
@@ -207,6 +219,11 @@ describe('continuous rink motion', () => {
     // Was ~80% before attackers held the line; what's left is mostly a step over on a rush.
     expect(offsideLooks / carriedNz).toBeLessThan(0.2);
   });
+  it('sends penalized players to the penalty box, not the bench', () => {
+    expect(boxExits.length).toBeGreaterThan(0);
+    // The box is across the ice from the benches (top edge).
+    expect(boxExits.filter((y) => y < 10).length / boxExits.length).toBeGreaterThan(0.7);
+  });
   it('keeps goalies square to the puck', () => {
     expect(goalieChecks).toBeGreaterThan(100);
     expect(goalieSquare / goalieChecks).toBeGreaterThan(0.8);
@@ -221,7 +238,7 @@ describe('continuous rink motion', () => {
     expect(crowdedFrames / frameCount).toBeLessThan(0.25);
   });
   it('keeps the puck moving during live play', () => {
-    expect(longStill).toBeLessThan(8);
+    expect(longStill).toBeLessThan(15); // over a full game
   });
   it('dumps the puck in from over the red line, not from the defensive end', () => {
     // The release frame comes just before the corner and rim frames of each dump-in.

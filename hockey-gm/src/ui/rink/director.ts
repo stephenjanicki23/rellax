@@ -58,6 +58,8 @@ export interface Frame {
   event?: GameEvent;
   /** Seconds relative to the event's scheduled time (negative = before it); default spacing otherwise. */
   at?: number;
+  /** Players heading to the penalty box from this frame on. */
+  toBox?: number[];
   /** Faceoff staging: players lined up at the dot, then the puck drop. */
   faceoff?: { phase: 'lineup' | 'drop'; team: 0 | 1; p1?: number; p2?: number; dot: Pt };
 }
@@ -341,6 +343,43 @@ export class RinkDirector {
     return out;
   }
 
+  /** A hit: the hitter arrives on his man and knocks him off his line. */
+  private hitPlayers(ice: IceState, e: GameEvent): Record<number, Pt> {
+    const out = formation(ice, this.meta, this.puck, this.carrier, this.poss, this.beat, this.tactics);
+    const h = e.p1;
+    const v = e.p2;
+    if (h === undefined || v === undefined || !out[v]) return out;
+    const from = this.players[h] ?? out[h] ?? out[v];
+    const dx = out[v].x - from.x;
+    const dy = out[v].y - from.y;
+    const len = Math.hypot(dx, dy) || 1;
+    out[v] = clampPt({ x: out[v].x + (dx / len) * 2.5, y: out[v].y + (dy / len) * 2.5 });
+    out[h] = clampPt({ x: out[v].x - (dx / len) * 4.2, y: out[v].y - (dy / len) * 4.2 });
+    return out;
+  }
+
+  /** A fight: the two square off where they are; everyone else backs away and watches. */
+  private fightPlayers(ice: IceState, e: GameEvent): Record<number, Pt> {
+    const out = formation(ice, this.meta, this.puck, null, this.poss, this.beat, this.tactics);
+    const a = e.p1;
+    const b = e.p2;
+    if (a === undefined || b === undefined) return out;
+    const pa = this.players[a] ?? out[a] ?? this.puck;
+    const pb = this.players[b] ?? out[b] ?? this.puck;
+    const spot = clampPt({ x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 }, 8);
+    for (const [id, pt] of Object.entries(out)) {
+      if (ice.goalies.includes(+id)) continue;
+      const dx = pt.x - spot.x;
+      const dy = pt.y - spot.y;
+      const dd = Math.hypot(dx, dy);
+      if (dd < 18) out[+id] = clampPt({ x: spot.x + ((dd > 0.1 ? dx : 1) / (dd || 1)) * 18, y: spot.y + ((dd > 0.1 ? dy : 0) / (dd || 1)) * 18 });
+    }
+    // They are still on the ice until the officials step in, even if the engine has sent them off.
+    out[a] = { x: spot.x - 2.2, y: spot.y };
+    out[b] = { x: spot.x + 2.2, y: spot.y };
+    return out;
+  }
+
   /** Where the next faceoff is: centre after goals and period starts, the nearest neutral dot after offside. */
   private faceoffDot(e: GameEvent, ice: IceState, seed: number): Pt {
     const p = ice.period;
@@ -533,11 +572,11 @@ export class RinkDirector {
           this.carrier = e.p2;
           this.poss = (1 - t) as 0 | 1;
         }
-        return [this.frame(ice, 'carry', this.flash('HIT', 'info', t))];
+        return [this.frame(ice, 'carry', this.flash('HIT', 'info', t), null, this.hitPlayers(ice, e))];
       case 'penalty':
-        return [this.frame(ice, 'still', this.flash(`PENALTY · ${this.abbr[t]}`, 'penalty', t))];
+        return [{ ...this.frame(ice, 'still', this.flash(`PENALTY · ${this.abbr[t]}`, 'penalty', t)), toBox: e.p1 !== undefined ? [e.p1] : [] }];
       case 'fight':
-        return [this.frame(ice, 'still', this.flash('FIGHT!', 'penalty'))];
+        return [{ ...this.frame(ice, 'still', this.flash('FIGHT!', 'penalty'), null, this.fightPlayers(ice, e)), toBox: [e.p1, e.p2].filter((x): x is number => x !== undefined) }];
       case 'goaliePulled':
         return [this.frame(ice, 'carry', this.flash(`${this.abbr[t]} PULL THE GOALIE`, 'info', t))];
       case 'periodEnd':

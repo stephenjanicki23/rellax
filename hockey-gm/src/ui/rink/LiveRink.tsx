@@ -157,6 +157,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
   const [showMap, setShowMap] = useState(false);
   const [period, setPeriod] = useState(1);
   const [stop, setStop] = useState<Stoppage | null>(null);
+  const [impact, setImpact] = useState<{ x: number; y: number; n: number } | null>(null);
   const [foDot, setFoDot] = useState<{ x: number; y: number } | null>(null);
   const [logoOk, setLogoOk] = useState(true);
   const noise = useMemo(() => iceNoise(), []);
@@ -222,6 +223,15 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
         later(1400, () => setActive((prev) => (prev === actors ? [] : prev)));
       }
       switch (e.type) {
+        case 'hit': {
+          const v = e.p2 !== undefined ? k.players[e.p2] : undefined;
+          if (v) {
+            const n = ++seq.current;
+            setImpact({ x: v.x, y: v.y, n });
+            later(700, () => setImpact((cur) => (cur?.n === n ? null : cur)));
+          }
+          break;
+        }
         case 'goal': {
           lastGoal.current = { s: k.s, event: e };
           setReplayable(e);
@@ -574,6 +584,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
                   ),
                 )}
             {foDot && <circle className="fo-dot" cx={foDot.x} cy={foDot.y} r="4" />}
+            {impact && <circle key={impact.n} className="hit-ring" cx={impact.x} cy={impact.y} r="3" />}
             {/* Shot trajectories (fade out) */}
             {trajs.map((t) => (
               <g key={t.id} className={`traj ${t.kind}`}>

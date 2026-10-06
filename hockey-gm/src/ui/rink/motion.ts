@@ -148,6 +148,8 @@ export class RinkMotion {
   period = 1;
   private k = 0;
   private flightFor = -1;
+  /** Players on their way to the penalty box. */
+  private boxBound = new Set<number>();
   /** Who picks the puck up when the current flight lands. */
   private pendingCarrier: number | null = null;
 
@@ -243,6 +245,9 @@ export class RinkMotion {
 
   private reach(key: Key, idx: number): void {
     this.period = key.period;
+    for (const id of key.toBox ?? []) this.boxBound.add(id);
+    // Still playing in a later frame (not sent off after all): not box-bound.
+    for (const id of this.boxBound) if (key.players[id] && !key.toBox?.includes(id)) this.boxBound.delete(id);
     this.pendingCarrier = null;
     const carrier = key.carrier;
     if (key.motion === 'still') {
@@ -331,8 +336,9 @@ export class RinkMotion {
           this.puck.mode = { kind: 'loose' };
           this.puck.vel = { x: 0, y: 0 };
         }
-        tgt = { x: RINK.cx + (attackDir(b.team, this.period) > 0 ? -18 : 18), y: RINK.h + 2 };
-        T = 1.2;
+        // Penalized players go to the box across from the benches; the rest change at the bench.
+        tgt = this.boxBound.has(b.id) ? { x: RINK.cx + (b.team === 0 ? -7 : 7), y: -2 } : { x: RINK.cx + (attackDir(b.team, this.period) > 0 ? -18 : 18), y: RINK.h + 2 };
+        T = this.boxBound.has(b.id) ? 2.2 : 1.2;
       }
       const desired = { x: (tgt.x - b.pos.x) / T, y: (tgt.y - b.pos.y) / T };
       // Goalies shuffle in the crease but skate hard when far out of position.
@@ -398,8 +404,13 @@ export class RinkMotion {
       const nx = b.pos.x + b.vel.x * dt;
       const ny = b.pos.y + b.vel.y * dt;
       // Players leaving for the bench may step off the bottom edge; everyone else stays inside the boards.
-      b.pos = !want[b.id] && ny > RINK.h - CORNER_GATE ? { x: Math.min(RINK.w - 2, Math.max(2, nx)), y: Math.min(RINK.h + 3, ny) } : onSurface({ x: nx, y: ny }, 2);
-      if (!want[b.id] && (b.leaving > 2.5 || b.pos.y > RINK.h)) this.bodies.delete(b.id);
+      const toBox = !want[b.id] && this.boxBound.has(b.id);
+      const offEdge = !want[b.id] && (toBox ? ny < CORNER_GATE : ny > RINK.h - CORNER_GATE);
+      b.pos = offEdge ? { x: Math.min(RINK.w - 2, Math.max(2, nx)), y: Math.min(RINK.h + 3, Math.max(-3, ny)) } : onSurface({ x: nx, y: ny }, 2);
+      if (!want[b.id] && (b.leaving > (toBox ? 7 : 2.5) || b.pos.y > RINK.h || b.pos.y < 0)) {
+        this.bodies.delete(b.id);
+        this.boxBound.delete(b.id);
+      }
     }
   }
 
