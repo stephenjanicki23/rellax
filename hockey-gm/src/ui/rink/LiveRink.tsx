@@ -53,6 +53,15 @@ interface Chip {
   tone: 'info' | 'penalty' | 'save';
 }
 
+/** The stoppage banner: why play stopped, then who is taking the faceoff. */
+interface Stoppage {
+  id: number;
+  title: string;
+  sub: string;
+  team: 0 | 1 | null;
+  tone: 'whistle' | 'penalty' | 'faceoff';
+}
+
 interface GoalInfo {
   /** Season totals including this goal: scorer's goals, assisters' assists (franchise games). */
   counts?: { scorer?: number; assists: (number | undefined)[] };
@@ -145,6 +154,8 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
   const [shots, setShots] = useState<ShotMark[]>([]);
   const [showMap, setShowMap] = useState(false);
   const [period, setPeriod] = useState(1);
+  const [stop, setStop] = useState<Stoppage | null>(null);
+  const [foDot, setFoDot] = useState<{ x: number; y: number } | null>(null);
   const [logoOk, setLogoOk] = useState(true);
   const noise = useMemo(() => iceNoise(), []);
   const seq = useRef(0);
@@ -172,8 +183,23 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
       later(ms, () => setChips((prev) => prev.filter((x) => x.id !== c.id)));
     };
     let shown: GameEvent[] = [];
+    const abbr = (t: 0 | 1) => (t === 0 ? home : away).abbr;
+    const who = (id: number | undefined) => {
+      const m = id === undefined ? undefined : meta.get(id);
+      return m ? `${m.number != null ? `#${m.number} ` : ''}${m.last ?? ''}` : '';
+    };
+    const stopFor = (title: string, sub: string, team: 0 | 1 | null, tone: Stoppage['tone'] = 'whistle') => setStop({ id: ++seq.current, title, sub, team, tone });
     const onKey = (k: Key) => {
       if (k.event) shown.push(k.event);
+      if (k.faceoff?.phase === 'lineup') {
+        const f = k.faceoff;
+        const [h, a] = f.team === 0 ? [f.p1, f.p2] : [f.p2, f.p1];
+        stopFor('Faceoff', `${who(h)} (${home.abbr}) vs ${who(a)} (${away.abbr})`, null, 'faceoff');
+        setFoDot(f.dot);
+      } else if (k.faceoff?.phase === 'drop') {
+        setStop(null);
+        setFoDot(null);
+      }
       setPeriod((p) => (p !== k.period ? k.period : p));
       if (k.goalLight !== null) {
         setLight(k.goalLight);
@@ -217,10 +243,12 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           break;
         case 'penalty':
         case 'fight':
-          chip(e.type === 'fight' ? 'FIGHTING MAJORS' : `PENALTY · ${(e.team === 0 ? home : away).abbr}`, e.team, 'penalty', 2200);
+          if (e.type === 'fight') stopFor('Fight', `${who(e.p1)} and ${who(e.p2)} drop the gloves · 5 minutes each`, null, 'penalty');
+          else stopFor(`Penalty · ${abbr(e.team)}`, `${who(e.p1)} · ${e.data?.minutes ?? 2} minutes for ${(e.data?.penalty ?? 'an infraction').toLowerCase()}`, e.team, 'penalty');
           if (e.p1 !== undefined) setPenalized((prev) => [...prev, e.p1!, ...(e.type === 'fight' && e.p2 !== undefined ? [e.p2] : [])]);
           break;
         case 'injury':
+          stopFor('Whistle', `Play stopped: ${who(e.p1)} is hurt`, e.team);
           if (e.p1 !== undefined) {
             const id = e.p1;
             setInjured((prev) => [...prev, id]);
@@ -228,10 +256,19 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           }
           break;
         case 'icing':
-          chip('ICING', null, 'info');
+          stopFor(`Icing · ${abbr(e.team)}`, `${abbr(e.team)} sent it the length of the ice · faceoff in the ${abbr(e.team)} zone, no change allowed`, e.team);
           break;
         case 'offside':
-          chip('OFFSIDE', null, 'info');
+          stopFor(`Offside · ${abbr(e.team)}`, `${who(e.p1)} was over the blue line ahead of the puck · faceoff in the neutral zone`, e.team);
+          break;
+        case 'freeze':
+          stopFor('Whistle', `${who(e.p1)} covers the puck · faceoff in the ${abbr(e.team)} zone`, e.team);
+          break;
+        case 'goalieChange':
+          stopFor(`Goalie change · ${abbr(e.team)}`, `${who(e.p1)} comes in`, e.team);
+          break;
+        case 'goal':
+          setStop(null);
           break;
         case 'entry':
           if (e.data?.oddMan) chip('ODD-MAN RUSH', e.team, 'info', 1300);
@@ -244,10 +281,14 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           break;
         case 'periodStart':
           setShots([]);
-          chip(e.period > 3 ? 'OVERTIME' : `${periodLabel(e.period, playoff).toUpperCase()} PERIOD`, null, 'info', 1800);
+          stopFor(e.period > 3 ? 'Overtime' : `${periodLabel(e.period, playoff)} period`, 'Opening faceoff at centre ice', null);
           break;
         case 'periodEnd':
-          chip('END OF PERIOD', null, 'info', 2400);
+          stopFor('End of period', e.period > 3 ? 'Overtime is over' : `End of the ${periodLabel(e.period, playoff).toLowerCase()} period`, null);
+          setFoDot(null);
+          break;
+        case 'gameEnd':
+          setStop(null);
           break;
       }
     };
@@ -506,6 +547,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
                     <circle key={i} cx={s.x} cy={s.y} r="1" className="shot-mk" fill={s.kind === 'save' ? colors[s.team][0] : 'none'} stroke={colors[s.team][0]} strokeWidth="0.3" />
                   ),
                 )}
+            {foDot && <circle className="fo-dot" cx={foDot.x} cy={foDot.y} r="4" />}
             {/* Shot trajectories (fade out) */}
             {trajs.map((t) => (
               <g key={t.id} className={`traj ${t.kind}`}>
@@ -591,11 +633,22 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           </g>
         </svg>
         <div className="rink-chips">
+          {stop && !replaying && (
+            <div key={stop.id} className={`rink-stop ${stop.tone}`} style={stop.team !== null ? ({ '--tc': teamBar(colors[stop.team]) } as React.CSSProperties) : undefined}>
+              <span className="rs-tag">{stop.tone === 'faceoff' ? 'Faceoff' : stop.tone === 'penalty' ? 'Penalty' : 'Whistle'}</span>
+              <span className="rs-body">
+                <b>{stop.title}</b>
+                <span>{stop.sub}</span>
+              </span>
+            </div>
+          )}
+          <div className="rink-chip-row">
           {chips.map((c) => (
             <span key={c.id} className={`rink-chip ${c.tone}`} style={c.team !== null ? ({ '--tc': teamBar(colors[c.team]) } as React.CSSProperties) : undefined}>
               {c.text}
             </span>
           ))}
+          </div>
         </div>
         {replaying && replayable && (
           <div className="replay-banner" style={{ '--tc': teamBar(colors[replayable.team]) } as React.CSSProperties}>

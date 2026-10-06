@@ -353,6 +353,8 @@ export class GameSim {
   penalties: Pen[] = [];
   noChange: Side | -1 = -1;
   events: GameEvent[] = [];
+  /** Events already handed out by step(). */
+  private emitted = 0;
   goals: (GoalRecord & { winGoalie: number | null; loseGoalie: number | null })[] = [];
   pens: PenaltyRecord[] = [];
   injuries: InjuryRecord[] = [];
@@ -436,7 +438,8 @@ export class GameSim {
   /** Advance one possession step. Returns events produced during the step. */
   step(): GameEvent[] {
     if (this.finished) return [];
-    const before = this.events.length;
+    // Includes anything recorded before the first step (the opening periodStart).
+    const before = this.emitted;
     const t0 = this.elapsed;
     this.manageGoalies();
     this.manageLines();
@@ -450,6 +453,7 @@ export class GameSim {
       this.randomEvents(this.elapsed - t0);
       if (this.clock >= this.periodLength - 1e-9) this.endPeriod();
     }
+    this.emitted = this.events.length;
     return this.events.slice(before);
   }
 

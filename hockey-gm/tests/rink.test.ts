@@ -75,15 +75,32 @@ describe('continuous rink motion', () => {
   let prev = { ...motion.puck.pos };
   const until = Math.min(tl.end, 1500);
   let jumps = 0;
+  const dropMiss: number[] = [];
+  const stoppages: number[] = [];
+  let whistleAt: number | null = null;
+  let lastDrop = -10;
   while (motion.P < until) {
     let reset = false;
     motion.step(dt, (k) => {
       if (k.goalLight !== null && k.period <= 3) goalPucks.push(k.puck.x);
       if (k.motion === 'still') reset = true;
+      if (k.event && whistleHold(k.event.type) > 0) whistleAt = k.s;
+      if (k.faceoff?.phase === 'drop') {
+        // Everyone on his mark when the puck drops.
+        for (const [id, pt] of Object.entries(k.players)) {
+          const b = motion.bodies.get(+id);
+          if (b) dropMiss.push(Math.hypot(b.pos.x - pt.x, b.pos.y - pt.y));
+        }
+        lastDrop = k.s;
+        if (whistleAt !== null) stoppages.push(k.s - whistleAt);
+        whistleAt = null;
+      }
     });
+    // Setting up for a faceoff, players glide into place faster than game speed.
+    const settingUp = !!motion.next?.faceoff || motion.P - lastDrop < 1.5;
     for (const b of motion.bodies.values()) {
       const sp = Math.hypot(b.vel.x, b.vel.y);
-      if (!b.goalie) maxSkaterSpeed = Math.max(maxSkaterSpeed, sp);
+      if (!b.goalie && !settingUp) maxSkaterSpeed = Math.max(maxSkaterSpeed, sp);
       if (!Number.isFinite(b.pos.x + b.pos.y)) nan = true;
     }
     const p = motion.puck.pos;
@@ -108,6 +125,16 @@ describe('continuous rink motion', () => {
     // 60 fps: a carried or sliding puck moves well under a foot per frame; only faceoff resets snap.
     expect(jumps).toBe(0);
     expect(maxPuckJump).toBeLessThan(4);
+  });
+  it('lines everyone up at the dot before the puck drops', () => {
+    expect(dropMiss.length).toBeGreaterThan(20);
+    const mean = dropMiss.reduce((a, b) => a + b, 0) / dropMiss.length;
+    expect(mean).toBeLessThan(3);
+    expect(dropMiss.filter((d) => d > 12).length / dropMiss.length).toBeLessThan(0.05);
+  });
+  it('pauses at every whistle before the next faceoff', () => {
+    expect(stoppages.length).toBeGreaterThan(3);
+    for (const s of stoppages) expect(s).toBeGreaterThan(1.8);
   });
   it('keeps everyone on the ice', () => {
     for (const b of motion.bodies.values()) {
