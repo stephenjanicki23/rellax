@@ -43,7 +43,7 @@ export const TUNING = {
   fitWeight: 0.09,
   /** Contest penalty for a completely new system. */
   unfamiliarity: 0.08,
-  moraleWeight: 0.04,
+  moraleWeight: Number(globalThis.process?.env?.HGM_MORALE_WEIGHT ?? 0.025),
   /** Contest edge on special teams per standard deviation of the staff's special-teams rating. */
   specialTeamsWeight: 0.035,
   finishOffset: 0.1,
@@ -61,7 +61,7 @@ export const TUNING = {
   scoreEffect: 0.11,
   /** Slope of team-vs-team possession contests (breakouts, entries, battles, turnovers). */
   contest: 0.13,
-  ratingScale: Number(globalThis.process?.env?.HGM_RATING_SCALE ?? 40),
+  ratingScale: Number(globalThis.process?.env?.HGM_RATING_SCALE ?? 45),
 };
 
 type Zone = 'D' | 'N' | 'O';

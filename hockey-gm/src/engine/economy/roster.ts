@@ -173,13 +173,16 @@ export function ensureDressable(league: League, teamId: number): void {
       promote(league, prospect, teamId === league.userTeamId);
       continue;
     }
+    // At the 50-contract limit, a minor-league deal makes way for the emergency signing.
+    if (teamCapSheet(league, teamId).rows.length >= rulesFor(capSeason(league)).contractLimit && !freeContractSlot(league, teamId)) return;
     if (fa) {
       // Emergency signing to dress a legal lineup (game simplification: allowed even if it breaches the cap).
       const room = capSpace(league, teamId);
       const pay = room >= league.cap.minSalary * 1.5 ? Math.max(league.cap.minSalary, Math.min(marketValue(fa, league), league.cap.minSalary * 1.5)) : league.cap.minSalary;
-      signPlayer(league, fa, teamId, pay, 1, false, { skipCapCheck: true });
-      addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [fa.id], description: `${teamName(league, teamId)} sign ${fullName(fa)} to a one-year deal` });
-      continue;
+      if (signPlayer(league, fa, teamId, pay, 1, false, { skipCapCheck: true }).ok) {
+        addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [fa.id], description: `${teamName(league, teamId)} sign ${fullName(fa)} to a one-year deal` });
+        continue;
+      }
     }
     // Nobody left anywhere: sign a replacement-level minor-league call-up so the team can dress a lineup.
     const callup = withRng(league, (rng) => {
@@ -188,9 +191,30 @@ export function ensureDressable(league: League, teamId: number): void {
       return generatePlayer(rng, { id: league.nextId.player++, pos: p, targetCA: target, age: rng.int(24, 31), season: league.season });
     });
     league.players[callup.id] = callup;
-    signPlayer(league, callup, teamId, league.cap.minSalary, 1, false, { skipCapCheck: true });
+    if (!signPlayer(league, callup, teamId, league.cap.minSalary, 1, false, { skipCapCheck: true }).ok) {
+      delete league.players[callup.id];
+      return;
+    }
     addTransaction(league, { kind: 'signing', teamIds: [teamId], playerIds: [callup.id], description: `${teamName(league, teamId)} sign minor-leaguer ${fullName(callup)} to fill an emergency need` });
   }
+}
+
+/**
+ * Free a contract slot by ending the least valuable minor-league deal (an
+ * emergency simplification of a mutual termination; top young prospects are
+ * kept). Returns false if there is nothing suitable to release.
+ */
+function freeContractSlot(league: League, teamId: number): boolean {
+  const p = playersOf(league, teamId, ['prospect'])
+    .filter((x) => x.contract && !(league.season - x.birthYear <= 21 && x.pa >= 130))
+    .sort((a, b) => a.pa + a.ca * 0.2 - (b.pa + b.ca * 0.2))[0];
+  if (!p) return false;
+  p.teamId = null;
+  p.status = 'fa';
+  p.contract = null;
+  p.rightsTeamId = null;
+  addTransaction(league, { kind: 'termination', teamIds: [teamId], playerIds: [p.id], description: `${teamName(league, teamId)} and ${fullName(p)} mutually terminate his minor-league contract` });
+  return true;
 }
 
 /** Cost of sending a player down: waiver risk for non-exempt players, nothing for exempt ones. */

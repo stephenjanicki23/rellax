@@ -132,3 +132,33 @@ describe('offseason: draft, re-sign, free agency', () => {
     expect(signings.length).toBeGreaterThan(60);
   });
 });
+
+import { ensureDressable as ensureDressable2 } from '../src/engine/economy/roster';
+import { capSeason as capSeason2, teamCapSheet as capSheet2 } from '../src/engine/cba/capManager';
+import { rulesFor as rulesFor2 } from '../src/engine/cba/rules';
+import { createLeague as createLeague2 } from '../src/engine/league/create';
+import { playersOf as playersOf2 } from '../src/engine/league/helpers';
+
+describe('emergency signings at the contract limit', () => {
+  it('a club at the contract limit that loses its goalies frees a minor-league slot and signs one', () => {
+    const l = createLeague2({ seed: 'limit-1' });
+    const t = l.teams[3];
+    for (const g of playersOf2(l, t.id, ['active', 'prospect']).filter((p) => p.pos === 'G')) {
+      g.teamId = null;
+      g.status = 'fa';
+      g.contract = null;
+    }
+    // Treat the club's current count as the limit.
+    const rules = rulesFor2(capSeason2(l)) as { contractLimit: number };
+    const orig = rules.contractLimit;
+    rules.contractLimit = capSheet2(l, t.id).rows.length;
+    try {
+      const before = capSheet2(l, t.id).rows.length;
+      ensureDressable2(l, t.id);
+      expect(capSheet2(l, t.id).rows.length).toBeLessThanOrEqual(before);
+      expect(playersOf2(l, t.id).filter((p) => p.pos === 'G').length).toBeGreaterThanOrEqual(2);
+    } finally {
+      rules.contractLimit = orig;
+    }
+  });
+});

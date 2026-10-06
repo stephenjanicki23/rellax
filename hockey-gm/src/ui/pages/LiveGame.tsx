@@ -312,6 +312,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
         snap={s}
         period={period}
         clock={clock}
+        intermissionAfter={report ? report.period : undefined}
         playoff={playoff}
         info={info}
         records={records}

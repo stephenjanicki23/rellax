@@ -5,6 +5,7 @@
  * loyalty and career stage. Offers accumulate over several "free agency
  * days" and players decide when an offer is good enough (or time runs out).
  */
+import { agentOf } from '../cba/agents';
 import { lapseDraftRights } from './draftRights';
 import { clamp } from '../core/math';
 import { seedFrom, Rng } from '../core/rng';
@@ -136,6 +137,9 @@ export function aiResign(league: League, teamId: number): void {
     }
     if (!want) continue;
     if (rfa) {
+      // Talks with a star RFA and a hard-nosed agent sometimes stall: he's qualified instead, and may hold out.
+      const stall = p.ca >= 140 && agentOf(league, p).style === 'hardball' && (seedFrom(league.seed, 'rfa-stall', league.season, p.id) % 100) < 30;
+      if (stall && p.status !== 'prospect') continue;
       if (signFromOffer(league, p, teamId, { aav: ask.salary, years: ask.years, twoWay: p.status === 'prospect' }, { origin: 'signing', toMinors: p.status === 'prospect' }).ok) booked(ask);
       continue;
     }

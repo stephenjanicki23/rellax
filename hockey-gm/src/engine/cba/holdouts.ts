@@ -28,11 +28,12 @@ export function isHoldingOut(p: Player): boolean {
 export function wantsToHoldOut(league: League, p: Player, q: QualifyingOfferRecord): boolean {
   if (p.ca < 135) return false;
   const value = contractValue(p, league).value;
-  if (value < q.amount * 1.35) return false;
+  if (value < q.amount * 1.4) return false;
   const agent = agentOf(league, p);
   if (agent.style === 'friendly') return false;
   const roll = (seedFrom(league.seed, 'holdout', league.season, p.id) % 100) / 100;
-  return roll < (agent.style === 'hardball' ? 0.8 : 0.55);
+  // Holdouts are rare in the modern NHL: most underpaid RFAs still sign.
+  return roll < (agent.style === 'hardball' ? 0.55 : 0.25);
 }
 
 export function beginHoldout(league: League, p: Player, teamId: number): void {
