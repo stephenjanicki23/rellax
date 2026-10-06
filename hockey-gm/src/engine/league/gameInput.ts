@@ -11,9 +11,12 @@ import { effectiveCoachRatings } from '../team/coaching';
 import { pairChemistry, pairKey } from '../team/chemistry';
 import { seedFrom } from '../core/rng';
 import { playersOf } from './helpers';
+import { medicalRisk, restedTonight } from '../team/medical';
 
-export function toGamePlayer(p: Player, season: number): GamePlayerInput {
+export function toGamePlayer(p: Player, season: number, riskMult = 1): GamePlayerInput {
   const energy = clamp(100 - p.fatigue * 0.3, 55, 100);
+  // Playing hurt: less effective, more likely to get hurt worse.
+  const hurt = p.playingHurt ? (p.playingHurt.severity === 'moderate' ? 1 : 0.5) : 0;
   return {
     id: p.id,
     first: p.first,
@@ -24,11 +27,11 @@ export function toGamePlayer(p: Player, season: number): GamePlayerInput {
     attrs: p.attrs,
     age: season - p.birthYear,
     energy,
-    form: p.form,
+    form: p.form - hurt * 0.6,
     morale: p.morale,
     confidence: p.confidence,
-    injuryRisk: injuryRisk(p, season),
-    injurySeverity: severityShift(p, season),
+    injuryRisk: injuryRisk(p, season) * riskMult * (1 + hurt * 0.6),
+    injurySeverity: severityShift(p, season) + hurt * 0.5,
     streaky: p.traits.includes('streaky'),
     playoffRep: p.playoffRep,
   };
@@ -59,7 +62,9 @@ export function chooseStarter(league: League, team: Team, lines: Lines, day: num
 }
 
 export function teamGameInput(league: League, team: Team, day: number, playoff: boolean, salt: number): GameTeamInput {
-  const roster = playersOf(league, team.id, ['active']);
+  // Rested veterans sit the second night of a back-to-back.
+  const rested = restedTonight(league, team, playedYesterday(league, team.id, day));
+  const roster = playersOf(league, team.id, ['active']).filter((p) => !rested.has(p.id));
   if (team.autoLines || team.id !== league.userTeamId) {
     // CPU teams (and users on auto) refresh lines every game.
     team.lines = autoLines(roster);
@@ -101,7 +106,7 @@ export function teamGameInput(league: League, team: Team, day: number, playoff: 
     teamId: team.id,
     abbr: team.abbr,
     name: `${team.city} ${team.name}`,
-    players: dressed.map((p) => toGamePlayer(p, league.season)),
+    players: dressed.map((p) => toGamePlayer(p, league.season, medicalRisk(team))),
     lines,
     tactics: team.tactics,
     coach: effectiveCoachRatings(head, gk, asst),

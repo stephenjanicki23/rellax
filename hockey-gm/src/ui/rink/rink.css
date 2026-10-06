@@ -84,3 +84,23 @@
 .replay-banner .rb-tag { background: #c8102e; color: #fff; font-weight: 800; padding: 2px 8px; font-style: italic; animation: rb-blink 1.2s steps(2) infinite; }
 @keyframes rb-blink { 50% { opacity: 0.55; } }
 .rink-toggle:disabled { opacity: 0.6; cursor: default; }
+
+/* Stoppages: why play stopped, then the faceoff matchup. */
+.rink-chips { flex-direction: column; align-items: center; top: 5%; }
+.rink-chip-row { display: flex; gap: 6px; }
+.rink-stop {
+  display: flex; align-items: stretch; background: rgba(12, 13, 15, 0.92); color: #f2f4f6; border-left: 4px solid var(--tc, #f2f4f6);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45); font-family: var(--m-display, inherit); max-width: min(560px, 92vw); animation: chip-in 0.25s ease-out;
+}
+.rink-stop .rs-tag {
+  display: flex; align-items: center; padding: 0 10px; font-weight: 800; font-style: italic; text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px;
+  color: #111; background: repeating-linear-gradient(90deg, #f2f4f6 0 6px, #111 6px 12px); text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+}
+.rink-stop.penalty .rs-tag { background: #f6c445; text-shadow: none; }
+.rink-stop.faceoff .rs-tag { background: #8cc8ff; text-shadow: none; }
+.rink-stop .rs-body { display: flex; flex-direction: column; padding: 4px 12px 5px; gap: 1px; }
+.rink-stop .rs-body b { font-size: clamp(15px, 1.5vw, 20px); font-style: italic; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.1; }
+.rink-stop .rs-body span { font-size: clamp(11px, 1vw, 13px); opacity: 0.85; }
+.rink2 .fo-dot { fill: none; stroke: #f6c445; stroke-width: 0.5; opacity: 0.9; animation: fo-pulse 1s ease-in-out infinite; }
+@keyframes fo-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .rink2 .fo-dot, .rink-stop { animation: none; } }

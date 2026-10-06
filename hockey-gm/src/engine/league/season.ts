@@ -14,6 +14,7 @@ import { applyToStandings } from './standings';
 import { tallyCoachGame } from '../team/staffMarket';
 import { bookGame, fansWeekly } from '../front/finances';
 import { devPlansWeekly } from '../player/devPlan';
+import { medicalDay } from '../team/medical';
 import { allStarDay, selectAllStars, weeklyStars } from './race';
 import { gameRecap, powerRankingsColumn } from '../front/media';
 import { addNews, isCpu, playersOf, teamName } from './helpers';
@@ -132,6 +133,7 @@ export function applyGameResult(league: League, g: ScheduledGame, r: GameResult)
     const days = Math.max(1, Math.round(inj.injury.days * league.settings.injuryRate));
     if (p.injury && p.injury.daysRemaining >= days) continue;
     p.injury = makeInjury({ ...inj.injury, days }, league.season, league.day);
+    p.playingHurt = undefined;
     p.injuryHistory.push({ season: league.season, type: inj.injury.type, bodyPart: inj.injury.bodyPart, days });
     if (inj.injury.severity !== 'minor' && (p.reputation >= 40 || p.teamId === league.userTeamId)) {
       const vet = league.season - p.birthYear >= 30;
@@ -178,12 +180,9 @@ function dailyUpdates(league: League): void {
   const day = league.day;
   for (const p of Object.values(league.players)) {
     if (p.status === 'retired' || p.status === 'draft') continue;
-    if (p.injury) {
-      p.injury.daysRemaining--;
-      if (p.injury.daysRemaining <= 0) p.injury = null;
-    }
     p.fatigue = clamp(p.fatigue * 0.58 - 0.5, 0, 100);
   }
+  medicalDay(league);
   processWaivers(league);
   for (const p of dailyLtir(league)) {
     if (p.teamId === null || !isCpu(league, p.teamId)) continue;

@@ -66,18 +66,24 @@ export class RinkTimeline {
       const gap = GAP[e.type] ?? 0.35;
       // Anchored to game time: events sharing a timestamp are spread out by small gaps,
       // but the schedule catches back up instead of drifting behind the game clock.
-      const s = Math.max(this.lastS + gap, e.t + this.holdSum);
+      // During a stoppage, line changes and other housekeeping happen right after the whistle,
+      // leaving the rest of the pause for everyone to line up for the faceoff.
+      const housekeeping = this.stopped && e.type !== 'faceoff' && e.type !== 'periodStart' && whistleHold(e.type) === 0;
+      const s = housekeeping ? this.lastS + Math.max(gap, 0.4) : Math.max(this.lastS + gap, e.t + this.holdSum);
       // Waypoints so long possessions keep moving (not during stoppages).
       if (this.lastIce && !this.stopped && s - this.lastS > WAYPOINT_EVERY * 1.5) {
         const n = Math.floor((s - this.lastS) / WAYPOINT_EVERY);
         for (let i = 1; i < n; i++) this.push(this.director.idle(this.lastIce), this.lastS + ((s - this.lastS) * i) / n, this.lastIce.period);
       }
       const frames = this.director.apply(e, ice);
+      let placed = this.lastS;
       frames.forEach((f, i) => {
-        const back = (frames.length - 1 - i) * 0.32;
-        this.push(f, Math.max(this.lastS + 0.05, s - back), e.period);
+        // Staged frames carry their own offset; otherwise lead-in frames are spaced just before the event.
+        const want = f.at !== undefined ? s + f.at : s - (frames.length - 1 - i) * 0.32;
+        placed = Math.max(placed + 0.05, want);
+        this.push(f, placed, e.period);
       });
-      this.lastS = s;
+      this.lastS = Math.max(s, placed);
       this.lastIce = ice;
       if (e.type === 'faceoff' || e.type === 'periodStart') this.stopped = false;
       const hold = whistleHold(e.type);
@@ -272,7 +278,8 @@ export class RinkMotion {
         b.leaving = 0;
         const w = want[b.id];
         // Gentle individual wander so nobody stands frozen.
-        const amp = b.goalie ? 0.6 : 1.8;
+        // Nearly still while lined up for a faceoff.
+        const amp = b.goalie ? 0.6 : target.faceoff ? 0.2 : 1.8;
         const ph = b.id * 0.37;
         tgt = { x: w.x + Math.sin(this.P * 0.9 + ph) * amp, y: w.y + Math.cos(this.P * 0.7 + ph * 1.3) * amp };
         // The carrier skates the puck to where the next keyframe wants it.
@@ -290,14 +297,16 @@ export class RinkMotion {
       const desired = { x: (tgt.x - b.pos.x) / T, y: (tgt.y - b.pos.y) / T };
       const sp = Math.hypot(desired.x, desired.y);
       // Goalies shuffle in the crease but skate hard when far out of position.
-      const vmax = b.goalie && Math.hypot(tgt.x - b.pos.x, tgt.y - b.pos.y) > 6 ? 20 : SPEED[kind];
+      // Setting up for a faceoff, everyone glides into place a little quicker than game speed.
+      const setup = target.faceoff && !b.goalie ? 1.7 : 1;
+      const vmax = (b.goalie && Math.hypot(tgt.x - b.pos.x, tgt.y - b.pos.y) > 6 ? 20 : SPEED[kind]) * setup;
       if (sp > vmax) {
         desired.x *= vmax / sp;
         desired.y *= vmax / sp;
       }
       const dv = { x: desired.x - b.vel.x, y: desired.y - b.vel.y };
       const dvl = Math.hypot(dv.x, dv.y);
-      const amax = ACCEL[kind] * dt;
+      const amax = ACCEL[kind] * setup * dt;
       if (dvl > amax) {
         dv.x *= amax / dvl;
         dv.y *= amax / dvl;

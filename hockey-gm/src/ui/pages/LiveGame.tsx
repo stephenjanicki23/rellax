@@ -256,21 +256,35 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     const rate = Number(speed);
     let last = performance.now();
     feed.rate = rate;
+    // Stoppages play out in real time (up to 10×) so the whistle and the faceoff can be followed;
+    // at 30× and 60× they're shortened in proportion.
+    const holdRate = Math.max(1, rate / 10);
     const id = setInterval(() => {
       const pb = playRef.current!;
       const now = performance.now();
-      const dt = (now - last) / 1000;
+      let real = (now - last) / 1000;
       last = now;
-      let adv = dt * rate;
-      pb.pres += adv;
+      let presAdv = 0;
+      let gameAdv = 0;
+      if (pb.hold > 0) {
+        const use = Math.min(pb.hold, real * holdRate);
+        pb.hold -= use;
+        presAdv += use;
+        real -= use / holdRate;
+      }
+      if (pb.hold <= 1e-9 && real > 0) {
+        gameAdv = real * rate;
+        // Stop exactly on the next whistle so the pause starts when the play stops.
+        const whistle = pb.pending.find((e) => e.t > pb.t && whistleHold(e.type) > 0);
+        if (whistle && pb.t + gameAdv > whistle.t) gameAdv = whistle.t - pb.t;
+        presAdv += gameAdv;
+      }
+      pb.pres += presAdv;
       feed.pres = pb.pres;
       feed.presAt = now;
-      if (pb.hold > 0) {
-        const use = Math.min(pb.hold, adv);
-        pb.hold -= use;
-        adv -= use;
-      }
-      advanceTo(pb.t + adv);
+      advanceTo(pb.t + gameAdv);
+      // The rink extrapolates between ticks at the current pace.
+      feed.rate = pb.hold > 1e-9 ? holdRate : rate;
     }, 50);
     return () => {
       clearInterval(id);

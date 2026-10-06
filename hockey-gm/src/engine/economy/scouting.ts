@@ -31,19 +31,78 @@ export function knowledgeOf(league: League, p: Player): number {
   return clamp(Math.max(k, base), 0, 100);
 }
 
-function scoutQuality(league: League): { ca: number; pa: number } {
+// ───────────────────────────── scout specialities ─────────────────────────────
+
+export const scoutRegion = (s: Scout): 'NA' | 'EU' => s.homeRegion ?? (s.id % 3 === 1 ? 'EU' : 'NA');
+export const scoutFocus = (s: Scout): 'skaters' | 'goalies' | 'all' => s.focus ?? 'all';
+export const scoutExperience = (s: Scout): number => s.experience ?? 8;
+
+/** +1 when the player is the scout's speciality, -1 when he's the other kind, 0 for generalists. */
+function focusMatch(s: Scout, p: Player): number {
+  const f = scoutFocus(s);
+  if (f === 'all') return 0;
+  return (f === 'goalies') === (p.pos === 'G') ? 1 : -1;
+}
+
+/** A scout's effective judgement of one player: experience and speciality sharpen it. */
+export function scoutJudgement(s: Scout, p: Player): { ca: number; pa: number } {
+  const bonus = Math.min(20, scoutExperience(s)) + focusMatch(s, p) * 12;
+  return { ca: clamp(s.judgingAbility + bonus, 1, 200), pa: clamp(s.judgingPotential + bonus, 1, 200) };
+}
+
+/** Weekly knowledge a scout gains on a player. */
+export function scoutGain(s: Scout, p: Player): number {
+  let gain = 7 + s.judgingAbility / 25;
+  if (s.assignment.kind === 'draft' && s.assignment.region) gain *= 1.25;
+  // He knows the rinks, coaches and contacts in his home region.
+  if ((p.status === 'draft' || p.status === 'prospect') && prospectRegion(p) === scoutRegion(s)) gain *= 1.3;
+  gain *= 1 + focusMatch(s, p) * 0.15;
+  return gain * (1 + Math.min(15, scoutExperience(s)) * 0.01);
+}
+
+/** The scout who has watched this player the most (and how many weeks). */
+export function leadScout(league: League, p: Player): { scout: Scout; weeks: number } | null {
+  const seen = league.scouting.seenBy?.[p.id];
+  if (!seen) return null;
+  let best: { scout: Scout; weeks: number } | null = null;
+  for (const s of league.scouts) {
+    const w = seen[s.id] ?? 0;
+    if (w > 0 && (!best || w > best.weeks)) best = { scout: s, weeks: w };
+  }
+  return best;
+}
+
+function scoutQuality(league: League, p: Player): { ca: number; pa: number } {
   if (!league.scouts.length) return { ca: 90, pa: 90 };
-  return {
-    ca: Math.max(...league.scouts.map((s) => s.judgingAbility)),
-    pa: Math.max(...league.scouts.map((s) => s.judgingPotential)),
-  };
+  const all = league.scouts.map((s) => scoutJudgement(s, p));
+  const best = { ca: Math.max(...all.map((j) => j.ca)), pa: Math.max(...all.map((j) => j.pa)) };
+  // The read comes mostly from the scout who has actually watched him.
+  const lead = leadScout(league, p);
+  if (!lead) return best;
+  const j = scoutJudgement(lead.scout, p);
+  return { ca: (j.ca * 2 + best.ca) / 3, pa: (j.pa * 2 + best.pa) / 3 };
+}
+
+/** New season: scouts gain experience (and a little judgement while still learning). */
+export function scoutsNewSeason(league: League): void {
+  const rng = new Rng(seedFrom(league.seed, 'scouts', league.season));
+  for (const s of league.scouts) {
+    const exp = scoutExperience(s);
+    s.experience = exp + 1;
+    if (exp < 12) {
+      s.judgingAbility = clamp(s.judgingAbility + rng.int(0, 3), 1, 200);
+      s.judgingPotential = clamp(s.judgingPotential + rng.int(0, 3), 1, 200);
+    }
+  }
+  const seen = league.scouting.seenBy;
+  if (seen) for (const id of Object.keys(seen)) if (!league.players[Number(id)] || league.players[Number(id)].status === 'retired') delete seen[Number(id)];
 }
 
 /** User-facing estimate of a player's current and potential ability. */
 export function estimate(league: League, p: Player): Estimate {
   const k = knowledgeOf(league, p);
   if (k >= 100 || league.settings.godMode) return { ca: p.ca, pa: p.pa, caLow: p.ca, caHigh: p.ca, paLow: p.pa, paHigh: p.pa, knowledge: 100, exact: true };
-  const q = scoutQuality(league);
+  const q = scoutQuality(league, p);
   const r = new Rng(seedFrom(league.seed, 'est', p.id));
   const biasCa = r.normal(0, 1);
   const biasPa = r.normal(0, 1);
@@ -106,12 +165,13 @@ export function scoutReport(league: League, p: Player): { projection: string; st
 
 /** Weekly scouting progress for the user's scouts. */
 export function weeklyScouting(league: League): void {
+  const seen = (league.scouting.seenBy ??= {});
   for (const s of league.scouts) {
-    const gain = (7 + s.judgingAbility / 25) * (s.assignment.kind === 'draft' && s.assignment.region ? 1.25 : 1);
     const targets = scoutTargets(league, s);
     for (const p of targets) {
       const cur = league.scouting.knowledge[p.id] ?? 0;
-      league.scouting.knowledge[p.id] = clamp(cur + gain * (cur > 70 ? 0.5 : 1), 0, 100);
+      league.scouting.knowledge[p.id] = clamp(cur + scoutGain(s, p) * (cur > 70 ? 0.5 : 1), 0, 100);
+      (seen[p.id] ??= {})[s.id] = (seen[p.id][s.id] ?? 0) + 1;
     }
   }
 }

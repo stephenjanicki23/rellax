@@ -14,6 +14,7 @@ import { coachOverall, coachTotals, tacticsForRoster } from './coaching';
 import { coachChangeFamiliarity, fitNorm } from './fit';
 import { contractStartSeason } from '../cba/capManager';
 import { playoffResultFor } from '../league/playoffs';
+import { medicalCost } from './medical';
 
 export type StaffSlot = 'headCoach' | 'assistant' | 'goalieCoach';
 export const SLOT_ROLE: Record<StaffSlot, Coach['role']> = { headCoach: 'head', assistant: 'assistant', goalieCoach: 'goalie' };
@@ -39,7 +40,7 @@ export function deadStaffMoney(league: League, team: Team, season = payStart(lea
 
 /** Staff salaries this season plus money still owed to fired coaches. */
 export function staffSpend(league: League, team: Team, except?: number): number {
-  let s = deadStaffMoney(league, team);
+  let s = deadStaffMoney(league, team) + medicalCost(team);
   for (const id of [team.staff.headCoach, team.staff.assistant, team.staff.goalieCoach]) {
     if (id === null || id === except) continue;
     s += league.coaches[id]?.contract?.salary ?? 0;

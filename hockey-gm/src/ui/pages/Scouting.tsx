@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame, mutate } from '../store';
 import { Card, PlayerLink, Pos, Stars, Table, Tabs, Bar, type Column } from '../components/common';
-import { estimate, scoutReport, knowledgeOf, combineResults, interviewsLeft } from '../../engine/economy/scouting';
+import { estimate, scoutReport, knowledgeOf, combineResults, interviewsLeft, scoutExperience, scoutFocus, scoutRegion } from '../../engine/economy/scouting';
 import { draftColumns, interviewColumn } from '../components/DraftColumns';
 import { draftClassInfo } from '../../engine/league/realDraftClass';
 import { draftRankings } from '../../engine/economy/draft';
@@ -57,6 +57,16 @@ export function ScoutingPage() {
               <div className="stack">
                 <div className="attr"><span className="n">Judging ability</span><span className="v">{attr20(s.judgingAbility)}</span><Bar value={s.judgingAbility} /></div>
                 <div className="attr"><span className="n">Judging potential</span><span className="v">{attr20(s.judgingPotential)}</span><Bar value={s.judgingPotential} /></div>
+                <div className="kv" style={{ fontSize: 13 }}>
+                  <span className="k">Home region</span>
+                  <span title="Covers prospects from his home region about 30% faster">{scoutRegion(s) === 'NA' ? 'North America' : 'Europe'}</span>
+                  <span className="k">Speciality</span>
+                  <span title="Sharper reads and faster coverage on his speciality; slower on the other position">{scoutFocus(s) === 'goalies' ? 'Goalie specialist' : scoutFocus(s) === 'skaters' ? 'Skater specialist' : 'Generalist'}</span>
+                  <span className="k">Experience</span>
+                  <span title="Judgement improves with experience">{scoutExperience(s)} season{scoutExperience(s) === 1 ? '' : 's'}</span>
+                  <span className="k">Reports filed</span>
+                  <span>{Object.values(league.scouting.seenBy ?? {}).filter((m) => (m[s.id] ?? 0) > 0).length} players</span>
+                </div>
                 <label className="field">
                   Assignment
                   <select

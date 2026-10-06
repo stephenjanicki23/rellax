@@ -16,7 +16,7 @@ import { playoffResultFor } from './playoffs';
 import { standingRows } from './standings';
 import { agePlayer, developPlayer, retirementChance } from '../player/development';
 import { devContext } from './season';
-import { publishCentralRankings, runCombine } from '../economy/scouting';
+import { publishCentralRankings, runCombine, scoutsNewSeason } from '../economy/scouting';
 import { ahlPlayoffs, archiveAhlSeason, resetAhlSeason } from './ahl';
 import { prepareDraft, runDraftUntilUser, finishDraft } from '../economy/draft';
 import { aiResign, startFreeAgency, processFADay, expiringPlayers } from '../economy/freeAgency';
@@ -254,6 +254,7 @@ export function startResignPhase(league: League): void {
 export function startNewSeason(league: League): void {
   league.season++;
   resetAhlSeason(league);
+  scoutsNewSeason(league);
   // The books are now kept for the new season (capSeason depends on the phase).
   league.phase = 'preseason';
   const cfg = league.config;

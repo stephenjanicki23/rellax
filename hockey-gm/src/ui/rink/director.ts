@@ -55,6 +55,10 @@ export interface Frame {
   mark?: ShotMark;
   /** The engine event this frame completes (on the last frame of each event). */
   event?: GameEvent;
+  /** Seconds relative to the event's scheduled time (negative = before it); default spacing otherwise. */
+  at?: number;
+  /** Faceoff staging: players lined up at the dot, then the puck drop. */
+  faceoff?: { phase: 'lineup' | 'drop'; team: 0 | 1; p1?: number; p2?: number; dot: Pt };
 }
 
 export interface IceState {
@@ -167,6 +171,10 @@ export class RinkDirector {
   shots: ShotMark[] = [];
   private beat = 0;
   private flashId = 0;
+  /** The last whistle (decides where the next faceoff is). */
+  private whistle: { type: GameEvent['type']; team: 0 | 1 } | null = null;
+  /** Where the coming faceoff should be, predicted at the whistle so players head there during the stoppage. */
+  private nextDot: Pt | null = null;
   private pendingMark: ShotMark | undefined;
 
   constructor(
@@ -174,10 +182,10 @@ export class RinkDirector {
     private abbr: [string, string],
   ) {}
 
-  private frame(ice: IceState, motion: Frame['motion'], flash: Flash | null = null, goalLight: 0 | 1 | null = null): Frame {
+  private frame(ice: IceState, motion: Frame['motion'], flash: Flash | null = null, goalLight: 0 | 1 | null = null, players?: Record<number, Pt>): Frame {
     this.beat++;
     this.puck = clampPt(this.puck, 2);
-    this.players = formation(ice, this.meta, this.puck, this.carrier, this.poss, this.beat);
+    this.players = players ?? formation(ice, this.meta, this.puck, this.carrier, this.poss, this.beat);
     const mark = this.pendingMark;
     this.pendingMark = undefined;
     return { puck: { ...this.puck }, motion, carrier: this.carrier, players: this.players, flash, goalLight, mark };
@@ -201,7 +209,79 @@ export class RinkDirector {
   apply(e: GameEvent, ice: IceState): Frame[] {
     const frames = this.applyInner(e, ice);
     frames[frames.length - 1].event = e;
+    if (whistleHold(e.type) > 0 || e.type === 'periodStart') {
+      this.whistle = { type: e.type, team: e.team };
+      this.nextDot = this.predictDot(e, ice);
+    } else if (e.type === 'faceoff') {
+      this.whistle = null;
+      this.nextDot = null;
+    }
     return frames;
+  }
+
+  /** The faceoff spot a whistle implies (rulebook locations; null when it can't be known yet). */
+  private predictDot(e: GameEvent, ice: IceState): Pt | null {
+    const p = ice.period;
+    const ySide = this.puck.y < RINK.cy ? -1 : 1;
+    const ownZone = (t: 0 | 1): Pt => ({ x: ownNetX(t, p) + attackDir(t, p) * 20, y: RINK.cy + ySide * 22 });
+    switch (e.type) {
+      case 'goal':
+      case 'fight':
+      case 'periodStart':
+        return { x: RINK.cx, y: RINK.cy };
+      case 'icing':
+      case 'freeze':
+      case 'penalty':
+        return ownZone(e.team);
+      case 'offside':
+        return { x: RINK.cx + attackDir(e.team, p) * 20, y: RINK.cy + ySide * 22 };
+      default:
+        return null;
+    }
+  }
+
+  /** Where the next faceoff is: centre after goals and period starts, the nearest neutral dot after offside. */
+  private faceoffDot(e: GameEvent, ice: IceState, seed: number): Pt {
+    const p = ice.period;
+    const t = e.team;
+    const d = attackDir(t, p);
+    const z = e.data?.zone ?? 'N';
+    const side = hash(seed, 3) < 0.5 ? -1 : 1;
+    const w = this.whistle;
+    const want = z === 'N' ? null : z === 'O' ? attackNetX(t, p) - d * 20 : ownNetX(t, p) + d * 20;
+    const pred = this.nextDot;
+    if (pred && (z === 'N' ? Math.abs(pred.x - RINK.cx) <= 20 : Math.abs(pred.x - want!) < 1)) return pred;
+    if (z === 'N') {
+      if (!w || w.type === 'goal' || w.type === 'periodStart' || w.type === 'periodEnd') return { x: RINK.cx, y: RINK.cy };
+      // Offside: just outside the blue line the offending team was crossing.
+      if (w.type === 'offside') return { x: RINK.cx + attackDir(w.team, p) * 20, y: RINK.cy + side * 22 };
+      return hash(seed, 4) < 0.55 ? { x: RINK.cx, y: RINK.cy } : { x: RINK.cx + side * 20, y: RINK.cy + side * 22 };
+    }
+    // Same side of the ice the puck was on when play stopped.
+    const ySide = this.puck.y < RINK.cy ? -1 : 1;
+    return { x: z === 'O' ? attackNetX(t, p) - d * 20 : ownNetX(t, p) + d * 20, y: RINK.cy + ySide * 22 };
+  }
+
+  /** Faceoff alignment: centres at the dot, wingers on the hash marks, defence behind, goalies in net. */
+  private lineup(ice: IceState, dot: Pt, centres: [number | undefined, number | undefined]): Record<number, Pt> {
+    const out: Record<number, Pt> = {};
+    for (const team of [0, 1] as const) {
+      const d = attackDir(team, ice.period);
+      const skaters = ice.onIce[team].filter((id) => id !== ice.goalies[team]);
+      const c = centres[team] !== undefined && skaters.includes(centres[team]!) ? centres[team]! : skaters.find((id) => this.meta.get(id)?.pos === 'C') ?? skaters.find((id) => this.meta.get(id)?.pos !== 'D');
+      const ds = skaters.filter((id) => id !== c && this.meta.get(id)?.pos === 'D');
+      const ws = skaters.filter((id) => id !== c && !ds.includes(id));
+      // Short-handed or extra skaters: fill wing spots first, then the point.
+      const wingSlots = [{ x: dot.x - d * 3.2, y: dot.y - 9 }, { x: dot.x - d * 3.2, y: dot.y + 9 }];
+      const dSlots = [{ x: dot.x - d * 15, y: dot.y - 10 }, { x: dot.x - d * 15, y: dot.y + 10 }, { x: dot.x - d * 15, y: dot.y }];
+      if (c !== undefined) out[c] = { x: dot.x - d * 1.9, y: dot.y };
+      ws.forEach((id, i) => (out[id] = wingSlots[i] ?? dSlots[2 - (i - 2)] ?? dSlots[2]));
+      ds.forEach((id, i) => (out[id] = dSlots[i] ?? wingSlots[i % 2]));
+      const g = ice.goalies[team];
+      if (g !== null) out[g] = { x: ownNetX(team, ice.period) + d * 3.5, y: lerp(RINK.cy, dot.y, 0.12) };
+    }
+    for (const id of Object.keys(out)) out[+id] = clampPt(out[+id]);
+    return out;
   }
 
   private applyInner(e: GameEvent, ice: IceState): Frame[] {
@@ -210,7 +290,6 @@ export class RinkDirector {
     const t = e.team;
     const d = attackDir(t, p);
     const side = hash(seed, 3) < 0.5 ? -1 : 1;
-    const dot = (x: number) => ({ x, y: RINK.cy + side * 22 });
     switch (e.type) {
       case 'periodStart':
         this.puck = { x: RINK.cx, y: RINK.cy };
@@ -218,12 +297,23 @@ export class RinkDirector {
         this.shots = this.shots.filter((s) => s.period === e.period);
         return [this.frame(ice, 'still', this.flash(e.period > 3 ? 'OVERTIME' : `PERIOD ${e.period}`, 'info'))];
       case 'faceoff': {
-        const z = e.data?.zone ?? 'N';
-        if (z === 'N') this.puck = hash(seed, 4) < 0.55 ? { x: RINK.cx, y: RINK.cy } : dot(RINK.cx + side * 20);
-        else this.puck = dot(z === 'O' ? attackNetX(t, p) - d * 20 : ownNetX(t, p) + d * 20);
+        // Line up at the dot (players skate there during the stoppage), drop the puck, win it back.
+        const dot = this.faceoffDot(e, ice, seed);
+        const centres: [number | undefined, number | undefined] = t === 0 ? [e.p1, e.p2] : [e.p2, e.p1];
+        const spots = this.lineup(ice, dot, centres);
+        this.puck = { ...dot };
+        this.carrier = null;
+        const info = { team: t, p1: e.p1, p2: e.p2, dot };
+        const lineup = { ...this.frame(ice, 'still', null, null, spots), at: -1, faceoff: { phase: 'lineup' as const, ...info } };
+        const drop = { ...this.frame(ice, 'still', null, null, spots), at: 0, faceoff: { phase: 'drop' as const, ...info } };
+        // Won back to a defenceman (or a winger when there's none).
+        const mine = ice.onIce[t].filter((id) => id !== ice.goalies[t] && id !== e.p1);
+        const back = mine.find((id) => this.meta.get(id)?.pos === 'D') ?? mine[0] ?? e.p1 ?? null;
         this.poss = t;
-        this.carrier = e.p1 ?? null;
-        return [this.frame(ice, 'still')];
+        this.carrier = back;
+        if (back !== null && spots[back]) this.puck = { ...spots[back] };
+        const won = { ...this.frame(ice, 'pass', null, null, spots), at: 0.5 };
+        return [lineup, drop, won];
       }
       case 'breakout':
         this.poss = t;
@@ -239,11 +329,19 @@ export class RinkDirector {
         this.puck = { x: RINK.cx + d * 25, y: 20 + hash(seed, 5) * 45 };
         this.carrier = null;
         return [this.frame(ice, 'still', this.flash('OFFSIDE', 'info'))];
-      case 'dumpIn':
+      case 'dumpIn': {
+        // Fired into the corner, then it rims around the boards behind the net.
         this.poss = t;
+        this.carrier = e.p1 ?? this.carrier;
+        const release = { ...this.frame(ice, 'carry'), at: 0 };
         this.carrier = null;
-        this.puck = { x: attackNetX(t, p) + d * 4, y: side < 0 ? 7 : 78 };
-        return [this.frame(ice, 'pass')];
+        const net = attackNetX(t, p);
+        this.puck = { x: net - d * 3, y: side < 0 ? 5 : 80 };
+        const corner = { ...this.frame(ice, 'pass'), at: 0.9 };
+        this.puck = { x: net + d * 7, y: RINK.cy - side * 14 };
+        const rim = { ...this.frame(ice, 'pass'), at: 1.7 };
+        return [release, corner, rim];
+      }
       case 'battle':
       case 'takeaway':
         this.poss = t;
@@ -348,7 +446,9 @@ export class RinkDirector {
         return [wind, this.frame(ice, 'shot', this.flash(e.data?.success ? 'SCORES!' : 'STOPPED', e.data?.success ? 'goal' : 'save', t))];
       }
       default:
-        // Line changes, injuries, PP ends etc.: re-form with whoever is on the ice now.
+        // Line changes, injuries, PP ends etc.: re-form with whoever is on the ice now
+        // (during a stoppage, heading for the coming faceoff).
+        if (this.whistle && this.nextDot) return [this.frame(ice, 'carry', null, null, this.lineup(ice, this.nextDot, [undefined, undefined]))];
         return [this.frame(ice, 'carry')];
     }
   }
@@ -383,18 +483,21 @@ export class RinkDirector {
 export function whistleHold(type: GameEvent['type']): number {
   switch (type) {
     case 'goal':
-      return 3.2;
-    case 'periodEnd':
-      return 2.5;
-    case 'penalty':
+      return 5.5;
     case 'fight':
-      return 2;
-    case 'freeze':
+      return 4.5;
+    case 'penalty':
+      return 4;
     case 'icing':
+    case 'injury':
+      return 3.5;
+    case 'freeze':
     case 'offside':
     case 'goalieChange':
-    case 'injury':
-      return 1.5;
+      return 3.2;
+    case 'periodStart':
+    case 'periodEnd':
+      return 2.8;
     default:
       return 0;
   }
