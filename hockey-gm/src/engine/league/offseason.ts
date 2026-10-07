@@ -254,6 +254,9 @@ export function startResignPhase(league: League): void {
 export function startNewSeason(league: League): void {
   league.season++;
   resetAhlSeason(league);
+  // Shot charts roll over: keep last season's for comparison.
+  if (league.shotCharts) league.shotChartsPrev = league.shotCharts;
+  league.shotCharts = { season: league.season, players: {} };
   scoutsNewSeason(league);
   // The books are now kept for the new season (capSeason depends on the phase).
   league.phase = 'preseason';

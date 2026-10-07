@@ -208,6 +208,8 @@ export interface GameResult {
   gwg: number | null;
   /** Shared ice time among teammates, key "minId-maxId" -> seconds. */
   pairToi: Record<string, number>;
+  /** Shot chart for this game: shooter id -> [on-goal shots per zone..., goals per zone...] (see core/shotZones). */
+  shotZones?: Record<number, number[]>;
   /** Per-goalie saves etc. are in players; list of goalies who appeared. */
   goaliesUsed: number[];
   shootout: { team: 0 | 1; shooter: number; goalie: number; scored: boolean }[];

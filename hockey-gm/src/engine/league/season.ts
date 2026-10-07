@@ -126,6 +126,15 @@ export function applyGameResult(league: League, g: ScheduledGame, r: GameResult)
   }
   // Shared ice time builds chemistry.
   for (const [k, v] of Object.entries(r.pairToi)) league.chemistry[k] = (league.chemistry[k] ?? 0) + v;
+  // Shot charts (regular season and playoffs together).
+  if (r.shotZones) {
+    if (league.shotCharts?.season !== league.season) league.shotCharts = { season: league.season, players: {} };
+    const charts = league.shotCharts.players;
+    for (const [id, z] of Object.entries(r.shotZones)) {
+      const cur = (charts[Number(id)] ??= new Array(z.length).fill(0));
+      for (let i = 0; i < z.length; i++) cur[i] += z[i];
+    }
+  }
   // Injuries.
   for (const inj of r.injuries) {
     const p = league.players[inj.playerId];

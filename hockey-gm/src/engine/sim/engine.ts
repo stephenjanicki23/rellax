@@ -12,6 +12,7 @@
  * injuries, seed) it always produces the same GameResult.
  */
 import { Rng } from '../core/rng';
+import { shotZone, ZONE_COUNT } from '../core/shotZones';
 import { clamp, logistic, logit } from '../core/math';
 import { emptyStatLine } from '../core/statline';
 import type { ArchetypeId, Lines, Position, Tactics } from '../types';
@@ -359,6 +360,8 @@ export class GameSim {
   pens: PenaltyRecord[] = [];
   injuries: InjuryRecord[] = [];
   pairToi: Record<string, number> = {};
+  /** Shot chart for this game: shooter id -> [on-goal shots per zone..., goals per zone...]. */
+  shotZones: Record<number, number[]> = {};
   inShootout = false;
   shootout: GameResult['shootout'] = [];
   soScore: [number, number] = [0, 0];
@@ -1433,6 +1436,9 @@ export class GameSim {
     }
     // ── on goal
     shooter.stat.sog++;
+    const zone = shotZone(dist, angle);
+    const zs = (this.shotZones[shooter.id] ??= new Array(ZONE_COUNT * 2).fill(0));
+    zs[zone]++;
     A.stats.shots++;
     A.stats.shotsByPeriod[Math.min(this.period, 4) - 1] = (A.stats.shotsByPeriod[Math.min(this.period, 4) - 1] ?? 0) + 1;
     const hd = danger === 'high';
@@ -1440,6 +1446,7 @@ export class GameSim {
     const g = B.goalie;
     if (!g) {
       this.ev('shot', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist), angle: Math.round(angle), shotType: type, xg, danger, en: true });
+      zs[ZONE_COUNT + zone]++;
       this.scoreGoal(A, B, shooter, xg, type, true);
       return;
     }
@@ -1455,6 +1462,7 @@ export class GameSim {
     const pGoal = logistic(logit(xgOnNet) + adj);
     if (rng.chance(pGoal)) {
       if (hd) g.stat.hdga++;
+      zs[ZONE_COUNT + zone]++;
       this.scoreGoal(A, B, shooter, xg, type, false);
       return;
     }
@@ -1648,6 +1656,11 @@ export class GameSim {
     for (const p of B.onIce) p.stat.ca++;
     if (rng.chance(clamp(pGoal, 0.1, 0.8))) {
       shooter.stat.sog++;
+      // Long-range empty-netter: the farthest zone of the shot chart.
+      const ez = shotZone(this.zone === 'D' ? 160 : 100, 0);
+      const zs = (this.shotZones[shooter.id] ??= new Array(ZONE_COUNT * 2).fill(0));
+      zs[ez]++;
+      zs[ZONE_COUNT + ez]++;
       A.stats.shots++;
       A.stats.xg += pGoal;
       shooter.stat.ixg += pGoal;
@@ -1939,6 +1952,7 @@ export class GameSim {
       losingGoalie: loseGoalie,
       gwg,
       pairToi: this.pairToi,
+      shotZones: this.shotZones,
       goaliesUsed,
       shootout: this.shootout,
       events: this.events,

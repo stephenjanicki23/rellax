@@ -23,6 +23,7 @@ import { FreeAgencyPage } from './pages/FreeAgency';
 import { DraftPage } from './pages/Draft';
 import { SchedulePage } from './pages/Schedule';
 import { StandingsPage } from './pages/Standings';
+import { AdvancedPage, StatLeadersPage } from './pages/Advanced';
 import { StatsPage } from './pages/Stats';
 import { LeaguePage } from './pages/League';
 import { NewsPage } from './pages/News';
@@ -82,6 +83,7 @@ const NAV: { section: string; items: { id: string; label: string; icon: string }
       { id: 'schedule', label: 'Schedule', icon: '▦' },
       { id: 'standings', label: 'Standings', icon: '▤' },
       { id: 'stats', label: 'Statistics', icon: '∑' },
+      { id: 'advanced', label: 'Advanced Stats', icon: '📈' },
       { id: 'awards', label: 'Awards Race', icon: '🏆' },
       { id: 'players', label: 'Players', icon: '☺' },
       { id: 'compare', label: 'Compare', icon: '⚖' },
@@ -198,6 +200,8 @@ function Routes() {
     schedule: <SchedulePage />,
     standings: <StandingsPage />,
     stats: <StatsPage />,
+    advanced: <AdvancedPage />,
+    leaders: <StatLeadersPage statKey={r.param ?? ''} />,
     league: <LeaguePage />,
     news: <NewsPage />,
     history: <HistoryPage />,

@@ -1109,6 +1109,10 @@ export interface League {
     /** Weeks each scout has spent watching a player: playerId -> scoutId -> weeks. */
     seenBy?: Record<number, Record<number, number>>;
   };
+  /** This season's shot charts: player id -> [on-goal shots per zone..., goals per zone...] (core/shotZones). */
+  shotCharts?: { season: number; players: Record<number, number[]> };
+  /** Last season's shot charts (kept for comparison). */
+  shotChartsPrev?: { season: number; players: Record<number, number[]> };
   /** Shared ice time between teammates: "minId-maxId" -> seconds. */
   chemistry: Record<string, number>;
   nextId: { player: number; coach: number; news: number; game: number; tx: number; pick: number; scout: number };

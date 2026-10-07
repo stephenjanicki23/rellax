@@ -268,3 +268,34 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 
 .star-toggle { background: none; border: 0; cursor: pointer; font-size: 16px; color: var(--dim, #888); padding: 0 4px; line-height: 1; }
 .star-toggle.on { color: var(--accent, #ffb81c); }
+
+/* Advanced stats: rank tiles, player metric rows, shot chart. */
+.adv-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.adv-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 10px; background: var(--panel-2, rgba(255,255,255,0.03)); border: 1px solid var(--line); color: inherit; cursor: pointer; text-align: left; font: inherit; }
+.adv-tile:hover { border-color: var(--accent); }
+.adv-tile .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.adv-tile b { font-size: 17px; }
+.adv-tile span:last-child { font-size: 12px; font-weight: 700; }
+.adv-list { display: flex; flex-direction: column; gap: 2px; }
+.adv-row { display: grid; grid-template-columns: minmax(130px, 1.3fr) 64px minmax(80px, 1fr) 104px; align-items: center; gap: 10px; padding: 5px 4px; color: inherit; text-decoration: none; border-radius: 3px; }
+.adv-row:hover { background: var(--panel-2, rgba(255,255,255,0.04)); }
+.adv-row .k { font-size: 13px; }
+.adv-row .v { text-align: right; font-variant-numeric: tabular-nums; }
+.adv-row .r { font-size: 11px; text-align: right; }
+.shot-chart-wrap { display: grid; grid-template-columns: minmax(220px, 1.2fr) 1fr; align-items: start; }
+.shot-chart { width: 100%; max-width: 420px; height: auto; display: block; }
+.shot-chart .sc-ice { fill: #eef4f8; stroke: #8a96a3; stroke-width: 0.4; }
+.shot-chart .sc-zone { fill: var(--accent, #f6c445); stroke: none; }
+.shot-chart .sc-band { fill: none; stroke: rgba(30, 40, 55, 0.25); stroke-width: 0.25; stroke-dasharray: 0.8 0.8; }
+.shot-chart .sc-red { stroke: #c8102e; stroke-width: 0.35; }
+.shot-chart .sc-blue { stroke: #0038a8; stroke-width: 1; }
+.shot-chart .sc-circle { fill: none; stroke: #c8102e; stroke-width: 0.25; opacity: 0.6; }
+.shot-chart .sc-dot { fill: #c8102e; }
+.shot-chart .sc-crease { fill: rgba(90, 163, 224, 0.5); stroke: #c8102e; stroke-width: 0.2; }
+.shot-chart .sc-net { fill: none; stroke: #c8102e; stroke-width: 0.5; }
+.shot-chart .sc-num { font-size: 2.7px; font-weight: 800; fill: #111; paint-order: stroke; stroke: rgba(255, 255, 255, 0.85); stroke-width: 0.6px; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+@media (max-width: 760px) {
+  .shot-chart-wrap { grid-template-columns: 1fr; }
+  .adv-row { grid-template-columns: 1fr 56px 70px; }
+  .adv-row .r { display: none; }
+}
