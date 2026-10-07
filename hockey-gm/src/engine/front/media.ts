@@ -176,3 +176,45 @@ export function gradeTrade(league: League, t: TradeProposal): void {
     grade,
   });
 }
+
+// ── Draft grades ─────────────────────────────────────────────────────────
+
+/** The morning-after draft grades column (from league.draftDay, graded against the consensus board). */
+export function draftGradesArticle(league: League): void {
+  const dd = league.draftDay;
+  if (!dd || dd.season !== league.season || !dd.grades?.length) return;
+  const me = league.userTeamId;
+  const g = dd.grades;
+  const mine = g.find((x) => x.teamId === me);
+  const ord = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th'}`;
+  const pickLine = (s: (typeof dd.selections)[number]) => {
+    const p = league.players[s.playerId];
+    const name = p ? `${fullName(p)} (${p.pos})` : 'a prospect';
+    const note = s.consensus === null ? 'off the board' : s.pickNumber - s.consensus >= Math.max(3, s.pickNumber * 0.25) ? `ranked ${ord(s.consensus)}, a steal` : s.consensus - s.pickNumber >= Math.max(3, s.pickNumber * 0.25) ? `ranked ${ord(s.consensus)}, a reach` : `ranked ${ord(s.consensus)}`;
+    return `No. ${s.pickNumber} ${name}, ${note}`;
+  };
+  const steals = dd.selections
+    .filter((s) => s.consensus !== null && s.pickNumber <= 64)
+    .sort((a, b) => b.pickNumber - b.consensus! - (a.pickNumber - a.consensus!))
+    .slice(0, 3);
+  const myPicks = dd.selections.filter((s) => s.teamId === me);
+  publish(league, {
+    kind: 'draft',
+    title: `${league.season + 1} draft grades: ${short(league, g[0].teamId)} ace it${mine ? `, ${short(league, me)} get a ${mine.grade}` : ''}`,
+    body: [
+      `Graded against the consensus board as the draft opened. Best hauls: ${g
+        .slice(0, 3)
+        .map((x) => `${teamName(league, x.teamId)} (${x.grade})`)
+        .join(', ')}. Toughest nights: ${g
+        .slice(-2)
+        .map((x) => `${teamName(league, x.teamId)} (${x.grade})`)
+        .join(', ')}.`,
+      steals.length ? `Steals of the draft: ${steals.map((s) => `${teamName(league, s.teamId)} at ${pickLine(s)}`).join('; ')}.` : '',
+      mine && myPicks.length ? `The ${teamName(league, me)} (${mine.grade}): ${myPicks.map(pickLine).join('; ')}.` : '',
+      dd.trades.length ? `Draft-day deals: ${dd.trades.join('; ')}.` : '',
+    ].filter(Boolean),
+    teamIds: [me, g[0].teamId],
+    playerIds: myPicks.map((s) => s.playerId),
+    grade: mine?.grade,
+  });
+}

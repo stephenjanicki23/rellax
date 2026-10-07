@@ -245,4 +245,8 @@ export async function nextPhase(auto = false): Promise<void> {
 }
 
 // Test builds (VITE_TEST_HOOKS=1) expose the store to browser automation.
-if (import.meta.env.VITE_TEST_HOOKS) (globalThis as unknown as { __hgm: unknown }).__hgm = { getLeague, mutate };
+if (import.meta.env.VITE_TEST_HOOKS) {
+  void import('../engine/economy/draft').then(({ prepareDraft }) => {
+    (globalThis as unknown as { __hgm: unknown }).__hgm = { getLeague, mutate, prepareDraft };
+  });
+}
