@@ -5,7 +5,7 @@ import { Card, Seg, TeamLogo } from '../components/common';
 import { shortDate, seasonLabel } from '../format';
 import { href } from '../router';
 
-const KIND_LABEL: Record<Article['kind'], string> = { preview: 'Season preview', power: 'Power rankings', recap: 'Game recap', grade: 'Trade grade', draft: 'Draft grades' };
+const KIND_LABEL: Record<Article['kind'], string> = { preview: 'Season preview', power: 'Power rankings', recap: 'Game recap', grade: 'Trade grade', draft: 'Draft grades', fa: 'Free agency' };
 
 /** The press: previews, power rankings, recaps of your games and trade grades. */
 export function MediaPage() {
@@ -37,6 +37,7 @@ export function MediaPage() {
             { id: 'grade', label: 'Trade grades' },
             { id: 'preview', label: 'Previews' },
             { id: 'draft', label: 'Draft' },
+            { id: 'fa', label: 'Free agency' },
           ]}
         />
       </div>

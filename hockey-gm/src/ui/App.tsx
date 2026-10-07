@@ -6,7 +6,7 @@ import { leagueDate, PHASE_LABEL, seasonLabel } from './format';
 import { userGameToday } from '../engine/league/season';
 import { recordString } from '../engine/league/standings';
 import { currentPick } from '../engine/economy/draft';
-import { expiringPlayers, FA_DAYS } from '../engine/economy/freeAgency';
+import { expiringPlayers, FA_DAYS, DAY_ONE_WAVES } from '../engine/economy/freeAgency';
 import { capSpace } from '../engine/economy/contracts';
 import { rosterSize } from '../engine/economy/roster';
 import { MainMenu } from './menu/MainMenu';
@@ -397,7 +397,7 @@ function TopBar() {
     primary = (
       <>
         <button className="btn primary" onClick={() => void nextPhase()}>
-          Next FA Day ({league.faDay + 1}/{FA_DAYS})
+          {league.faDay === 0 && (league.faWave ?? 0) < DAY_ONE_WAVES.length - 1 ? `July 1 · ${DAY_ONE_WAVES[(league.faWave ?? 0) + 1]}` : `Next FA Day (${league.faDay + 1}/${FA_DAYS})`}
         </button>
       </>
     );

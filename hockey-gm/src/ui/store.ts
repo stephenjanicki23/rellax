@@ -246,7 +246,7 @@ export async function nextPhase(auto = false): Promise<void> {
 
 // Test builds (VITE_TEST_HOOKS=1) expose the store to browser automation.
 if (import.meta.env.VITE_TEST_HOOKS) {
-  void import('../engine/economy/draft').then(({ prepareDraft }) => {
-    (globalThis as unknown as { __hgm: unknown }).__hgm = { getLeague, mutate, prepareDraft };
+  void Promise.all([import('../engine/economy/draft'), import('../engine/league/season'), import('../engine/league/offseason')]).then(([draft, season, offseason]) => {
+    (globalThis as unknown as { __hgm: unknown }).__hgm = { getLeague, mutate, prepareDraft: draft.prepareDraft, simTo: season.simTo, advanceOffseason: offseason.advanceOffseason };
   });
 }

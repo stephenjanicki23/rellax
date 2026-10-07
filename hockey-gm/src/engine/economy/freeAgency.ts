@@ -9,7 +9,8 @@ import { agentOf } from '../cba/agents';
 import { lapseDraftRights } from './draftRights';
 import { clamp } from '../core/math';
 import { seedFrom, Rng } from '../core/rng';
-import type { ClauseKind, FreeAgentOffer, League, Player } from '../types';
+import type { ClauseKind, FaSigning, FreeAgentOffer, League, Player } from '../types';
+import { publishFaDayOne } from '../front/media';
 import { addNews, addTransaction, isCpu, playersOf, teamName, withRng } from '../league/helpers';
 import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, payroll } from './contracts';
 import { signFromOffer, type OfferTerms } from '../cba/contractService';
@@ -216,6 +217,8 @@ export function makeOffer(league: League, teamId: number, p: Player, salary: num
 
 function completeSigning(league: League, o: FreeAgentOffer): boolean {
   const p = league.players[o.playerId];
+  const value = contractValue(p, league).value;
+  const fromTeamId = freeAgentProfile(p, league).previousTeamId ?? undefined;
   const res = signPlayer(league, p, o.teamId, o.salary, o.years, o.clause ?? o.ntc);
   if (!res.ok) {
     // Illegal now (cap/term/roster): the offer is void.
@@ -223,6 +226,7 @@ function completeSigning(league: League, o: FreeAgentOffer): boolean {
     return false;
   }
   league.faOffers = league.faOffers.filter((x) => x.playerId !== o.playerId);
+  logSigning(league, { day: league.faDay, wave: league.faDay === 0 ? Math.min(DAY_ONE_WAVES.length - 1, (league.faWave ?? 0) + 1) : undefined, playerId: p.id, teamId: o.teamId, fromTeamId, salary: o.salary, years: o.years, value });
   addTransaction(league, { kind: 'signing', teamIds: [o.teamId], playerIds: [p.id], description: `${teamName(league, o.teamId)} sign ${fullName(p)} (${p.pos}): ${o.years} yr / $${(o.salary / 1000).toFixed(2)}M AAV` });
   if (p.reputation >= 45 || o.teamId === league.userTeamId) {
     addNews(league, { category: 'signing', headline: `${fullName(p)} signs ${o.years}-year, $${((o.salary * o.years) / 1000).toFixed(1)}M contract with ${teamName(league, o.teamId)}`, teamIds: [o.teamId], playerIds: [p.id], importance: p.reputation >= 60 ? 4 : 2 });
@@ -369,7 +373,7 @@ export function enforceCapFloor(league: League): void {
 }
 
 /** Players review offers and sign when an offer is good enough for the day. */
-function playerDecisions(league: League, rng: Rng, final: boolean): void {
+function playerDecisions(league: League, rng: Rng, final: boolean, scale = 1): void {
   const byPlayer = new Map<number, FreeAgentOffer[]>();
   for (const o of league.faOffers) byPlayer.set(o.playerId, [...(byPlayer.get(o.playerId) ?? []), o]);
   for (const [pid, offers] of byPlayer) {
@@ -383,7 +387,7 @@ function playerDecisions(league: League, rng: Rng, final: boolean): void {
     const urgency = league.faDay / FA_DAYS;
     const depth = p.ca < 130 ? 0.2 : 0;
     const pSign = clamp(0.2 + depth + urgency * 0.7 + (best.u - 1) * 2.5 + (scored.length - 1) * 0.04, 0.05, 1);
-    if (final || rng.chance(pSign)) completeSigning(league, best.o);
+    if (final || rng.chance(pSign * scale)) completeSigning(league, best.o);
   }
 }
 
@@ -402,6 +406,105 @@ export function processFADay(league: League): boolean {
     enforceCapFloor(league);
   }
   return league.faDay >= FA_DAYS;
+}
+
+// ── The July 1 frenzy ────────────────────────────────────────────────────
+
+/** July 1 runs in waves: clubs pounce at noon, the big names decide through the day. */
+export const DAY_ONE_WAVES = ['12:00 PM', '3:00 PM', '6:00 PM', '9:00 PM'] as const;
+
+function logSigning(league: League, e: FaSigning): void {
+  if (league.faLog?.season !== league.season) league.faLog = { season: league.season, entries: [] };
+  league.faLog.entries.push(e);
+}
+
+/**
+ * Advance free agency one step: on July 1 that's the next wave of the day
+ * (offers, then decisions), afterwards a whole day. Returns true when the
+ * period is over.
+ */
+export function processFAStep(league: League): boolean {
+  const wave = league.faWave ?? 0;
+  if (league.faDay === 0 && wave < DAY_ONE_WAVES.length - 1) {
+    withRng(league, (rng) => {
+      if (wave === 0) aiRfaNegotiations(league);
+      aiOffers(league, rng);
+      // Fewer decisions in each early wave: the market builds through the day.
+      playerDecisions(league, rng, false, 0.35);
+    });
+    league.faWave = wave + 1;
+    updateOfferStandings(league);
+    return false;
+  }
+  const done = processFADay(league);
+  league.faWave = undefined;
+  updateOfferStandings(league);
+  if (league.faDay === 1) dayOneRecap(league);
+  return done;
+}
+
+/** Where the user's offer stands with a player: rank among the offers he has, and who leads. */
+export function offerStanding(league: League, playerId: number, teamId = league.userTeamId): { rank: number; of: number; leaderTeamId: number; leading: boolean } | null {
+  const p = league.players[playerId];
+  if (!p) return null;
+  const offers = league.faOffers.filter((o) => o.playerId === playerId);
+  if (!offers.some((o) => o.teamId === teamId)) return null;
+  const ranked = offers.map((o) => ({ o, u: offerUtility(league, p, o) })).sort((a, b) => b.u - a.u);
+  const rank = ranked.findIndex((x) => x.o.teamId === teamId) + 1;
+  return { rank, of: ranked.length, leaderTeamId: ranked[0].o.teamId, leading: rank === 1 };
+}
+
+/** Which club a free agent is leaning toward (the offer he likes best so far). */
+export function leaningToward(league: League, playerId: number): number | null {
+  const p = league.players[playerId];
+  const offers = league.faOffers.filter((o) => o.playerId === playerId);
+  if (!p || !offers.length) return null;
+  return offers.map((o) => ({ o, u: offerUtility(league, p, o) })).sort((a, b) => b.u - a.u)[0].o.teamId;
+}
+
+/** Track whether the user's offers lead; tell him when he's been outbid. */
+export function updateOfferStandings(league: League): void {
+  const me = league.userTeamId;
+  for (const o of league.faOffers.filter((x) => x.teamId === me)) {
+    const st = offerStanding(league, o.playerId, me);
+    if (!st) continue;
+    const p = league.players[o.playerId];
+    if (o.leading && !st.leading && p) {
+      addNews(league, { category: 'signing', headline: `You've been outbid for ${fullName(p)}: he's leaning toward the ${teamName(league, st.leaderTeamId)}`, body: `Your offer now ranks ${st.rank} of ${st.of}. Improve it before he decides.`, teamIds: [me, st.leaderTeamId], playerIds: [p.id], importance: 3 });
+    }
+    o.leading = st.leading;
+  }
+}
+
+/** Withdraw the user's offer to a free agent. */
+export function withdrawOffer(league: League, playerId: number): void {
+  league.faOffers = league.faOffers.filter((o) => !(o.teamId === league.userTeamId && o.playerId === playerId));
+}
+
+export interface SigningVerdict {
+  tag: 'Bargain' | 'Good value' | 'Fair' | 'Overpay' | 'Big overpay';
+  tone: 'good' | 'ok' | 'bad';
+}
+
+/** Cap hit against what the market says he's worth. */
+export function signingVerdict(salary: number, value: number): SigningVerdict {
+  const r = salary / Math.max(1, value);
+  if (r < 0.8) return { tag: 'Bargain', tone: 'good' };
+  if (r < 0.93) return { tag: 'Good value', tone: 'good' };
+  if (r <= 1.1) return { tag: 'Fair', tone: 'ok' };
+  if (r <= 1.3) return { tag: 'Overpay', tone: 'bad' };
+  return { tag: 'Big overpay', tone: 'bad' };
+}
+
+/** This summer's signings (newest first). */
+export function faSignings(league: League): FaSigning[] {
+  return league.faLog?.season === league.season ? [...league.faLog.entries].reverse() : [];
+}
+
+function dayOneRecap(league: League): void {
+  const day1 = (league.faLog?.season === league.season ? league.faLog.entries : []).filter((e) => e.day === 0);
+  if (!day1.length) return;
+  publishFaDayOne(league, day1);
 }
 
 /** In-season: CPU teams pick up free agents when injuries leave holes. */

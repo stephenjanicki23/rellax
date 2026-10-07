@@ -104,7 +104,7 @@ export interface Article {
   id: number;
   season: number;
   day: number;
-  kind: 'preview' | 'power' | 'recap' | 'grade' | 'draft';
+  kind: 'preview' | 'power' | 'recap' | 'grade' | 'draft' | 'fa';
   title: string;
   body: string[];
   teamIds: number[];
@@ -1055,6 +1055,22 @@ export interface FreeAgentOffer {
   ntc: boolean;
   /** Trade protection offered (newer saves; `ntc` kept for older ones). */
   clause?: ClauseKind | null;
+  /** The user's offer is currently the one the player likes best (for outbid alerts). */
+  leading?: boolean;
+}
+
+/** One free-agent signing during the July market (for the day-one ticker and recap). */
+export interface FaSigning {
+  day: number;
+  /** Day-one wave (0-3) when it happened on July 1. */
+  wave?: number;
+  playerId: number;
+  teamId: number;
+  fromTeamId?: number;
+  salary: number;
+  years: number;
+  /** Contract value estimate when he signed (thousands): what the deal "should" cost. */
+  value: number;
 }
 
 export interface LeagueSettings {
@@ -1125,6 +1141,9 @@ export interface League {
   draftPicks: DraftPick[];
   draftOrder: number[]; // pick ids in order for the current draft
   draftCombineDone: boolean;
+  /** Free agency: which day-one wave is next (July 1 runs in four waves), and this summer's signings. */
+  faWave?: number;
+  faLog?: { season: number; entries: FaSigning[] };
   /** This year's draft lottery: the odds, who won the draws, and the resulting top of the order. */
   lottery?: DraftLottery;
   /** Draft day: the consensus board when the draft opened, every selection, and the final grades. */

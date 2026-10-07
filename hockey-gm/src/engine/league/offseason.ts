@@ -20,7 +20,7 @@ import { publishCentralRankings, runCombine, scoutsNewSeason } from '../economy/
 import { ahlPlayoffs, archiveAhlSeason, resetAhlSeason } from './ahl';
 import { prepareDraft, runDraftUntilUser, finishDraft } from '../economy/draft';
 import { gradeDraft } from '../economy/draftDay';
-import { aiResign, startFreeAgency, processFADay, expiringPlayers } from '../economy/freeAgency';
+import { aiResign, startFreeAgency, processFAStep, expiringPlayers } from '../economy/freeAgency';
 import { generateDraftClass } from '../player/prospects';
 import { generateSchedule } from './schedule';
 import { aiPreseason, offseasonCoaching, updateStrategies } from '../ai/gm';
@@ -368,8 +368,8 @@ export function advanceOffseason(league: League, auto = false): void {
       break;
     case 'freeAgency': {
       let done = false;
-      if (auto) while (!done) done = processFADay(league);
-      else done = processFADay(league);
+      if (auto) while (!done) done = processFAStep(league);
+      else done = processFAStep(league);
       if (done) startNewSeason(league);
       break;
     }
