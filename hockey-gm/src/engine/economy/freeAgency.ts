@@ -16,7 +16,7 @@ import { askingSalary, capSpace, isRFA, marketValue, typicalTerm, payroll } from
 import { signFromOffer, type OfferTerms } from '../cba/contractService';
 import { signingScore, contractValue, freeAgentProfile } from '../cba/market';
 import { isRestricted, processQualifyingOffers, rfaDay } from '../cba/rfa';
-import { demandedClause, payStructure, respondToOffer, startNegotiation } from '../cba/negotiation';
+import { demandedClause, payStructure, previewNegotiation, respondToOffer, startNegotiation } from '../cba/negotiation';
 import { endHoldout } from '../cba/holdouts';
 import { rulesFor } from '../cba/rules';
 import { capSeason, contractFor } from '../cba/capManager';
@@ -36,6 +36,57 @@ export function expiringPlayers(league: League, teamId: number): Player[] {
 /** Players in the final year of their deal (extension-eligible during the season). */
 export function extensionEligible(league: League, teamId: number): Player[] {
   return playersOf(league, teamId, ['active', 'prospect']).filter((p) => !!p.contract && p.contract.years === 1 && !p.contract.next);
+}
+
+export interface ExtensionOutlook {
+  /** What he becomes if he isn't extended. */
+  status: 'UFA' | 'RFA';
+  /** His agent's demand to extend now. */
+  askNow: number;
+  years: number;
+  /** Rough projection of his ask next summer (thousands). */
+  askNext: number;
+  trend: 'rising' | 'steady' | 'falling';
+  stance: ReturnType<typeof previewNegotiation>['stance'];
+  hometown: number;
+  advice: string;
+}
+
+/**
+ * Extend now or wait? Compares today's demand with a projection of next
+ * summer's: young players still improving get more expensive, veterans
+ * heading past their peak get cheaper. Restricted players have less leverage
+ * next summer than unrestricted ones.
+ *
+ * SIMPLIFICATION: the projection uses age and how much growth his scouting
+ * profile still shows, not a full simulation of next season.
+ */
+export function extensionOutlook(league: League, p: Player): ExtensionOutlook {
+  const me = p.teamId ?? league.userTeamId;
+  const talks = previewNegotiation(league, p, me);
+  // What he becomes when this deal runs out (same test as the contracts table).
+  const fa = isRFA(p, league.season) ? 'RFA' : 'UFA';
+  const age = league.season + 1 - p.birthYear;
+  const growth = Math.max(0, p.pa - p.ca);
+  const drift = age <= 24 ? 0.06 + Math.min(0.1, growth / 300) : age <= 27 ? 0.02 + Math.min(0.05, growth / 400) : age <= 30 ? 0 : -0.05 - (age - 31) * 0.02;
+  // Next summer he negotiates with full UFA leverage (or still restricted).
+  const leverageNext = fa === 'UFA' && talks.stance !== 'open' ? 1.04 : 1;
+  const hometown = talks.factors?.find((f) => f.label === 'Hometown discount')?.pct ?? 0;
+  const askNext = Math.round((talks.demand.aav / (1 + hometown)) * (1 + drift) * leverageNext / 5) * 5;
+  const trend: ExtensionOutlook['trend'] = askNext > talks.demand.aav * 1.04 ? 'rising' : askNext < talks.demand.aav * 0.96 ? 'falling' : 'steady';
+  const advice =
+    talks.stance === 'testMarket'
+      ? 'He wants to see the open market: only a statement offer gets it done now.'
+      : talks.stance === 'contenderOnly'
+        ? "He doesn't want to stay through a rebuild without a premium."
+        : trend === 'rising'
+          ? `Extend now: his price is likely to climb${fa === 'UFA' ? ' and he could walk for nothing next summer' : ''}.`
+          : trend === 'falling'
+            ? 'No rush: his price should come down as he ages.'
+            : hometown > 0
+              ? 'Good time to extend: he is open to a hometown discount now.'
+              : 'His price should hold: extend whenever it suits your cap plan.';
+  return { status: fa, askNow: talks.demand.aav, years: talks.demand.years, askNext, trend, stance: talks.stance, hometown, advice };
 }
 
 export function resignAsk(league: League, p: Player): { salary: number; years: number } {

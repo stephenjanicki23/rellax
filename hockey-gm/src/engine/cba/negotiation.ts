@@ -88,6 +88,46 @@ export function previewNegotiation(league: League, p: Player, teamId: number): N
   return openingState(league, p, teamId);
 }
 
+/**
+ * Hometown discount: a loyal player who has been with the club a long time,
+ * likes it there and sees it winning takes a little less to stay. Hardball
+ * agents talk him out of most of it. Only for his own club, and never when he
+ * wants out (rebuild) or wants to test the market.
+ */
+export function hometownDiscount(league: League, p: Player, teamId: number, stance: NegotiationStance = stanceFor(league, p, teamId)): { pct: number; reasons: string[] } {
+  if (!isOwnTeam(p, teamId) || stance !== 'open') return { pct: 0, reasons: [] };
+  const reasons: string[] = [];
+  let d = 0;
+  const seasons = new Set(p.career.filter((c) => c.teamId === teamId && !c.playoffs).map((c) => c.season)).size;
+  if (seasons >= 3) {
+    d += Math.min(0.05, seasons * 0.006);
+    reasons.push(`${seasons} seasons with the club`);
+  }
+  if (p.prefs.loyalty > 1) {
+    d += Math.min(0.04, (p.prefs.loyalty - 1) * 0.1);
+    reasons.push('loyal by nature');
+  }
+  if (p.morale >= 65) {
+    d += Math.min(0.03, ((p.morale - 60) / 100) * 0.12);
+    reasons.push('happy in the room');
+  }
+  const team = league.teams[teamId];
+  const rec = league.standings[teamId];
+  const pct = rec && rec.gp ? (rec.w * 2 + rec.otl) / (rec.gp * 2) : 0.5;
+  if ((team.strategy === 'contend' || pct >= 0.58) && p.prefs.winning >= 1) {
+    d += 0.02;
+    reasons.push('wants to win here');
+  }
+  if (team.captain === p.id) {
+    d += 0.01;
+    reasons.push('the captain');
+  }
+  const agent = agentOf(league, p);
+  if (agent.style === 'hardball') d *= 0.4;
+  else if (agent.style === 'friendly') d *= 1.2;
+  return { pct: Math.round(clamp(d, 0, 0.15) * 1000) / 1000, reasons };
+}
+
 function openingState(league: League, p: Player, teamId: number): NegotiationState {
   const prof = freeAgentProfile(p, league);
   const agent = agentOf(league, p);
@@ -97,10 +137,19 @@ function openingState(league: League, p: Player, teamId: number): NegotiationSta
   // A veteran on a rebuilding team stays only for a premium; one eyeing free agency wants top dollar now.
   const premium = stance === 'contenderOnly' ? 1.12 : stance === 'testMarket' ? 1.08 : 1;
   const years = clamp(prof.desiredTerm, 1, maxTerm);
-  const aav = Math.round((prof.askingAav * leverage(league, p) * style.demand * premium) / 5) * 5;
+  const lev = leverage(league, p);
+  const home = hometownDiscount(league, p, teamId, stance);
+  const aav = Math.round((prof.askingAav * lev * style.demand * premium * (1 - home.pct)) / 5) * 5;
+  const factors: NonNullable<NegotiationState['factors']> = [
+    { label: 'Market ask', pct: 0, note: formatMoney(prof.askingAav) },
+    { label: lev > 1 ? 'Leverage: headed for unrestricted free agency' : 'Leverage: restricted (club holds his rights)', pct: lev - 1 },
+    { label: `Agent: ${style.label}`, pct: style.demand - 1 },
+    ...(premium !== 1 ? [{ label: stance === 'contenderOnly' ? 'Premium to stay through a rebuild' : 'Premium to skip free agency', pct: premium - 1 }] : []),
+    ...(home.pct > 0 ? [{ label: 'Hometown discount', pct: -home.pct, note: home.reasons.join(', ') }] : []),
+  ];
   const demand: ContractAsk = { aav, years, clause: demandedClause(league, p, years), bonusShare: demandedBonus(league, p, years, aav) };
   const patience = Math.round(clamp(55 + p.prefs.loyalty * 20 + (p.morale - 50) * 0.4 + style.patience - (stance === 'open' ? 0 : 10), 20, 100));
-  return { playerId: p.id, teamId, season: league.season, patience, demand, stance, history: [] };
+  return { playerId: p.id, teamId, season: league.season, patience, demand, stance, history: [], factors };
 }
 
 /** Value of an offer relative to the demand, accounting for term, trade protection and bonus structure. */

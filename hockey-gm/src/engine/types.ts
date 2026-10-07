@@ -908,6 +908,8 @@ export interface ArbitrationCase {
   comparables?: { playerId: number; name: string; aav: number }[];
   status: 'filed' | 'settled' | 'awarded' | 'walkedAway';
   reasoning?: string;
+  /** How hard the club argues at the hearing (user cases): a tough brief can trim the award but stings. */
+  brief?: 'respectful' | 'aggressive';
 }
 
 export interface OfferSheet {
@@ -1009,6 +1011,8 @@ export interface NegotiationState {
   demand: ContractAsk;
   stance?: NegotiationStance;
   history: (ContractAsk & { response: string })[];
+  /** How the opening demand was built (market ask, then each adjustment as a % change). */
+  factors?: { label: string; pct: number; note?: string }[];
 }
 
 export interface SeasonAwardResult {

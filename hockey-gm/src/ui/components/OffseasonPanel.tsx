@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import type { League } from '../../engine/types';
 import { mutate, toast } from '../store';
 import { Card, PlayerLink, Pos } from './common';
 import { formatMoney as fm } from '../../engine/cba/contractService';
-import { submitQualifyingOffer, fileArbitration, walkAwayFromAward, resolveOfferSheet, isRestricted, QO_EXPIRY_DAY, ARB_HEARING_DAY } from '../../engine/cba/rfa';
+import { submitQualifyingOffer, fileArbitration, walkAwayFromAward, resolveOfferSheet, isRestricted, QO_EXPIRY_DAY, ARB_HEARING_DAY, arbitrationAward, setArbitrationBrief, settleArbitration } from '../../engine/cba/rfa';
 import { rulesFor } from '../../engine/cba/rules';
 import { capSeason } from '../../engine/cba/capManager';
 
@@ -134,9 +135,10 @@ export function OffseasonPanel({ league }: { league: League }) {
                       {c.status === 'filed' ? ` · hearing on FA day ${ARB_HEARING_DAY}` : ''}
                     </span>
                     {c.reasoning && <span className="muted" style={{ fontSize: 12 }}>{c.reasoning}</span>}
+                    {c.status === 'filed' && <HearingPrep league={league} kase={c} run={run} />}
                   </div>
                   <span className={`pill ${c.status === 'awarded' ? 'good' : c.status === 'walkedAway' ? 'bad' : ''}`}>
-                    {c.status === 'awarded' ? `Awarded ${fm(c.award ?? 0)}` : c.status === 'walkedAway' ? 'Walked away' : c.status === 'settled' ? 'Settled' : 'Filed'}
+                    {c.status === 'awarded' ? `Awarded ${fm(c.award ?? 0)}` : c.status === 'walkedAway' ? 'Walked away' : c.status === 'settled' ? (c.award ? `Settled ${fm(c.award)}` : 'Settled') : c.brief === 'aggressive' ? 'Filed · aggressive brief' : 'Filed'}
                   </span>
                   {c.status === 'awarded' && c.electedBy === 'player' && (c.award ?? 0) >= r.arbitration.walkAwayThreshold && (
                     <button className="btn small danger" title={`Walk-away right: awards of ${fm(r.arbitration.walkAwayThreshold)}+`} onClick={() => run((l) => walkAwayFromAward(l, c.playerId))}>
@@ -149,6 +151,36 @@ export function OffseasonPanel({ league }: { league: League }) {
           </div>
         </Card>
       )}
+    </div>
+  );
+}
+
+/** Before the hearing: what the arbitrator is likely to award, how hard to argue, or settle. */
+function HearingPrep({ league, kase, run }: { league: League; kase: League['arbitration'][number]; run: (fn: (l: League) => { ok: boolean; message: string }) => void }) {
+  const expected = arbitrationAward(league, kase);
+  const settleAt = Math.round((expected.award * 0.97) / 5) * 5;
+  const [amount, setAmount] = useState(settleAt);
+  return (
+    <div className="stack hearing-prep" style={{ gap: 6, marginTop: 6 }}>
+      <span style={{ fontSize: 13 }}>
+        Likely award: <b>{fm(expected.award)}</b>
+        {(expected.comparables ?? []).length > 0 && <span className="muted" style={{ fontSize: 12 }}> · comparables {(expected.comparables ?? []).map((x) => `${x.name} ${fm(x.aav)}`).join(', ')}</span>}
+      </span>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <span className="muted" style={{ fontSize: 12 }}>Your brief:</span>
+        <button className={`btn small ${kase.brief !== 'aggressive' ? 'primary' : ''}`} onClick={() => run((l) => setArbitrationBrief(l, kase.playerId, 'respectful'))} title="A fair case: the award lands where the evidence says, and he takes it in stride">
+          Respectful
+        </button>
+        <button className={`btn small ${kase.brief === 'aggressive' ? 'primary' : ''}`} onClick={() => run((l) => setArbitrationBrief(l, kase.playerId, 'aggressive'))} title="Argue hard: the award comes in about a quarter of the way toward your number, but he'll resent it">
+          Aggressive
+        </button>
+      </div>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <span className="muted" style={{ fontSize: 12 }}>Settle before the hearing:</span>
+        <input type="number" step={25} value={amount} onChange={(e) => setAmount(Number(e.target.value))} style={{ width: 90 }} />
+        <span className="muted" style={{ fontSize: 12 }}>{fm(amount)} × {kase.years}</span>
+        <button className="btn small" onClick={() => run((l) => settleArbitration(l, kase.playerId, amount))}>Offer to settle</button>
+      </div>
     </div>
   );
 }

@@ -92,6 +92,20 @@ export function NegotiationModal({
           )}
           <span className="k">{talks ? 'His demand' : `Agent's ask (${years} yrs)`}</span>
           <span>{talks ? describeAsk(talks.demand) : `${fmtMoney(ask)} / yr${wantClause ? ` + ${CLAUSE_NAME[wantClause]}` : ''}`}</span>
+          {talks?.factors && talks.history.length === 0 && (
+            <>
+              <span className="k">How he got there</span>
+              <span className="stack" style={{ gap: 1, fontSize: 12 }}>
+                {talks.factors.map((f) => (
+                  <span key={f.label}>
+                    {f.label}
+                    {f.pct !== 0 && <b className={f.pct < 0 ? 'good' : 'bad'}> {f.pct > 0 ? '+' : '−'}{Math.abs(Math.round(f.pct * 100))}%</b>}
+                    {f.note && <span className="muted"> · {f.note}</span>}
+                  </span>
+                ))}
+              </span>
+            </>
+          )}
           {player.contract && (
             <>
               <span className="k">Current deal</span>
