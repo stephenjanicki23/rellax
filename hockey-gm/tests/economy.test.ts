@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from '../src/engine/league/create';
 import { simTo } from '../src/engine/league/season';
 import { advanceOffseason, simOffseason } from '../src/engine/league/offseason';
+import { DAY_ONE_WAVES, faSignings, offerStanding, processFAStep, signingVerdict } from '../src/engine/economy/freeAgency';
 import { marketValue, rosterOf, capSpace } from '../src/engine/economy/contracts';
 import { teamCapSheet } from '../src/engine/cba/capManager';
 import { evaluateTrade, executeTrade, playerTradeValue, validateTrade, type TradeProposal } from '../src/engine/economy/trade';
@@ -70,6 +71,14 @@ describe('trades', () => {
   });
 });
 
+describe('free-agent signing verdicts', () => {
+  it('calls bargains and overpays against market value', () => {
+    expect(signingVerdict(700, 1000).tag).toBe('Bargain');
+    expect(signingVerdict(1000, 1000).tag).toBe('Fair');
+    expect(signingVerdict(1500, 1000).tag).toBe('Big overpay');
+  });
+});
+
 describe('offseason: draft, re-sign, free agency', () => {
   let league: League;
   beforeAll(() => {
@@ -118,6 +127,23 @@ describe('offseason: draft, re-sign, free agency', () => {
     const d = demandFor(league, target);
     const r = makeOffer(league, league.userTeamId, target, Math.round(d.salary * 1.15), d.years);
     expect(r.ok).toBe(true);
+    // July 1 runs in waves; the user can see where his offer stands.
+    const st = offerStanding(league, target.id);
+    expect(st?.of).toBeGreaterThanOrEqual(1);
+    for (let w = 1; w < DAY_ONE_WAVES.length; w++) {
+      expect(processFAStep(league)).toBe(false);
+      expect(league.faDay).toBe(0);
+      expect(league.faWave).toBe(w);
+    }
+    processFAStep(league);
+    expect(league.faDay).toBe(1);
+    const day1 = faSignings(league).filter((e) => e.day === 0);
+    expect(day1.length).toBeGreaterThan(5);
+    expect(day1.some((e) => (e.wave ?? 0) < DAY_ONE_WAVES.length - 1)).toBe(true);
+    // Newest first: the day's waves run in order (no later wave listed before an earlier one).
+    for (let i = 1; i < day1.length; i++) expect(day1[i].wave!).toBeLessThanOrEqual(day1[i - 1].wave!);
+    for (const e of day1) expect(e.value).toBeGreaterThan(0);
+    expect(league.media!.articles.some((a) => a.kind === 'fa')).toBe(true);
     simOffseason(league);
     expect(league.phase).toBe('regular');
     for (const t of league.teams) {

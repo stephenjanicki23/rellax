@@ -3,7 +3,7 @@
  * games and trade grades. Every article is written from league data only:
  * standings, stats, transactions, projections and the trade valuations.
  */
-import type { Article, League, Player, ScheduledGame } from '../types';
+import type { Article, FaSigning, League, Player, ScheduledGame } from '../types';
 import { assetValue, describeAsset, type TradeProposal } from '../economy/trade';
 import { powerRankings } from '../team/strength';
 import { playersOf, points as recPoints, teamName } from '../league/helpers';
@@ -216,5 +216,44 @@ export function draftGradesArticle(league: League): void {
     teamIds: [me, g[0].teamId],
     playerIds: myPicks.map((s) => s.playerId),
     grade: mine?.grade,
+  });
+}
+
+// ── Free agency day one ──────────────────────────────────────────────────
+
+/** The July 1 column: the big signings, who spent, the bargains and the overpays. */
+export function publishFaDayOne(league: League, signings: FaSigning[]): void {
+  const me = league.userTeamId;
+  const m = (k: number) => `$${(k / 1000).toFixed(2)}M`;
+  const line = (e: FaSigning) => {
+    const p = league.players[e.playerId];
+    return `${p ? fullName(p) : 'a free agent'} to the ${short(league, e.teamId)} (${e.years} yr, ${m(e.salary)} AAV)`;
+  };
+  const big = [...signings].sort((a, b) => b.salary - a.salary).slice(0, 5);
+  const byTeam = new Map<number, { total: number; n: number }>();
+  for (const e of signings) {
+    const t = byTeam.get(e.teamId) ?? { total: 0, n: 0 };
+    t.total += e.salary;
+    t.n++;
+    byTeam.set(e.teamId, t);
+  }
+  const spenders = [...byTeam].sort((a, b) => b[1].total - a[1].total).slice(0, 3);
+  const ratio = (e: FaSigning) => e.salary / Math.max(1, e.value);
+  const notable = signings.filter((e) => e.value >= 1500);
+  const bargain = [...notable].sort((a, b) => ratio(a) - ratio(b))[0];
+  const overpay = [...notable].sort((a, b) => ratio(b) - ratio(a))[0];
+  const mine = signings.filter((e) => e.teamId === me);
+  publish(league, {
+    kind: 'fa',
+    title: `Free agency day one: ${big[0] ? `${(() => { const p = league.players[big[0].playerId]; return p ? fullName(p) : 'the top free agent'; })()} headlines a busy July 1` : 'a quiet July 1'}`,
+    body: [
+      `${signings.length} players signed on the first day. The biggest deals: ${big.map(line).join('; ')}.`,
+      spenders.length ? `Biggest spenders: ${spenders.map(([id, t]) => `${teamName(league, id)} (${t.n} signing${t.n > 1 ? 's' : ''}, ${m(t.total)} in cap hits)`).join(', ')}.` : '',
+      bargain && ratio(bargain) < 0.93 ? `Bargain of the day: ${line(bargain)}, worth about ${m(bargain.value)} a year on the open market.` : '',
+      overpay && ratio(overpay) > 1.1 ? `The one that raised eyebrows: ${line(overpay)}, against a market value near ${m(overpay.value)}.` : '',
+      mine.length ? `The ${teamName(league, me)}: ${mine.map(line).join('; ')}.` : `The ${teamName(league, me)} stayed out of the day-one frenzy.`,
+    ].filter(Boolean),
+    teamIds: [me, ...spenders.map(([id]) => id)],
+    playerIds: big.map((e) => e.playerId),
   });
 }
