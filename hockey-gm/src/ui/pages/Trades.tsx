@@ -191,6 +191,17 @@ export function TradesPage() {
     if (reviewId) reviewOffer(reviewId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewId]);
+  // Arriving from a leaderboard's "Trade for" button: start a deal for that player.
+  const targetId = Number(route.query.get('target'));
+  useEffect(() => {
+    const p = targetId ? league.players[targetId] : undefined;
+    if (!p || p.teamId === null || p.teamId === me) return;
+    setPartner(p.teamId);
+    setGive([]);
+    setGet([{ kind: 'player', id: p.id }]);
+    setRetain({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetId]);
   const acceptShopOffer = (o: UserOffer) => {
     const errs = validateTrade(league, o.proposal);
     if (errs.length) return toast(errs[0], 'bad');

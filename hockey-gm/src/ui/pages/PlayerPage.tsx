@@ -6,6 +6,8 @@ import { NegotiationModal } from '../components/Negotiation';
 import { ContractDetails } from '../components/ContractDetails';
 import { SystemFit, SystemFitStrip } from '../components/SystemFit';
 import { ScoutReportCard } from '../components/ScoutReportCard';
+import { ShotChart } from '../components/ShotChart';
+import { PlayerAdvanced } from '../components/PlayerAdvanced';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
 import { attr20 } from '../../engine/player/ability';
 import { ARCHETYPES } from '../../engine/player/archetypes';
@@ -27,10 +29,10 @@ import '../menu/menu.css';
 
 
 export function PlayerPage({ id }: { id: number }) {
-  const { league } = useGame();
+  const { league, version } = useGame();
   const [neg, setNeg] = useState(false);
   const [statView, setStatView] = useState<'reg' | 'po'>('reg');
-  const [view, setView] = useState<'card' | 'details'>('card');
+  const [view, setView] = useState<'card' | 'details' | 'advanced'>('card');
   const p = league.players[id];
   if (!p) return <div className="empty">Player not found (he may have left the league).</div>;
   const age = league.season - p.birthYear;
@@ -92,7 +94,7 @@ export function PlayerPage({ id }: { id: number }) {
           {p.status === 'fa' && <button className="btn primary" onClick={() => setNeg(true)}>Make offer</button>}
         </div>
       </div>
-      <Tabs value={view} onChange={setView} tabs={[{ id: 'card', label: 'Player card' }, { id: 'details', label: 'Stats, contract & scouting' }]} />
+      <Tabs value={view} onChange={setView} tabs={[{ id: 'card', label: 'Player card' }, { id: 'details', label: 'Stats, contract & scouting' }, { id: 'advanced', label: 'Advanced stats' }]} />
       {view === 'card' && <SystemFitStrip league={league} p={p} />}
       {view === 'card' ? (
         <PlayerCardView
@@ -108,13 +110,20 @@ export function PlayerPage({ id }: { id: number }) {
         />
       ) : null}
       {view === 'card' && p.pos !== 'G' && (
-        <div style={{ marginTop: 14, maxWidth: 720 }}>
+        <div className="grid g2" style={{ marginTop: 14, alignItems: 'start' }}>
           <Card title={p.teamId === league.userTeamId || p.teamId === null ? 'System fit' : `System fit (${team?.abbr ?? ''})`}>
             <SystemFit league={league} p={p} />
           </Card>
+          <ShotChart league={league} p={p} compact />
         </div>
       )}
-      {view === 'card' ? null : (
+      {view === 'advanced' && (
+        <div className="grid g2" style={{ alignItems: 'start' }}>
+          <PlayerAdvanced league={league} p={p} version={version} />
+          {p.pos !== 'G' && <ShotChart league={league} p={p} />}
+        </div>
+      )}
+      {view !== 'details' ? null : (
       <div className="grid g-main">
         <div className="grid">
           <div className="grid g3">
