@@ -104,7 +104,7 @@ export interface Article {
   id: number;
   season: number;
   day: number;
-  kind: 'preview' | 'power' | 'recap' | 'grade';
+  kind: 'preview' | 'power' | 'recap' | 'grade' | 'draft';
   title: string;
   body: string[];
   teamIds: number[];
@@ -650,6 +650,39 @@ export interface Team {
   tradeBlock?: number[];
 }
 
+export interface DraftLottery {
+  season: number;
+  /** Lottery teams in pre-lottery order (worst first) with their odds of the first draw (%). */
+  entries: { teamId: number; pre: number; odds: number }[];
+  /** Teams that won the draws, in draw order. */
+  winners: number[];
+  /** Final order of the lottery teams (pick 1 first). */
+  order: number[];
+}
+
+export interface DraftDaySelection {
+  pickId: number;
+  pickNumber: number;
+  round: number;
+  teamId: number;
+  /** Team that originally owned the pick (when it was traded). */
+  fromTeamId?: number;
+  playerId: number;
+  /** Where the consensus board had him when the draft opened (null if unranked). */
+  consensus: number | null;
+}
+
+export interface DraftDay {
+  season: number;
+  /** Consensus board (player ids, best first) when the draft opened. */
+  board: number[];
+  selections: DraftDaySelection[];
+  /** Picks traded on draft day (descriptions). */
+  trades: string[];
+  /** Final grades by team, set when the draft closes. */
+  grades?: { teamId: number; grade: string; score: number; picks: number }[];
+}
+
 export interface DraftPick {
   id: number;
   season: number;
@@ -1092,6 +1125,10 @@ export interface League {
   draftPicks: DraftPick[];
   draftOrder: number[]; // pick ids in order for the current draft
   draftCombineDone: boolean;
+  /** This year's draft lottery: the odds, who won the draws, and the resulting top of the order. */
+  lottery?: DraftLottery;
+  /** Draft day: the consensus board when the draft opened, every selection, and the final grades. */
+  draftDay?: DraftDay;
   faOffers: FreeAgentOffer[];
   faDay: number;
   news: NewsItem[];

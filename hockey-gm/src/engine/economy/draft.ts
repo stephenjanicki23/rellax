@@ -10,6 +10,9 @@ import { aiPerceivedPA, centralRank, estimate } from './scouting';
 
 import { fullName } from '../player/ability';
 
+/** How much CPU clubs lean on the consensus board (per log-rank). */
+const CONSENSUS_WEIGHT = 7;
+
 const LOTTERY_ODDS = [18.5, 13.5, 11.5, 9.5, 8.5, 7.5, 6.5, 6, 5, 3.5, 3, 2.5, 2, 1.5, 0.5, 0.5];
 
 /** Order of teams for every round: lottery for non-playoff teams, then playoff teams by finish. */
@@ -44,6 +47,12 @@ export function draftTeamOrder(league: League): number[] {
   });
   const rest = order.filter((id) => !winners.includes(id));
   const final = [...winners, ...rest, ...playoff];
+  league.lottery = {
+    season: league.season,
+    entries: order.slice(0, league.config.draft.lotteryTeams).map((teamId, i) => ({ teamId, pre: i + 1, odds: LOTTERY_ODDS[i] ?? 0.5 })),
+    winners: [...winners],
+    order: final.slice(0, Math.min(order.length, league.config.draft.lotteryTeams)),
+  };
   if (winners.length && winners[0] !== order[0]) {
     const jump = order.indexOf(winners[0]) + 1;
     addNews(league, { category: 'draft', headline: `${teamName(league, winners[0])} win the draft lottery, jumping from No. ${jump} to No. 1`, teamIds: [winners[0]], playerIds: [], importance: 4 });
@@ -67,6 +76,8 @@ export function prepareDraft(league: League): void {
   league.draftOrder = order;
   for (const id of order) resolveProtection(league, league.draftPicks.find((p) => p.id === id)!);
   league.phase = 'draft';
+  // The consensus board as the draft opens: every pick is graded against it.
+  league.draftDay = { season: league.season, board: draftRankings(league).map((p) => p.id), selections: [], trades: [] };
 }
 
 /**
@@ -98,14 +109,16 @@ export function draftRankings(league: League): Player[] {
   const pool = Object.values(league.players).filter((p) => p.status === 'draft');
   // Once Central Scouting has published, the consensus follows its lists (merged by typical draft slot).
   if (league.scouting.central?.season === league.season) {
-    const per: Record<CsCategory, number> = { 'NA-S': 1.55, 'INT-S': 2.4, 'NA-G': 7, 'INT-G': 9 };
+    // Goalies go later than their list position suggests: the top one usually comes off the board late in the first round.
+    const per: Record<CsCategory, number> = { 'NA-S': 1.55, 'INT-S': 2.4, 'NA-G': 22, 'INT-G': 26 };
     const slot = (p: Player) => {
       const r = centralRank(league, p);
       return r ? r.rank * per[r.category] : 999;
     };
     return pool.sort((a, b) => slot(a) - slot(b));
   }
-  return pool.sort((a, b) => b.reputation + b.ca * 0.15 - (a.reputation + a.ca * 0.15));
+  const score = (p: Player) => p.reputation + p.ca * 0.15 - (p.pos === 'G' ? 12 : 0);
+  return pool.sort((a, b) => score(b) - score(a));
 }
 
 export function currentPick(league: League): DraftPick | undefined {
@@ -147,6 +160,11 @@ export function makeDraftPick(league: League, pickId: number, playerId: number):
   const years = age >= 20 || withRng(league, (rng) => rng.chance(0.4)) ? 4 : 2;
   p.signBySeason = league.season + years;
   league.seasonStats[p.id] = { reg: emptyStatLine(), po: emptyStatLine(), teamId: pick.ownerId };
+  const dd = league.draftDay;
+  if (dd && dd.season === league.season) {
+    const i = dd.board.indexOf(p.id);
+    dd.selections.push({ pickId: pick.id, pickNumber: pick.pickNumber ?? 0, round: pick.round, teamId: pick.ownerId, fromTeamId: pick.originalTeamId !== pick.ownerId ? pick.originalTeamId : undefined, playerId: p.id, consensus: i >= 0 ? i + 1 : null });
+  }
   addTransaction(league, { kind: 'draft', teamIds: [pick.ownerId], playerIds: [p.id], pickIds: [pick.id], description: `${teamName(league, pick.ownerId)} select ${fullName(p)} (${p.pos}) — Round ${pick.round}, Pick ${pick.pickNumber}` });
   if (pick.pickNumber === 1) {
     addNews(league, { category: 'draft', headline: `${teamName(league, pick.ownerId)} select ${fullName(p)} first overall`, teamIds: [pick.ownerId], playerIds: [p.id], importance: 5 });
@@ -158,12 +176,19 @@ export function makeDraftPick(league: League, pickId: number, playerId: number):
 export function aiSelect(league: League, teamId: number): Player | undefined {
   const avail = Object.values(league.players).filter((p) => p.status === 'draft');
   if (!avail.length) return undefined;
-  // Consider the consensus top of the board plus team-specific evaluation.
-  const ranked = avail.sort((a, b) => b.reputation - a.reputation).slice(0, 60);
+  // Consider the consensus top of the board plus team-specific evaluation: clubs
+  // lean on the consensus but trust their own scouts at the margin; goalies are
+  // rarely worth a high pick.
+  const dd = league.draftDay?.season === league.season ? league.draftDay : undefined;
+  const board = dd ? new Map(dd.board.map((id, i) => [id, i + 1])) : null;
+  const ranked = (board ? avail.sort((a, b) => (board.get(a.id) ?? 999) - (board.get(b.id) ?? 999)) : avail.sort((a, b) => b.reputation - a.reputation)).slice(0, 60);
+  const pickNo = currentPick(league)?.pickNumber ?? 32;
   let best: Player | undefined;
   let bestV = -Infinity;
   for (const p of ranked) {
-    const v = aiProspectValue(league, teamId, p);
+    let v = aiProspectValue(league, teamId, p);
+    if (board) v -= CONSENSUS_WEIGHT * Math.log(board.get(p.id) ?? (dd!.board.length + 50));
+    if (p.pos === 'G' && pickNo <= 40) v -= 10;
     if (v > bestV) {
       bestV = v;
       best = p;

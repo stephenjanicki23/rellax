@@ -5,7 +5,7 @@ import { Card, Seg, TeamLogo } from '../components/common';
 import { shortDate, seasonLabel } from '../format';
 import { href } from '../router';
 
-const KIND_LABEL: Record<Article['kind'], string> = { preview: 'Season preview', power: 'Power rankings', recap: 'Game recap', grade: 'Trade grade' };
+const KIND_LABEL: Record<Article['kind'], string> = { preview: 'Season preview', power: 'Power rankings', recap: 'Game recap', grade: 'Trade grade', draft: 'Draft grades' };
 
 /** The press: previews, power rankings, recaps of your games and trade grades. */
 export function MediaPage() {
@@ -36,6 +36,7 @@ export function MediaPage() {
             { id: 'power', label: 'Power rankings' },
             { id: 'grade', label: 'Trade grades' },
             { id: 'preview', label: 'Previews' },
+            { id: 'draft', label: 'Draft' },
           ]}
         />
       </div>
@@ -76,7 +77,7 @@ export function ArticleView({ a, compact }: { a: Article; compact?: boolean }) {
           {KIND_LABEL[a.kind]} · {shortDate(a.season, a.day)}
         </span>
         <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
-          {a.grade && <span className={`pill ${a.grade <= 'B' ? 'good' : a.grade === 'C' ? '' : 'bad'}`} style={{ fontSize: 18, padding: '4px 10px' }}>{a.grade}</span>}
+          {a.grade && <span className={`pill ${a.grade.startsWith('A') || a.grade.startsWith('B') ? 'good' : a.grade.startsWith('C') ? '' : 'bad'}`} style={{ fontSize: 18, padding: '4px 10px' }}>{a.grade}</span>}
           <h2 style={{ margin: 0, fontSize: compact ? 16 : 22, lineHeight: 1.25, textTransform: 'none' }}>{a.title}</h2>
         </div>
         <div className="row" style={{ gap: 4 }}>

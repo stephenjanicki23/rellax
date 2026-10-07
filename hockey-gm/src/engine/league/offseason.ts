@@ -19,6 +19,7 @@ import { devContext } from './season';
 import { publishCentralRankings, runCombine, scoutsNewSeason } from '../economy/scouting';
 import { ahlPlayoffs, archiveAhlSeason, resetAhlSeason } from './ahl';
 import { prepareDraft, runDraftUntilUser, finishDraft } from '../economy/draft';
+import { gradeDraft } from '../economy/draftDay';
 import { aiResign, startFreeAgency, processFADay, expiringPlayers } from '../economy/freeAgency';
 import { generateDraftClass } from '../player/prospects';
 import { generateSchedule } from './schedule';
@@ -32,7 +33,7 @@ import { stockCoachPool } from '../team/coachPool';
 import { closeCoachSeason } from '../team/staffMarket';
 import { ownerSeasonReview, setOwnerGoals } from '../front/owner';
 import { budgetMultiplier, closeBooks } from '../front/finances';
-import { seasonPreview } from '../front/media';
+import { draftGradesArticle, seasonPreview } from '../front/media';
 import { honourRetiree } from './franchise';
 import { fullName } from '../player/ability';
 import { trimRoster, ensureDressable, enforceCap } from '../economy/roster';
@@ -227,6 +228,8 @@ function rollContracts(league: League): void {
 
 /** Draft finished → begin re-signing period. */
 export function startResignPhase(league: League): void {
+  gradeDraft(league);
+  draftGradesArticle(league);
   finishDraft(league);
   rollContracts(league);
   league.phase = 'resign';
