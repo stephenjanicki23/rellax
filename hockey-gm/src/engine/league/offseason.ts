@@ -13,6 +13,7 @@ import { addNews, addTransaction, emptyRecord, isCpu, playersOf, points, teamNam
 import { computeAwards, computePlayoffMvp, announceAwards } from './awards';
 import { finalizeRecords } from './records';
 import { playoffResultFor } from './playoffs';
+import { archiveSeries } from './playoffStory';
 import { standingRows } from './standings';
 import { agePlayer, developPlayer, retirementChance } from '../player/development';
 import { devContext } from './season';
@@ -149,6 +150,7 @@ export function finishSeason(league: League): void {
     t.reputation = clamp(t.reputation + 8, 0, 100);
   }
   recordHistory(league, awards);
+  archiveSeries(league);
   finalizeRecords(league);
   updateRivalries(league);
   ownerSeasonReview(league);

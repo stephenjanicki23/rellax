@@ -58,7 +58,7 @@ export function startPlayoffs(league: League): void {
   });
 }
 
-function winsNeeded(league: League, round: number): number {
+export function winsNeeded(league: League, round: number): number {
   const len = league.config.playoffs.seriesLength[round] ?? 7;
   return Math.ceil(len / 2);
 }

@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../store';
-import { useRoute } from '../router';
+import { href, useRoute } from '../router';
 import { Card, Seg, TeamLink } from '../components/common';
 import { standingRows, ppPct, pkPct, conferenceSeeds, type StandingRow } from '../../engine/league/standings';
 import { playoffRoundName } from '../../engine/league/playoffs';
+import { seriesStatus } from '../../engine/league/playoffStory';
+import { BracketStorylines } from './Playoffs';
 import { pct } from '../format';
 import type { League, PlayoffSeries } from '../../engine/types';
 
@@ -84,9 +86,12 @@ function SeriesBox({ league, s }: { league: League; s: PlayoffSeries }) {
     </div>
   );
   return (
-    <div className="series">
+    <div className={`series${s.high === league.userTeamId || s.low === league.userTeamId ? ' mine' : ''}`}>
       {line(s.high, s.highSeed, s.wins[0])}
       {line(s.low, s.lowSeed, s.wins[1])}
+      <a className="series-status" href={href(`series/${s.id}`)}>
+        {seriesStatus(league, s)} ›
+      </a>
     </div>
   );
 }
@@ -110,6 +115,11 @@ export function Bracket({ league }: { league: League }) {
           <div className="card" style={{ textAlign: 'center' }}>
             <div className="gold" style={{ fontSize: 28 }}>♛</div>
             <TeamLink league={league} id={b.champion} logo />
+            <div style={{ marginTop: 6 }}>
+              <a className="btn small" href={href('cup')}>
+                Celebration
+              </a>
+            </div>
           </div>
         </div>
       )}
@@ -140,6 +150,7 @@ export function StandingsPage() {
           />
         </div>
       </div>
+      {view === 'bracket' && <BracketStorylines league={league} />}
       {view === 'bracket' && (
         <Card>
           <Bracket league={league} />
