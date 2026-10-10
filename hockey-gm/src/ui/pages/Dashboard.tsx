@@ -139,6 +139,16 @@ export function Dashboard() {
         </div>
       </div>
       {banner}
+      {league.playoffs?.champion != null && league.phase === 'draft' && (
+        <div className="banner" style={{ marginBottom: 14 }}>
+          <TeamLogo team={league.teams[league.playoffs.champion]} size={24} />
+          <b>{league.playoffs.champion === team.id ? 'Your club won the ' + league.config.championship + '!' : `The ${league.teams[league.playoffs.champion].name} won the ${league.config.championship}.`}</b>
+          <span className="muted" style={{ flex: 1 }} />
+          <button className="btn primary small" onClick={() => navigate('cup')}>
+            Celebration
+          </button>
+        </div>
+      )}
       {(() => {
         const night = currentAwardsNight(league);
         if (!night || !unrevealed(night)) return null;

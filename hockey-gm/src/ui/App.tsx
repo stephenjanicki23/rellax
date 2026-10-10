@@ -39,6 +39,7 @@ import { ComparePage } from './pages/Compare';
 import { DevelopmentPage } from './pages/Development';
 import { DeadlinePage } from './pages/Deadline';
 import { AwardsRacePage } from './pages/AwardsRace';
+import { CupPage, SeriesPage } from './pages/Playoffs';
 import { AwardsNightPage, currentAwardsNight, unrevealed } from './pages/AwardsNight';
 import { MediaPage } from './pages/Media';
 import { MedicalPage } from './pages/Medical';
@@ -188,6 +189,8 @@ function Routes() {
     deadline: <DeadlinePage />,
     awards: <AwardsRacePage />,
     awardsnight: <AwardsNightPage />,
+    series: <SeriesPage id={Number(r.param)} />,
+    cup: <CupPage />,
     media: <MediaPage />,
     medical: <MedicalPage />,
     coach: <CoachPage id={Number(r.param)} />,

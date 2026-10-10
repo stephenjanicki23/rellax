@@ -1156,6 +1156,8 @@ export interface League {
   draftDay?: DraftDay;
   /** The latest season's awards night: ballots, finalists and the All-Star teams. */
   awardsNight?: import('./league/awardsNight').AwardsNight;
+  /** Every finished playoff series in this save (for rematches). */
+  seriesHistory?: { season: number; round: number; roundName: string; high: number; low: number; highSeed: number; lowSeed: number; winner: number; wins: [number, number] }[];
   faOffers: FreeAgentOffer[];
   faDay: number;
   news: NewsItem[];
