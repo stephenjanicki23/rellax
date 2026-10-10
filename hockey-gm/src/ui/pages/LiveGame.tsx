@@ -12,6 +12,7 @@ import { recordString } from '../../engine/league/standings';
 import { playoffRoundName } from '../../engine/league/playoffs';
 import { LiveRink } from '../rink/LiveRink';
 import { Scoreboard, type Speed } from '../live/Scoreboard';
+import { sfx } from '../audio/sfx';
 import { LiveFeed, type FeedLine } from '../live/LiveFeed';
 import { GamePanels } from '../live/GamePanels';
 import { Ticker, type TickerGame } from '../live/Ticker';
@@ -332,7 +333,11 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
         info={info}
         records={records}
         speed={speed}
-        onSpeed={setSpeed}
+        onSpeed={(sp) => {
+          // Starting play is the user gesture browsers need before they allow sound.
+          sfx.unlock();
+          setSpeed(sp);
+        }}
         onInstant={instant}
         finished={finished}
         label={label}

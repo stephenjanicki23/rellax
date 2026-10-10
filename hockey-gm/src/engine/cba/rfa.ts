@@ -188,7 +188,18 @@ function holdHearing(league: League, kase: ArbitrationCase): void {
     kase.status = 'settled';
     return;
   }
-  const { award, reasoning, comparables } = arbitrationAward(league, kase);
+  const base = arbitrationAward(league, kase);
+  let { award, reasoning } = base;
+  const { comparables } = base;
+  // Hearings are adversarial: the club argues the player is worth less, and he hears every word.
+  if (kase.brief === 'aggressive') {
+    award = Math.round((award - (award - kase.clubOffer) * 0.25) / 5) * 5;
+    reasoning += ` The club's aggressive brief pulled the award down to ${formatMoney(award)}.`;
+    p.morale = clamp(p.morale - 12, 0, 100);
+    if (kase.teamId === league.userTeamId) addNews(league, { category: 'rumor', headline: `${fullName(p)}'s arbitration hearing turns ugly`, body: `The club's case against him didn't go down well in the room.`, teamIds: [kase.teamId], playerIds: [p.id], importance: 2 });
+  } else {
+    p.morale = clamp(p.morale - 3, 0, 100);
+  }
   kase.award = award;
   kase.reasoning = reasoning;
   kase.comparables = comparables;
@@ -210,6 +221,36 @@ function holdHearing(league: League, kase: ArbitrationCase): void {
   registerContract(league, p, kase.teamId, c, { origin: 'arbitration', skipCapCheck: true, note: reasoning });
   kase.status = 'awarded';
   if (p.reputation >= 40) addNews(league, { category: 'signing', headline: `Arbitrator awards ${fullName(p)} ${formatMoney(award)} from ${teamName(league, kase.teamId)}`, body: reasoning, teamIds: [kase.teamId], playerIds: [p.id], importance: 2 });
+}
+
+/** The club's approach at a hearing (user cases): an aggressive brief trims the award but hurts morale. */
+export function setArbitrationBrief(league: League, playerId: number, brief: 'respectful' | 'aggressive'): { ok: boolean; message: string } {
+  const kase = league.arbitration.find((a) => a.playerId === playerId && a.season === league.season && a.status === 'filed');
+  if (!kase) return { ok: false, message: 'No pending hearing.' };
+  kase.brief = brief;
+  return { ok: true, message: brief === 'aggressive' ? 'Your lawyers will argue hard: expect a lower award, and an unhappy player.' : 'Your lawyers will keep the case respectful.' };
+}
+
+/**
+ * Settle before the hearing: the player takes a deal if it's at least close
+ * to what he expects the arbitrator to award him (and not below the club's
+ * own submission).
+ */
+export function settleArbitration(league: League, playerId: number, aav: number): { ok: boolean; message: string } {
+  const kase = league.arbitration.find((a) => a.playerId === playerId && a.season === league.season && a.status === 'filed');
+  const p = league.players[playerId];
+  if (!kase || !p || !isRestricted(p)) return { ok: false, message: 'No pending hearing.' };
+  const expected = arbitrationAward(league, kase).award;
+  const want = Math.round((expected * 0.97) / 5) * 5;
+  if (aav < kase.clubOffer) return { ok: false, message: `That's below your own submission (${formatMoney(kase.clubOffer)}).` };
+  if (aav < want) return { ok: false, message: `${fullName(p)}'s camp would rather take their chances with the arbitrator. They'd settle at about ${formatMoney(want)}.` };
+  const c = contractFromOffer(league, p, { aav, years: kase.years });
+  registerContract(league, p, kase.teamId, c, { origin: 'signing', skipCapCheck: true, note: 'Settled before arbitration' });
+  kase.status = 'settled';
+  kase.award = aav;
+  p.morale = clamp(p.morale + 2, 0, 100);
+  addTransaction(league, { kind: 'signing', teamIds: [kase.teamId], playerIds: [p.id], description: `${teamName(league, kase.teamId)} settle with ${fullName(p)} before arbitration: ${kase.years} yr / ${formatMoney(aav)}` });
+  return { ok: true, message: `Settled: ${fullName(p)} signs for ${kase.years} year${kase.years > 1 ? 's' : ''} at ${formatMoney(aav)}. No hearing needed.` };
 }
 
 /** Human GM option after a player-elected award above the threshold. */

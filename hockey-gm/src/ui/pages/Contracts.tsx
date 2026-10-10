@@ -3,7 +3,7 @@ import { useGame, mutate, toast } from '../store';
 import { Card, PlayerLink, Pos, Table, Stars, type Column } from '../components/common';
 import { NegotiationModal } from '../components/Negotiation';
 import { playersOf } from '../../engine/league/helpers';
-import { expiringPlayers, extensionEligible, makeOffer, offerContract, arbitrate, resignAsk, willingness } from '../../engine/economy/freeAgency';
+import { expiringPlayers, extensionEligible, extensionOutlook, makeOffer, offerContract, arbitrate, resignAsk, willingness } from '../../engine/economy/freeAgency';
 import { fmtMoney, futureCommitments, isRFA, payroll } from '../../engine/economy/contracts';
 import { releasePlayer } from '../../engine/economy/roster';
 import type { Player } from '../../engine/types';
@@ -30,6 +30,39 @@ export function ContractsPage() {
     { key: 'type', label: 'Status', render: (p) => (isRFA(p, league.season) ? <span className="pill accent">RFA</span> : <span className="pill warn">UFA</span>) },
     { key: 'cur', label: 'Current', num: true, render: (p) => fmtMoney(p.contract!.salary) },
     { key: 'ask', label: 'Asking', num: true, render: (p) => { const a = resignAsk(league, p); return `${fmtMoney(a.salary)} × ${a.years}`; } },
+    // In-season extension planning: today's demand vs a projection of next summer's.
+    ...(resign
+      ? []
+      : [
+          {
+            key: 'next',
+            label: 'Next summer (est.)',
+            title: 'Rough projection of his ask if you wait: young improving players get pricier, veterans cheaper',
+            num: true,
+            render: (p: Player) => {
+              const o = extensionOutlook(league, p);
+              return (
+                <span title={o.advice}>
+                  {fmtMoney(o.askNext)} <span className={`pill ${o.trend === 'rising' ? 'bad' : o.trend === 'falling' ? 'good' : ''}`}>{o.trend === 'rising' ? '▲ rising' : o.trend === 'falling' ? '▼ falling' : 'steady'}</span>
+                </span>
+              );
+            },
+            sort: (p: Player) => extensionOutlook(league, p).askNext,
+          },
+          {
+            key: 'adv',
+            label: 'Advice',
+            render: (p: Player) => {
+              const o = extensionOutlook(league, p);
+              return (
+                <span className="muted" style={{ fontSize: 12, whiteSpace: 'normal' }}>
+                  {o.hometown <= -0.02 && <span className="pill good" style={{ marginRight: 4 }}>Hometown −{Math.round(-o.hometown * 100)}%</span>}
+                  {o.advice}
+                </span>
+              );
+            },
+          },
+        ]),
     { key: 'will', label: 'Willing', num: true, render: (p) => { const w = willingness(league, p); return <span className={w > 0.65 ? 'good' : w > 0.4 ? 'warn' : 'bad'}>{Math.round(w * 100)}%</span>; }, sort: (p) => willingness(league, p) },
     {
       key: 'act',

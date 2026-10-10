@@ -6,6 +6,8 @@ import { RINK, RinkDirector, attackDir, type RinkPlayer, type ShotMark } from '.
 import { RinkMotion, RinkTimeline, type Key, type TimelineItem } from './motion';
 import { teamBar } from '../teamColors';
 import './rink.css';
+import { sfx } from '../audio/sfx';
+import { SoundToggle } from '../audio/SoundToggle';
 
 /** Shared, mutable link between the live view's playback loop and the rink (read every frame). */
 export interface RinkFeed {
@@ -192,7 +194,60 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
       return m ? `${m.number != null ? `#${m.number} ` : ''}${m.last ?? ''}` : '';
     };
     const stopFor = (title: string, sub: string, team: 0 | 1 | null, tone: Stoppage['tone'] = 'whistle') => setStop({ id: ++seq.current, title, sub, team, tone });
+    // Arena sound, in step with what the rink shows (silent while it skips ahead or replays).
+    let snapping = false;
+    const playSound = (k: Key) => {
+      const rate = feed.rate;
+      if (snapping || !sfx.prefs.on || rate <= 0 || rate > 10) return;
+      const minor = rate <= 5;
+      if (k.faceoff?.phase === 'drop' && minor) sfx.faceoff();
+      const e = k.event;
+      if (!e) return;
+      switch (e.type) {
+        case 'goal':
+          // The horn is for the home team; the visitors' goals get a groan.
+          if (e.team === 0) sfx.goalHorn();
+          else sfx.groan();
+          break;
+        case 'save':
+          if (minor || e.data?.big) sfx.save(!!e.data?.big);
+          break;
+        case 'shot':
+        case 'missed':
+        case 'blocked':
+          if (minor) sfx.shot(/slap/i.test(e.data?.shotType ?? ''));
+          break;
+        case 'hit':
+          if (minor) sfx.hit((e.p1 ?? 0) % 3 === 0);
+          break;
+        case 'penalty':
+          sfx.whistle(true);
+          break;
+        case 'fight':
+          sfx.whistle(true);
+          sfx.fight();
+          break;
+        case 'icing':
+        case 'offside':
+        case 'freeze':
+        case 'injury':
+        case 'goalieChange':
+          sfx.whistle();
+          break;
+        case 'periodEnd':
+        case 'gameEnd':
+          sfx.buzzer();
+          break;
+        case 'entry':
+          if (e.data?.oddMan) sfx.rise(0.2);
+          break;
+        case 'periodStart':
+          sfx.rise(0.22);
+          break;
+      }
+    };
     const onKey = (k: Key) => {
+      playSound(k);
       if (k.event) shown.push(k.event);
       if (k.faceoff?.phase === 'lineup') {
         const f = k.faceoff;
@@ -305,6 +360,9 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
       }
     };
     const frame = (now: number) => {
+      // The crowd murmurs while the game is playing at a watchable speed.
+      if (feed.rate > 0 && feed.rate <= 10 && !feed.done && sfx.prefs.on) sfx.startCrowd();
+      else sfx.stopCrowd();
       const eng = engine.current!;
       if (feed.items.length > eng.consumed) {
         tl.add(feed.items.slice(eng.consumed));
@@ -340,7 +398,9 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
       if (rp) {
         /* replaying: the live timeline waits */
       } else if (lag > Math.max(8, feed.rate * 0.75) || (feed.done && lag > 0.5)) {
+        snapping = true;
         motion.snapTo(target - (feed.done ? 0 : 0.5), onKey);
+        snapping = false;
         trail.length = 0;
       } else if (feed.rate > 0 || lag > 0) {
         const catchUp = lag > 0.6 ? 1 + Math.min(1.5, (lag - 0.6) / 2) : lag < -0.2 ? 0.6 : 1;
@@ -408,6 +468,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
+      sfx.stopCrowd();
       for (const t of timers) clearTimeout(t);
     };
   }, [feed, meta, home, away, playoff]);
@@ -474,6 +535,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           ))}
           </span>
 
+          <SoundToggle />
           <button className={`rink-toggle ${showMap ? 'on' : ''}`} onClick={() => setShowMap((v) => !v)} title="Show every shot this period">
             Shot map
           </button>
