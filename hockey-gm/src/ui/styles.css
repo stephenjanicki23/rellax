@@ -347,3 +347,31 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 @media (prefers-reduced-motion: reduce) { .confetti { display: none; } }
 @media (max-width: 600px) { .cup-hero { flex-direction: column; text-align: center; } .cup-title { font-size: 30px; } }
 .tbl-scroll { overflow-x: auto; min-width: 0; }
+
+/* Career timeline */
+.career-sum { display: flex; flex-wrap: wrap; gap: 10px 26px; }
+.career-sum > div { display: flex; flex-direction: column; }
+.career-sum b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.career-sum .muted { font-size: 12px; }
+.career-arc svg { display: block; max-height: 200px; }
+.career-arc .arc-bar { fill: var(--accent); opacity: 0.75; }
+.career-arc .arc-bar.cur { opacity: 0.4; }
+.career-arc .arc-line { fill: none; stroke: var(--gold); stroke-width: 2; }
+.career-arc .arc-dot { fill: var(--gold); }
+.career-arc .arc-num, .career-arc .arc-lbl { font-size: 10px; fill: var(--muted); }
+.arc-key { display: inline-block; width: 12px; height: 8px; border-radius: 2px; vertical-align: middle; }
+.arc-key.bar { background: var(--accent); }
+.arc-key.line { background: var(--gold); height: 3px; }
+.timeline { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
+.tl-season { position: relative; }
+.tl-season::before { content: ''; position: absolute; left: -25px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--panel2); border: 2px solid var(--accent); }
+.tl-season.cur::before { background: var(--accent); }
+.tl-season.pre::before { border-color: var(--dim); }
+.tl-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tl-line { font-size: 13px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.tl-evs { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.tl-ev { display: flex; align-items: center; gap: 6px; }
+.tl-ico { width: 18px; text-align: center; flex: none; }
+.tl-ev.k-award, .tl-ev.k-milestone { color: var(--gold); }
+.tl-ev.k-injury { color: var(--bad); }
+.tl-ev.k-trade { color: var(--accent); }

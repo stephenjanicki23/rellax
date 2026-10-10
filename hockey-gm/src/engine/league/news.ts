@@ -61,12 +61,14 @@ export function newsFromGame(league: League, home: number, away: number, r: Game
     } else if (points(s) >= 5) {
       addNews(league, { category: 'game', headline: `${fullName(p)} piles up ${points(s)} points for ${tn(side)}`, teamIds: [teams[side]], playerIds: [p.id], importance: 3 });
     }
-    if (s.g > 0 && tot.g === s.g && notable(p)) {
+    // Career milestones need the whole career: players with NHL games before this save have totals we don't know.
+    const knownCareer = !(p.nhlGamesBefore ?? 0);
+    if (knownCareer && s.g > 0 && tot.g === s.g && notable(p)) {
       addNews(league, { category: 'milestone', headline: `${fullName(p)} scores first career goal for ${tn(side)}`, teamIds: [teams[side]], playerIds: [p.id], importance: 2 });
     }
-    for (const m of MILESTONES_G) if (tot.g >= m && tot.g - s.g < m) addNews(league, { category: 'milestone', headline: `${fullName(p)} scores career goal No. ${m}`, teamIds: [teams[side]], playerIds: [p.id], importance: m >= 500 ? 5 : 4 });
+    if (knownCareer) for (const m of MILESTONES_G) if (tot.g >= m && tot.g - s.g < m) addNews(league, { category: 'milestone', headline: `${fullName(p)} scores career goal No. ${m}`, teamIds: [teams[side]], playerIds: [p.id], importance: m >= 500 ? 5 : 4 });
     const pts = points(s);
-    for (const m of MILESTONES_P) if (tot.pts >= m && tot.pts - pts < m) addNews(league, { category: 'milestone', headline: `${fullName(p)} reaches ${m} career points`, teamIds: [teams[side]], playerIds: [p.id], importance: m >= 1000 ? 5 : 4 });
+    if (knownCareer) for (const m of MILESTONES_P) if (tot.pts >= m && tot.pts - pts < m) addNews(league, { category: 'milestone', headline: `${fullName(p)} reaches ${m} career points`, teamIds: [teams[side]], playerIds: [p.id], importance: m >= 1000 ? 5 : 4 });
     if (s.so && s.sa >= 30) {
       addNews(league, {
         category: 'game',

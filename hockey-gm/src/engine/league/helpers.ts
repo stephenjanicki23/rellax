@@ -49,10 +49,23 @@ export function playersOf(league: League, teamId: number, statuses: Player['stat
   return out;
 }
 
+/** Transactions worth keeping on a player's career timeline (the league log is trimmed; this isn't). */
+const CAREER_TX = new Set<Transaction['kind']>(['trade', 'signing', 'release', 'draft', 'extension', 'retirement', 'waiverClaim', 'buyout', 'offerSheet', 'arbitration', 'elc', 'termination']);
+const TIMELINE_MAX = 120;
+
+export function logCareer(league: League, playerId: number, kind: string, text: string, teamIds?: number[], day = league.day): void {
+  const p = league.players[playerId];
+  if (!p) return;
+  p.timeline ??= [];
+  p.timeline.push({ season: league.season, day, kind, text, ...(teamIds?.length ? { teamIds: [...teamIds] } : {}) });
+  if (p.timeline.length > TIMELINE_MAX) p.timeline.splice(0, p.timeline.length - TIMELINE_MAX);
+}
+
 export function addNews(league: League, n: Omit<NewsItem, 'id' | 'season' | 'day'> & { day?: number }): NewsItem {
   const item: NewsItem = { id: nextId(league, 'news'), season: league.season, day: n.day ?? league.day, ...n };
   league.news.unshift(item);
   if (league.news.length > 600) league.news.length = 600;
+  if ((item.category === 'milestone' || item.category === 'record') && item.playerIds.length <= 2) for (const id of item.playerIds) logCareer(league, id, item.category, item.headline, item.teamIds, item.day);
   return item;
 }
 
@@ -60,6 +73,7 @@ export function addTransaction(league: League, t: Omit<Transaction, 'id' | 'seas
   const tx: Transaction = { id: nextId(league, 'tx'), season: league.season, day: league.day, ...t };
   league.transactions.unshift(tx);
   if (league.transactions.length > 1500) league.transactions.length = 1500;
+  if (CAREER_TX.has(tx.kind)) for (const id of tx.playerIds) logCareer(league, id, tx.kind, tx.description, tx.teamIds, tx.day);
   return tx;
 }
 
