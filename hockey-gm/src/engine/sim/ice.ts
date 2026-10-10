@@ -162,7 +162,7 @@ function spotFor(role: Role, hasPuck: boolean, pu: number, pv: number, opts: Str
   }
   // Defencemen always keep a gap between the puck and our net.
   const trap = opts.defense === 'trap' || opts.forecheck === '1-3-1';
-  const gap = trap ? 30 : opts.defense === 'aggressive' ? 18 : 24;
+  const gap = trap ? 27 : opts.defense === 'aggressive' ? 20 : 24;
   if (pu < BLUE_LINE) {
     // Neutral zone.
     if (isD) return [Math.max(-80, pu - gap), side * 14];

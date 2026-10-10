@@ -97,7 +97,7 @@ export const AGENT = {
   /** Weight of team-level edges (coaching, system fit, chemistry, momentum) in each second's puck battles. */
   teamEdge: 0.25,
   /** Skater rating spread relative to the possession engine (edges compound when contested every second). */
-  talentSpread: 0.38,
+  talentSpread: 0.3,
   /** Score effects: weight in puck battles, and how much a trailing team's shooters force the issue. */
   scoreFx: 0.06,
   urgency: 0.02,
@@ -1868,16 +1868,17 @@ export class GameSim {
   }
 
   private aggression(t: ST): number {
-    if (this.isPK(t.idx)) return t.tactics.pk === 'aggressive' ? 0.85 : t.tactics.pk === 'passive' ? 0.4 : 0.55;
+    if (this.isPK(t.idx)) return t.tactics.pk === 'aggressive' ? 0.75 : t.tactics.pk === 'passive' ? 0.5 : 0.6;
+    // Systems change how hard players chase the puck, within a band: none of them is simply better.
     const d = t.tactics.defense;
-    const base = d === 'aggressive' ? 1 : d === 'physical' ? 0.9 : d === 'passive' ? 0.5 : d === 'trap' ? 0.45 : 0.75;
+    const base = d === 'aggressive' ? 0.88 : d === 'physical' ? 0.84 : d === 'passive' ? 0.66 : d === 'trap' ? 0.64 : 0.76;
     return 1 + (base - 1) * t.tacMult.def;
   }
 
   private shootTac(t: ST, pp: boolean): number {
     if (pp) return t.tactics.pp === 'shooting' ? 1.2 : t.tactics.pp === 'overload' ? 0.9 : 1;
     const o = t.tactics.offense;
-    return o === 'rush' ? 1.08 : o === 'possession' ? 0.9 : o === 'cycle' ? 0.95 : o === 'dumpChase' ? 1.05 : 1;
+    return o === 'rush' ? 1.04 : o === 'possession' ? 0.96 : o === 'cycle' ? 0.98 : o === 'dumpChase' ? 1.02 : 1;
   }
 
   private setPoss(side: Side, carrier: SP | null): void {
@@ -2223,7 +2224,7 @@ export class GameSim {
       // A man in the slot is only worth finding if he's actually open.
       const gain = mu > BLUE_LINE ? (this.spotVal(mu, mv, empty) * clamp((open - 2) / 10, 0.15, 1) - this.spotVal(Math.max(u, BLUE_LINE), v, empty)) * AGENT.shoot : 0;
       const prog = clamp((mu - u) * 0.004, -0.15, 0.25);
-      let util = 0.08 + gain * AGENT.passGain + prog + open * 0.008 + (A.tactics.offense === 'possession' ? 0.05 : 0) + (pp ? 0.05 : 0) + (p.style.pass - 1) * 0.12 - risk * AGENT.passRisk;
+      let util = 0.08 + gain * AGENT.passGain + prog + open * 0.008 + (A.tactics.offense === 'possession' ? 0.03 : 0) + (pp ? 0.05 : 0) + (p.style.pass - 1) * 0.12 - risk * AGENT.passRisk;
       if (pressure < 5) util += 0.06;
       consider(util, 'pass', m.x, m.y, m);
     }
