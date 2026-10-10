@@ -61,6 +61,27 @@ export interface GameInput {
    * ratings drift over decades.
    */
   ratingBaseline?: number;
+  /**
+   * 'agent' (default): every player on the ice decides what to do each second.
+   * 'classic': the older possession-step engine, kept for comparison.
+   */
+  engine?: 'agent' | 'classic';
+  /** Keep a per-second record of every player's and the puck's position (live rink). */
+  recordTrack?: boolean;
+}
+
+/** One second of play: where everyone and the puck were (feet; home attacks +x). */
+export interface TrackFrame {
+  t: number;
+  period: number;
+  clock: number;
+  puck: [number, number];
+  /** Puck carrier id, or null when the puck is loose or dead. */
+  carrier: number | null;
+  /** [id, x, y, team] for every skater and goalie on the ice. */
+  players: [number, number, number, 0 | 1][];
+  /** What each player chose to do this second (id -> action). */
+  acts?: Record<number, string>;
 }
 
 export type GameEventType =
@@ -214,6 +235,10 @@ export interface GameResult {
   goaliesUsed: number[];
   shootout: { team: 0 | 1; shooter: number; goalie: number; scored: boolean }[];
   events: GameEvent[];
+  /** Individual player decisions made during the game (per-second engine). */
+  decisions?: number;
+  /** Per-second positions when recordTrack was set. */
+  track?: TrackFrame[];
 }
 
 export interface GameSnapshot {
@@ -242,4 +267,6 @@ export interface GameSnapshot {
   teamStats: [TeamGameStats, TeamGameStats];
   /** Players currently serving penalties. */
   box: { team: 0 | 1; player: number; remaining: number; minutes: number; coincidental: boolean }[];
+  /** Where everyone is right now (per-second engine). */
+  ice?: TrackFrame;
 }

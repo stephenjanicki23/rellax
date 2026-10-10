@@ -7,7 +7,7 @@ import { affiliateReport, ahlDay, ahlUsage } from './ahl';
 import { clamp } from '../core/math';
 import { emptyStatLine, addStatLine, points as statPoints } from '../core/statline';
 import type { GameSummary, League, Player, ScheduledGame } from '../types';
-import type { GameResult } from '../sim/gameTypes';
+import type { GameInput, GameResult } from '../sim/gameTypes';
 import { simulateGame } from '../sim/engine';
 import { buildGameInput } from './gameInput';
 import { applyToStandings } from './standings';
@@ -283,6 +283,42 @@ export function advanceDay(league: League, overrides: Map<number, GameResult> = 
     if (league.playoffs?.champion != null) finishSeason(league);
     return report;
   }
+  return report;
+}
+
+/** Simulates a batch of games, possibly in parallel (e.g. a worker pool); results in input order. */
+export type SimMany = (inputs: GameInput[]) => Promise<GameResult[]>;
+
+/**
+ * Same as advanceDay, but the day's games are simulated together through
+ * `simMany` (so a UI can spread them over worker threads). Games on one day
+ * never share a team, so building every input first gives the same games.
+ */
+export async function advanceDayAsync(league: League, overrides: Map<number, GameResult> = new Map(), simMany?: SimMany): Promise<DayReport> {
+  if (!simMany || (league.phase !== 'regular' && league.phase !== 'playoffs')) return advanceDay(league, overrides);
+  const report: DayReport = { day: league.day, phase: league.phase, games: [] };
+  const regular = league.phase === 'regular';
+  const todays = regular ? gamesOnDay(league, league.day) : playoffGamesForToday(league, true);
+  const need = todays.filter((g) => !overrides.has(g.id));
+  const results = need.length ? await simMany(need.map((g) => buildGameInput(league, g.id))) : [];
+  const byId = new Map(need.map((g, i) => [g.id, results[i]]));
+  for (const g of todays) {
+    applyGameResult(league, g, overrides.get(g.id) ?? byId.get(g.id)!);
+    report.games.push(g);
+  }
+  if (regular) {
+    if (todays.length) checkLiveRecords(league);
+    dailyUpdates(league);
+    league.day++;
+    if (league.schedule.every((g) => g.played || g.playoff)) {
+      endRegularSeasonHooks(league);
+      startPlayoffs(league);
+    }
+    return report;
+  }
+  dailyUpdates(league);
+  league.day++;
+  if (league.playoffs?.champion != null) finishSeason(league);
   return report;
 }
 

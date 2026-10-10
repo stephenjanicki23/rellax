@@ -64,7 +64,10 @@ describe('continuous rink motion', () => {
   while (!sim.finished) {
     const evs = sim.step();
     const s = sim.snapshot();
-    tl.add(evs.map((e): TimelineItem => ({ e, ice: { period: s.inShootout ? 5 : e.period, onIce: s.onIce, goalies: s.goalies } })));
+    const items = evs.map((e): TimelineItem => ({ e, ice: { period: s.inShootout ? 5 : e.period, onIce: s.onIce, goalies: s.goalies } }));
+    // Per-second engine: the rink is driven by where everyone actually is.
+    if (s.ice && !s.inShootout) tl.addMixed(items, [{ track: s.ice, ice: { period: s.ice.period, onIce: s.onIce, goalies: s.goalies } }]);
+    else tl.add(items);
   }
   const motion = new RinkMotion(tl, meta);
   const dt = 1 / 60;

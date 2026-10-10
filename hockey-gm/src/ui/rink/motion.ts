@@ -12,7 +12,7 @@
  * puck is carried on a stick, flies along passes and shots, or slides loose
  * with friction.
  */
-import type { GameEvent, GameEventType } from '../../engine/sim/gameTypes';
+import type { GameEvent, GameEventType, TrackFrame } from '../../engine/sim/gameTypes';
 import { RINK, attackDir, hash, onSurface, whistleHold, type Frame, type IceState, type Pt, type RinkDirector, type RinkPlayer } from './director';
 
 export interface TimelineItem {
@@ -55,7 +55,52 @@ export class RinkTimeline {
   private stopped = false;
   private lastIce: IceState | null = null;
 
+  /** Latest engine positions (rink coordinates) when the engine reports where everyone is each second. */
+  private live: { players: Record<number, Pt>; puck: Pt; carrier: number | null; period: number } | null = null;
+
   constructor(private director: RinkDirector) {}
+
+  /** Engine coordinates (feet from centre ice, home attacking +x) to the drawn rink for this period. */
+  static toRink(x: number, y: number, period: number): Pt {
+    const d = attackDir(0, period);
+    return onSurface({ x: RINK.cx + x * d, y: RINK.cy + y * d }, 1.5);
+  }
+
+  /**
+   * Events and per-second positions together, in game-time order. Positions
+   * come straight from the engine; events add what the positions can't show
+   * (shot and pass flights, flashes, the goal light, penalties).
+   */
+  addMixed(items: TimelineItem[], tracks: { track: TrackFrame; ice: IceState }[]): void {
+    let i = 0;
+    let j = 0;
+    while (i < items.length || j < tracks.length) {
+      if (j >= tracks.length || (i < items.length && items[i].e.t <= tracks[j].track.t)) this.add([items[i++]]);
+      else this.addTrack(tracks[j++]);
+    }
+  }
+
+  /** Players just sent to the box (the engine takes them off at its next second). */
+  private boxed = new Set<number>();
+
+  private addTrack({ track, ice }: { track: TrackFrame; ice: IceState }): void {
+    const period = ice.period;
+    const players: Record<number, Pt> = {};
+    const seen = new Set<number>();
+    for (const [id, x, y] of track.players) {
+      seen.add(id);
+      if (this.boxed.has(id)) continue;
+      players[id] = RinkTimeline.toRink(x, y, period);
+    }
+    // Once the engine has taken him off, he's free to come back when his penalty ends.
+    for (const id of this.boxed) if (!seen.has(id)) this.boxed.delete(id);
+    const puck = RinkTimeline.toRink(track.puck[0], track.puck[1], period);
+    this.live = { players, puck, carrier: track.carrier, period };
+    const s = Math.max(this.lastS + 0.05, track.t + this.holdSum);
+    this.push({ puck, motion: 'carry', carrier: track.carrier, players, flash: null, goalLight: null }, s, period);
+    this.lastS = s;
+    this.lastIce = ice;
+  }
 
   /** Presentation time of the latest scheduled keyframe. */
   get end(): number {
@@ -71,13 +116,40 @@ export class RinkTimeline {
       // leaving the rest of the pause for everyone to line up for the faceoff.
       const housekeeping = this.stopped && e.type !== 'faceoff' && e.type !== 'periodStart' && whistleHold(e.type) === 0;
       const s = housekeeping ? this.lastS + Math.max(gap, 0.4) : Math.max(this.lastS + gap, e.t + this.holdSum);
+      const live = this.live;
+      if (live) {
+        // Let the director work from where the engine really has the puck.
+        this.director.puck = { ...live.puck };
+        this.director.carrier = live.carrier;
+      }
       const frames = this.director.apply(e, ice);
+      if (live) {
+        for (const f of frames) {
+          // Penalized players head for the box: drop them from the last known positions.
+          if (f.toBox?.length) {
+            const rest = { ...live.players };
+            for (const id of f.toBox) {
+              delete rest[id];
+              this.boxed.add(id);
+            }
+            live.players = rest;
+          }
+          f.players = live.players;
+          if (f.motion === 'pass' && e.p2 !== undefined && live.players[e.p2]) {
+            f.puck = { ...live.players[e.p2] };
+            f.carrier = e.p2;
+          } else if (f.motion !== 'shot') {
+            f.puck = { ...live.puck };
+            f.carrier = live.carrier;
+          }
+        }
+      }
       let placed = this.lastS;
       // Waypoints so play keeps moving between engine events (not during stoppages):
       // toward where the next play happens.
       const prev = this.keys[this.keys.length - 1];
       const firstAt = frames[0].at !== undefined ? s + frames[0].at : s - (frames.length - 1) * 0.32;
-      if (prev && this.lastIce && !this.stopped && firstAt - this.lastS > WAYPOINT_EVERY * 1.2) {
+      if (!live && prev && this.lastIce && !this.stopped && firstAt - this.lastS > WAYPOINT_EVERY * 1.2) {
         const span = firstAt - this.lastS;
         const n = Math.max(2, Math.round(span / WAYPOINT_EVERY));
         for (let i = 1; i < n; i++) {

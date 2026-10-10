@@ -6,7 +6,8 @@
 import { useSyncExternalStore } from 'react';
 import type { League } from '../engine/types';
 import { createLeague, type CreateLeagueOptions } from '../engine/league/create';
-import { advanceDay, userGameToday, type DayReport } from '../engine/league/season';
+import { advanceDayAsync, userGameToday, type DayReport } from '../engine/league/season';
+import { simMany } from './sim/pool';
 import { advanceOffseason } from '../engine/league/offseason';
 import { serializeLeague, deserializeLeague, saveMeta } from '../engine/save';
 import type { GameResult } from '../engine/sim/gameTypes';
@@ -194,7 +195,7 @@ export async function runSim(kind: SimKind, overrides?: Map<number, GameResult>)
   try {
     let first = true;
     while (!done()) {
-      reports.push(advanceDay(league, first ? overrides : undefined));
+      reports.push(await advanceDayAsync(league, first ? overrides : undefined, simMany));
       first = false;
       const n = league.day - startDay;
       const progress = kind === 'week' ? n / 7 : kind === 'month' ? n / 30 : kind === 'day' ? 1 : Math.min(0.99, n / (kind === 'endPlayoffs' ? totalDays + 60 : totalDays));

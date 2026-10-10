@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { GameEvent, GameSnapshot } from '../../engine/sim/gameTypes';
+import type { GameEvent, GameSnapshot, TrackFrame } from '../../engine/sim/gameTypes';
 import type { Tactics, Team } from '../../engine/types';
 import { clockLabel, periodLabel } from '../../engine/sim/commentary';
-import { RINK, RinkDirector, attackDir, type RinkPlayer, type ShotMark } from './director';
+import { RINK, RinkDirector, attackDir, type IceState, type RinkPlayer, type ShotMark } from './director';
 import { RinkMotion, RinkTimeline, type Key, type TimelineItem } from './motion';
 import { teamBar } from '../teamColors';
 import './rink.css';
@@ -13,6 +13,8 @@ import { SoundToggle } from '../audio/SoundToggle';
 export interface RinkFeed {
   /** Every event the engine has produced so far, tagged with who was on the ice. */
   items: TimelineItem[];
+  /** Where everyone was at the end of each second of play (per-second engine). */
+  tracks?: { track: TrackFrame; ice: IceState }[];
   /** Presentation clock (game seconds plus whistle pauses) at `presAt`. */
   pres: number;
   /** performance.now() when `pres` was last updated. */
@@ -135,10 +137,10 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
   const meta = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const shownRef = useRef(onShown);
   shownRef.current = onShown;
-  const engine = useRef<{ tl: RinkTimeline; motion: RinkMotion; consumed: number } | null>(null);
+  const engine = useRef<{ tl: RinkTimeline; motion: RinkMotion; consumed: number; tracks: number } | null>(null);
   if (!engine.current) {
     const tl = new RinkTimeline(new RinkDirector(meta, [home.abbr, away.abbr], tactics));
-    engine.current = { tl, motion: new RinkMotion(tl, meta), consumed: 0 };
+    engine.current = { tl, motion: new RinkMotion(tl, meta), consumed: 0, tracks: 0 };
   }
   const els = useRef(new Map<number, SVGGElement>());
   const heads = useRef(new Map<number, SVGGElement>());
@@ -364,9 +366,12 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
       if (feed.rate > 0 && feed.rate <= 10 && !feed.done && sfx.prefs.on) sfx.startCrowd();
       else sfx.stopCrowd();
       const eng = engine.current!;
-      if (feed.items.length > eng.consumed) {
-        tl.add(feed.items.slice(eng.consumed));
+      const tracks = feed.tracks ?? [];
+      if (feed.items.length > eng.consumed || tracks.length > eng.tracks) {
+        if (tracks.length) tl.addMixed(feed.items.slice(eng.consumed), tracks.slice(eng.tracks));
+        else tl.add(feed.items.slice(eng.consumed));
         eng.consumed = feed.items.length;
+        eng.tracks = tracks.length;
       }
       const realDt = Math.min(0.1, (now - last) / 1000);
       last = now;

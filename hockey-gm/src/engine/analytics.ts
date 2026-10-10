@@ -149,7 +149,8 @@ export async function runGameBatchAsync(league: League, n: number, onProgress: (
   const acc = new BatchAccumulator();
   for (let i = 0; i < n; i++) {
     acc.add(batchGame(league, i, salt));
-    if (i % 40 === 39) {
+    // Games take real work now (every player decides every second): yield often so the page stays responsive.
+    if (i % 4 === 3) {
       onProgress(i + 1);
       await new Promise((r) => setTimeout(r, 0));
       if (isCancelled()) break;
