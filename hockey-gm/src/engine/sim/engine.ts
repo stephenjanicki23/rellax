@@ -78,39 +78,47 @@ export const TUNING = {
 
 /** Knobs for the per-second engine (how players weigh their options, how contests resolve). */
 export const AGENT = {
+  /** Seconds between decisions: every player decides this often (0.25 = four times a second). */
+  tick: 0.25,
+  /** Seconds a player needs to settle a puck before he can pass or shoot it again (one-timers excepted). */
+  settle: 0.5,
+  /** Decision-noise scale for the tick length (√tick keeps a second's worth of judgement error constant). */
+  noise: 1,
+  /** Bonus for sticking with last tick's choice (commitment to a play). */
+  commit: 0.12,
   /** Scale from expected goals to decision utility. */
   shoot: 4.5,
   /** Utility a shot must clear before it beats keeping the puck. */
-  shootBar: 0.27,
+  shootBar: 0.26,
   /** Base log-odds that a pressuring defender wins the puck in a second of contact. */
   take: -1.55,
   /** Chance a defender squarely in a shooting lane blocks the shot. */
-  block: 0.74,
+  block: 0.4,
   /** Weight of team-level edges (coaching, system fit, chemistry, momentum) in each second's puck battles. */
-  teamEdge: 0.3,
+  teamEdge: 0.25,
   /** Skater rating spread relative to the possession engine (edges compound when contested every second). */
-  talentSpread: 0.42,
+  talentSpread: 0.38,
   /** Score effects: weight in puck battles, and how much a trailing team's shooters force the issue. */
-  scoreFx: 0.15,
-  urgency: 0.04,
+  scoreFx: 0.06,
+  urgency: 0.02,
   /** Finishing offset on top of the shared shot model (log-odds). */
-  finish: 0.1,
+  finish: 0.25,
   /** How strongly home ice tilts puck battles (multiplies the engine's home advantage). */
-  homeEdge: 2.8,
+  homeEdge: 0.9,
   /** Share of puck wins the scorer would actually record as a takeaway (only clear, deliberate steals). */
-  tkCredit: 0.22,
+  tkCredit: 0.07,
   /** Appetite for finishing checks (scaled by each player's physical style). */
-  hit: 0.14,
+  hit: 0.15,
   /** Half-width of a shooting lane a defender can get a piece of (feet). */
-  blockLane: 5.5,
+  blockLane: 4,
   /** Scale on pass interceptions. */
   intercept: 0.85,
   /** Skating speed: feet per second at average skating, and per z of skating. */
   speed: 15,
   speedZ: 3,
   /** Value of a shot from distance per screener in front, and for defencemen getting it through from the point. */
-  traffic: 0.45,
-  pointShot: 0.4,
+  traffic: 0.38,
+  pointShot: 0.28,
   /** Chance a defender right on the shooter (stick on stick) takes the shot away before it's released. */
   shotDenial: 0.65,
   /** How much a passer values moving the puck to a better scoring spot, and how much he fears interceptions. */
@@ -141,6 +149,9 @@ for (let iu = 0; iu < SPOT_U; iu++)
 /** Optional tally of shots by distance and how the shooter got the puck (calibration). */
 export let SHOT_DEBUG: Record<string, number> | null = null;
 export const enableShotDebug = (): Record<string, number> => (SHOT_DEBUG = {});
+
+/** Convert a chance per second of contact into the chance for one decision tick. */
+const perTick = (p: number): number => 1 - Math.pow(1 - clamp(p, 0, 0.999), AGENT.tick);
 
 const SUPPORT_OFFSETS = [0, 0, 0, 8, 0, -8, 6, 0, -6, 0];
 
@@ -215,8 +226,10 @@ interface SP {
   x: number;
   y: number;
   role: Role;
-  /** What he chose to do this second (per-second engine). */
+  /** What he chose to do this tick (per-second engine), and what he was doing the tick before. */
   plan: Plan | null;
+  last: Act | null;
+  lastTarget: SP | null;
   /** Per-second scratch: effective ratings this second (form and fatigue applied). */
   e: { skate: number; hands: number; decide: number; defIQ: number; offIQ: number; stickD: number; pass: number; block: number; phys: number };
   /** Per-second scratch: distance to the nearest opponent, and the two nearest opposing defenders. */
@@ -402,6 +415,8 @@ function buildPlayer(inp: GamePlayerInput, team: Side, rng: Rng, playoff: boolea
     d2: 99,
     e: { skate: 0, hands: 0, decide: 0, defIQ: 0, offIQ: 0, stickD: 0, pass: 0, block: 0, phys: 0 },
     plan: null,
+    last: null,
+    lastTarget: null,
   };
   if (!isG && SPREAD !== 1) {
     for (const k of ['skate', 'hands', 'pass', 'shot', 'slap', 'oneT', 'back', 'acc', 'offIQ', 'defIQ', 'stickD', 'block', 'phys', 'fo', 'recv', 'decide', 'so', 'ovr'] as const) sp[k] *= SPREAD;
@@ -504,6 +519,8 @@ export class GameSim {
   private reboundAt = -99;
   /** Defender who stood the carrier up this second (forces a puck battle). */
   private blockedBy: SP | null = null;
+  /** When the current carrier got the puck (he needs a moment to settle it). */
+  private gotPuckAt = 0;
   /** Each team's manpower situation this second, and reusable structure options. */
   private sitNow: ['ES' | 'PP' | 'PK', 'ES' | 'PP' | 'PK'] = ['ES', 'ES'];
   private sOpts: [StructureOpts, StructureOpts] = [
@@ -618,7 +635,7 @@ export class GameSim {
 
   simulate(): GameResult {
     let guard = 0;
-    while (!this.finished && guard++ < 40000) this.step();
+    while (!this.finished && guard++ < 200000) this.step();
     if (!this.finished) this.finish();
     return this.result();
   }
@@ -1837,7 +1854,8 @@ export class GameSim {
 
   /** Cheap zero-mean noise with standard deviation sd (a decision's judgement error). */
   private jitter(sd: number): number {
-    return (this.rng.next() - 0.5) * 3.464 * sd;
+    // Judgement errors are redrawn every tick: scale them so a second of play carries the same noise at any tick rate.
+    return (this.rng.next() - 0.5) * 3.464 * sd * AGENT.noise;
   }
 
   private nearestDist(x: number, y: number, list: SP[]): number {
@@ -1863,6 +1881,7 @@ export class GameSim {
   }
 
   private setPoss(side: Side, carrier: SP | null): void {
+    if (carrier !== this.puck.carrier) this.gotPuckAt = this.elapsed;
     if (side !== this.poss) {
       this.poss = side;
       this.resetPossession();
@@ -1971,12 +1990,16 @@ export class GameSim {
     this.updateZone();
     if (this.zone === 'O') this.entryAt = this.elapsed;
     this.ev('faceoff', w, winner.id, loser.id, undefined, { zone: this.zone });
-    for (const t of this.teams) for (const p of t.onIce) p.plan = null;
+    for (const t of this.teams)
+      for (const p of t.onIce) {
+        p.plan = null;
+        p.last = null;
+      }
     if (this.input.recordTrack) this.track.push(this.frame());
     this.advance(1);
   }
 
-  /** One second of play. */
+  /** One decision tick of play (a quarter of a second by default). */
   private tick(): void {
     if (this.faceoff !== null) {
       this.agentFaceoff();
@@ -1986,7 +2009,12 @@ export class GameSim {
     // A carrier who just went off (change, penalty, injury) leaves the puck where he was.
     if (this.puck.carrier && (!this.puck.carrier.onIce || this.puck.carrier.out)) this.loosePuck(this.puck.x, this.puck.y);
     // 1. Everyone decides at once, from the same picture of the ice.
-    for (const t of this.teams) for (const p of t.onIce) p.plan = null;
+    for (const t of this.teams)
+      for (const p of t.onIce) {
+        p.last = p.plan?.act ?? null;
+        p.lastTarget = p.plan?.target ?? null;
+        p.plan = null;
+      }
     const carrier = this.puck.carrier;
     this.scanIce();
     if (carrier) this.rankToCarrier(carrier);
@@ -2019,6 +2047,10 @@ export class GameSim {
           this.agentPass(A, B, carrier, plan.target!);
           break;
         case 'dump':
+          if (SHOT_DEBUG) {
+            const k = `dump:u${Math.round((carrier.x * dirOf(carrier.team)) / 5) * 5}:${this.acquired}:${A.tactics.offense}`;
+            SHOT_DEBUG[k] = (SHOT_DEBUG[k] ?? 0) + 1;
+          }
           this.agentDump(A, carrier, false);
           break;
         case 'clear':
@@ -2046,12 +2078,12 @@ export class GameSim {
             for (const o of this.teams[1 - p.team].onIce) {
               const tt = along(o.x, o.y, p.x, p.y, plan.tx, plan.ty);
               if (tt <= 0 || distToSegment(o.x, o.y, p.x, p.y, plan.tx, plan.ty) > 3.5) continue;
-              spd = Math.min(spd, Math.max(0, tt * len - 3));
+              spd = Math.min(spd, Math.max(0, tt * len - 3) / AGENT.tick);
               this.blockedBy = o;
             }
           }
         }
-        spd = clamp(spd, 0, 25);
+        spd = clamp(spd, 0, 25) * AGENT.tick;
         moveTo(p.x, p.y, plan.tx, plan.ty, spd);
         moves.push(p, OUT[0], OUT[1]);
       }
@@ -2104,7 +2136,7 @@ export class GameSim {
     }
     this.updateZone();
     if (this.input.recordTrack) this.track.push(this.frame());
-    this.advance(1);
+    this.advance(AGENT.tick);
   }
 
   // ── decisions ──
@@ -2127,7 +2159,8 @@ export class GameSim {
     let by = p.y;
     let bt: SP | undefined;
     const consider = (util: number, act: Act, tx: number, ty: number, target?: SP) => {
-      const x = util + this.jitter(sd);
+      // Players commit to a play: sticking with it beats switching unless something clearly better opens up.
+      const x = util + this.jitter(sd) + (act === p.last && (target ?? null) === p.lastTarget ? AGENT.commit : 0);
       if (x > bestU) {
         bestU = x;
         bAct = act;
@@ -2138,8 +2171,11 @@ export class GameSim {
     };
     const gx = GOAL_LINE * d;
     const pressure = p.near;
+    // Just got it: settle the puck first (a one-timer or a rebound goes straight back out).
+    const settling = this.elapsed - this.gotPuckAt < AGENT.settle;
+    const quick = (this.elapsed - this.crossSlotAt <= 1 && this.lastReceiver === p) || this.elapsed - this.reboundAt <= 1.5;
     // Shoot.
-    if (u > BLUE_LINE || (empty && u > -40)) {
+    if ((u > BLUE_LINE || (empty && u > -40)) && (!settling || quick)) {
       const g = shotGeometry(u, v);
       let xs = baseGoalProbability({ dist: g.dist, angle: g.angle, type: 'wrist', empty }) * (1 - baseMissProbability('wrist', g.dist));
       let lane = 0;
@@ -2165,7 +2201,7 @@ export class GameSim {
     }
     // Pass to each teammate.
     for (const m of A.onIce) {
-      if (m === p) continue;
+      if (m === p || settling) continue;
       if (Math.abs(m.x - p.x) > 110) continue;
       const mu = m.x * d;
       const mv = m.y;
@@ -2240,16 +2276,23 @@ export class GameSim {
     consider(carryU, 'carry', tu * d, tv);
     // Dump it in.
     // Over the red line only: from his own half it would be icing.
-    if (u > 1 && u <= BLUE_LINE + 2) {
+    if (u > 8 && u <= BLUE_LINE + 2 && !settling) {
       const o = A.tactics.offense;
-      let dumpU = 0.0 + (front < 12 ? 0.24 : 0) + (o === 'dumpChase' ? 0.3 : o === 'cycle' ? 0.1 : 0);
+      // Dump it in when the blue line is closed (or the system says so).
+      let atLine = 0;
+      for (const q of opp) {
+        const qu = q.x * d;
+        if (qu > BLUE_LINE - 6 && qu < BLUE_LINE + 14 && Math.abs(q.y - v) < 22) atLine++;
+      }
+      const closed = front < 8 && atLine >= 2;
+      let dumpU = -0.12 + (closed ? 0.28 : 0) + (front < 15 ? (o === 'dumpChase' ? 0.18 : o === 'cycle' ? 0.06 : 0) : 0);
       const tired = A.onIce.reduce((s, m) => s + m.energy, 0) / Math.max(1, A.onIce.length) < 55;
       if (tired) dumpU += 0.15;
       if (u < 0 && !pk) dumpU -= 0.55;
       consider(dumpU, 'dump', p.x, p.y);
     }
     // Clear the zone.
-    if (u < -BLUE_LINE) consider((pressure < 7 ? 0.28 : -0.05) + (pk ? 0.35 : 0) - 0.12, 'clear', p.x, p.y);
+    if (u < -BLUE_LINE && !settling) consider((pressure < 5 ? 0.22 : -0.15) + (pk ? 0.35 : 0) - 0.12, 'clear', p.x, p.y);
     // Protect it and wait for something to open.
     const holdTarget = clampToIce(p.x + this.rng.float(-3, 3), p.y + this.rng.float(-3, 3));
     consider(0.04 + 0.03 * p.e.hands + (u > BLUE_LINE ? 0.05 : -0.05), 'hold', holdTarget[0], holdTarget[1]);
@@ -2298,7 +2341,7 @@ export class GameSim {
     }
     // Drive the net when the puck is in deep.
     if (p.isF && carrier.x * d > BLUE_LINE) {
-      const util = 0.12 * p.style.netFront + (this.elapsed - this.reboundAt < 2 ? 0.3 : 0) + this.jitter(sd) + 0.1;
+      const util = 0.12 * p.style.netFront + (this.elapsed - this.reboundAt < 2 ? 0.3 : 0) + this.jitter(sd) + 0.1 + (p.last === 'drive' ? AGENT.commit : 0);
       if (util > bestU) best = { act: 'drive', tx: (GOAL_LINE - 9) * d, ty: clamp(p.y, -6, 6) };
     }
     // Stay onside: anyone caught inside the zone while the puck is out tags up.
@@ -2322,7 +2365,8 @@ export class GameSim {
     let by = p.y;
     let bt: SP | undefined;
     const consider = (util: number, act: Act, tx: number, ty: number, target?: SP) => {
-      const x = util + this.jitter(sd);
+      // Players commit to a play: sticking with it beats switching unless something clearly better opens up.
+      const x = util + this.jitter(sd) + (act === p.last && (target ?? null) === p.lastTarget ? AGENT.commit : 0);
       if (x > bestU) {
         bestU = x;
         bAct = act;
@@ -2403,11 +2447,11 @@ export class GameSim {
       const pInt = clamp(Math.exp(-dl / 2.6) * (0.42 + 0.1 * o.e.defIQ + 0.06 * o.e.stickD) * AGENT.intercept - 0.05 * p.e.pass, 0, 0.9);
       if (this.rng.chance(pInt)) {
         const roll = this.rng.next();
-        if (roll < 0.5) {
+        if (roll < 0.22) {
           p.stat.gv++;
           A.stats.gv++;
           this.ev('giveaway', A.idx, p.id, o.id, undefined, { zone: this.zone });
-        } else if (roll < 0.5 + 0.5 * AGENT.tkCredit) {
+        } else if (roll < 0.22 + 0.5 * AGENT.tkCredit) {
           o.stat.tk++;
           B.stats.tk++;
           this.ev('takeaway', B.idx, o.id, p.id, undefined, { zone: this.zone });
@@ -2463,7 +2507,6 @@ export class GameSim {
     this.addChain(p);
     if (clearing) {
       const far = !pk && this.rng.chance(0.07);
-      const tu = far ? GOAL_LINE + 4 : this.rng.float(-8, 45);
       this.ev('clear', A.idx, p.id);
       if (far && startU < 0) {
         this.ev('icing', A.idx, p.id);
@@ -2471,7 +2514,11 @@ export class GameSim {
         this.noChange = A.idx;
         return;
       }
-      this.loosePuck(tu * d, this.rng.float(-30, 30));
+      // Off the glass and out toward the most advanced teammate (on the PK, just get it down the ice).
+      let ahead: SP | null = null;
+      for (const m of A.onIce) if (m !== p && (!ahead || m.x * d > ahead.x * d)) ahead = m;
+      if (!pk && ahead && ahead.x * d > startU + 15) this.loosePuck(ahead.x + d * this.rng.float(0, 14), ahead.y + this.rng.float(-10, 10));
+      else this.loosePuck(this.rng.float(-8, 45) * d, this.rng.float(-30, 30));
       return;
     }
     const B = this.teams[1 - A.idx];
@@ -2511,7 +2558,7 @@ export class GameSim {
     const plan = who.plan!;
     if (plan.act === 'hit' && plan.target === c) {
       const boards = Math.abs(c.y) > 30 || Math.abs(c.x) > 80 ? 0.35 : 0;
-      if (this.rng.chance(logistic(-0.2 + 0.55 * (who.e.phys - 0.5 * c.e.skate) + boards))) {
+      if (this.rng.chance(perTick(logistic(-0.2 + 0.55 * (who.e.phys - 0.5 * c.e.skate) + boards)))) {
         this.hit(who, c);
         if (this.faceoff !== null) return;
         if (this.rng.chance(0.38)) this.loosePuck(c.x + this.rng.float(-5, 5), c.y + this.rng.float(-5, 5));
@@ -2525,7 +2572,7 @@ export class GameSim {
       AGENT.scoreFx * (this.scoreEffect(who.team) - this.scoreEffect(c.team)) +
       (this.isPK(c.team) ? 0.3 : 0) + (this.situation(c.team) === 'PP' ? -0.5 : 0) + AGENT.teamEdge * (B.coachDef - A.coachOff + B.sys.def - A.sys.off) +
       (c.team === 0 ? -1 : 1) * this.homeAdv * AGENT.homeEdge;
-    if (!this.rng.chance(logistic(l))) return;
+    if (!this.rng.chance(perTick(logistic(l)))) return;
     if (this.rng.chance(0.55)) {
       if (this.rng.chance(AGENT.tkCredit * 1.4)) {
         who.stat.tk++;
@@ -2536,7 +2583,7 @@ export class GameSim {
       this.takeawayOZ = who.x * dirOf(B.idx) > BLUE_LINE;
       this.setPoss(B.idx, who);
     } else {
-      if (this.rng.chance(0.3)) {
+      if (this.rng.chance(0.12)) {
         c.stat.gv++;
         A.stats.gv++;
         this.ev('giveaway', A.idx, c.id, who.id, undefined, { zone: this.zone });
@@ -2583,7 +2630,7 @@ export class GameSim {
       this.ev('battle', w.team, w.id, loser.id);
       const hitter = this.rng.chance(0.5) ? w : loser;
       const target = hitter === w ? loser : w;
-      if (this.rng.chance(0.1 * hitter.hitProp)) {
+      if (this.rng.chance(perTick(0.1 * hitter.hitProp))) {
         this.hit(hitter, target);
         if (this.faceoff !== null) return;
       }
@@ -2766,7 +2813,7 @@ export class GameSim {
     if (type !== 'rebound' && rng.chance(pReb)) {
       g.stat.reb++;
       this.ev('rebound', A.idx, shooter.id);
-      this.reboundAt = this.elapsed + 1;
+      this.reboundAt = this.elapsed + AGENT.tick;
       this.loosePuck(gx - d * rng.float(5, 11), rng.float(-9, 9));
       return;
     }
