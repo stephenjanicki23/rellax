@@ -121,3 +121,6 @@
 .rink2 .pm .nm { opacity: 0.6; transition: opacity 0.25s; }
 .rink2 .pm.carrying .nm, .rink2 .pm.active .nm { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .rink2 .hit-ring { animation: none; opacity: 0; } }
+.sound-toggle { display: inline-flex; align-items: center; gap: 6px; }
+.sound-toggle input[type='range'] { width: 70px; accent-color: var(--accent, #f6c445); }
+@media (max-width: 640px) { .sound-toggle input[type='range'] { display: none; } }
