@@ -104,7 +104,7 @@ export const AGENT = {
   /** Finishing offset on top of the shared shot model (log-odds). */
   finish: 0.25,
   /** How strongly home ice tilts puck battles (multiplies the engine's home advantage). */
-  homeEdge: 0.9,
+  homeEdge: 1.1,
   /** Share of puck wins the scorer would actually record as a takeaway (only clear, deliberate steals). */
   tkCredit: 0.07,
   /** Appetite for finishing checks (scaled by each player's physical style). */
