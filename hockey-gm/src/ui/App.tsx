@@ -39,6 +39,7 @@ import { ComparePage } from './pages/Compare';
 import { DevelopmentPage } from './pages/Development';
 import { DeadlinePage } from './pages/Deadline';
 import { AwardsRacePage } from './pages/AwardsRace';
+import { AwardsNightPage, currentAwardsNight, unrevealed } from './pages/AwardsNight';
 import { MediaPage } from './pages/Media';
 import { MedicalPage } from './pages/Medical';
 import { CoachPage } from './pages/CoachPage';
@@ -186,6 +187,7 @@ function Routes() {
     development: <DevelopmentPage />,
     deadline: <DeadlinePage />,
     awards: <AwardsRacePage />,
+    awardsnight: <AwardsNightPage />,
     media: <MediaPage />,
     medical: <MedicalPage />,
     coach: <CoachPage id={Number(r.param)} />,
@@ -225,6 +227,8 @@ function useBadges(): Record<string, string | null> {
       badges.contracts = n ? String(n) : null;
     }
     if (league.phase === 'freeAgency') badges.freeagency = `D${league.faDay + 1}`;
+    const night = currentAwardsNight(league);
+    if (night && unrevealed(night)) badges.awards = '★';
     if (league.tradeOffers?.length) badges.trades = String(league.tradeOffers.length);
     const staff = league.teams[league.userTeamId].staff;
     if (staff.headCoach === null || league.coaches[staff.headCoach]?.interim) badges.coaching = '!';

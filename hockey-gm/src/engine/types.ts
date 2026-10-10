@@ -1032,6 +1032,8 @@ export interface SeasonHistory {
   standings: { teamId: number; w: number; l: number; otl: number; pts: number; gf: number; ga: number; playoff: string }[];
   leaders: { cat: string; playerId: number; value: number }[];
   firstOverall?: number;
+  /** First and second All-Star teams (player ids, in C, LW, RW, D, D, G order). */
+  allStarTeams?: { first: number[]; second: number[] };
 }
 
 export interface RecordEntry {
@@ -1152,6 +1154,8 @@ export interface League {
   lottery?: DraftLottery;
   /** Draft day: the consensus board when the draft opened, every selection, and the final grades. */
   draftDay?: DraftDay;
+  /** The latest season's awards night: ballots, finalists and the All-Star teams. */
+  awardsNight?: import('./league/awardsNight').AwardsNight;
   faOffers: FreeAgentOffer[];
   faDay: number;
   news: NewsItem[];

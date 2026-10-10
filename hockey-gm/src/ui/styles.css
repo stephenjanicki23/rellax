@@ -312,3 +312,14 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 @keyframes clock-pulse { 50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent) inset; } }
 .feed-pick.me { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 @media (prefers-reduced-motion: reduce) { .clock-banner.mine { animation: none; } }
+
+/* Awards night */
+.awards-night { align-items: start; }
+.award-fin { padding: 6px 8px; border-radius: 6px; background: color-mix(in srgb, var(--line) 30%, transparent); }
+.award-fin.me { outline: 1px solid var(--accent); }
+.award-winner { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); background: color-mix(in srgb, var(--gold) 12%, var(--panel)); animation: award-in 0.6s ease-out; }
+.award-winner.me { box-shadow: 0 0 0 2px var(--accent); }
+@keyframes award-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+.award-wide { grid-column: 1 / -1; }
+.awards-night .tbl-scroll { overflow-x: auto; min-width: 0; }
+@media (max-width: 600px) { .awards-night .an-named, .awards-night .an-bar { display: none; } }

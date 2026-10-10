@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useGame } from '../store';
 import { Card, PlayerLink, Pos, Tabs, TeamLogo } from '../components/common';
 import { allStarDay, awardsRace } from '../../engine/league/race';
-import { shortDate } from '../format';
+import { seasonLabel, shortDate } from '../format';
 
 /** Who's leading each trophy, the three stars of the week, and the All-Stars. */
 export function AwardsRacePage() {
@@ -20,6 +20,13 @@ export function AwardsRacePage() {
           <div className="sub">Where the trophy races stand today, scored the way the season-end voting is.</div>
         </div>
       </div>
+      {league.awardsNight && (
+        <div className="banner">
+          <b>🏆 {seasonLabel(league.awardsNight.season)} awards night</b>
+          <span className="muted" style={{ flex: 1 }}>Finalists, winners and the full ballots.</span>
+          <a className="btn small primary" href="#/awardsnight">Open</a>
+        </div>
+      )}
       <Tabs
         value={tab}
         onChange={setTab}
