@@ -2,6 +2,8 @@ import type { League, Player, SeasonAwardResult, StatLine } from '../types';
 import { points, gsax, savePct, faceoffPct, corsiPct } from '../core/statline';
 import { addNews, teamName, points as recPoints } from './helpers';
 import { fullName } from '../player/ability';
+import { Rng, seedFrom } from '../core/rng';
+import { BROADCASTERS, GMS, PLAYERS, WRITERS, judgementSd, vote, type AllStarSlot, type AwardBallot, type AwardsNight, type Finalist, type VoteCand } from './awardsNight';
 
 export const AWARD_NAMES = {
   mvp: 'Hart Trophy (MVP)',
@@ -12,6 +14,9 @@ export const AWARD_NAMES = {
   rookie: 'Calder Trophy (Rookie)',
   selke: 'Selke Trophy (Defensive Forward)',
   coach: 'Jack Adams Award (Coach)',
+  lindsay: "Ted Lindsay Award (Players' MVP)",
+  byng: 'Lady Byng Trophy (Sportsmanship)',
+  jennings: 'Jennings Trophy (Fewest Goals Against)',
   playoffMvp: 'Conn Smythe Trophy (Playoff MVP)',
   presidents: "Presidents' Trophy",
 };
@@ -67,59 +72,165 @@ export type AwardCand = Cand;
 export function computeAwards(league: League): SeasonAwardResult[] {
   const out: SeasonAwardResult[] = [];
   const cands: Cand[] = [];
-  const po: Cand[] = [];
   for (const [idStr, e] of Object.entries(league.seasonStats)) {
     const p = league.players[Number(idStr)];
     if (!p) continue;
     if (e.reg.gp > 0) cands.push({ p, s: e.reg, teamId: e.teamId });
-    if (e.po.gp > 0) po.push({ p, s: e.po, teamId: e.teamId });
   }
-  const teamPct = (id: number) => {
-    const r = league.standings[id];
-    return r && r.gp ? recPoints(r) / (r.gp * 2) : 0.5;
-  };
+  const rng = new Rng(seedFrom(league.seed, 'awards', league.season));
+  const ballots: AwardBallot[] = [];
   const skaters = cands.filter((c) => c.p.pos !== 'G');
   const goalies = cands.filter((c) => c.p.pos === 'G' && c.s.gp >= 25);
-  const push = (award: string, c: Cand | undefined, value: string) => {
-    if (!c) return;
-    out.push({ award, playerId: c.p.id, teamId: c.teamId, value });
+  const gLine = (c: Cand) => `${savePct(c.s).toFixed(3)} SV%, ${gsax(c.s).toFixed(1)} GSAx`;
+  const vc = (c: Cand, score: number, value: string): VoteCand => ({
+    playerId: c.p.id,
+    teamId: c.teamId,
+    score,
+    value,
+  });
+  const push = (award: string, w: VoteCand | undefined) => {
+    if (w)
+      out.push({
+        award,
+        playerId: w.playerId,
+        coachId: w.coachId,
+        teamId: w.teamId,
+        value: w.value,
+      });
+  };
+  /** A voted award: the panel's winner takes it. */
+  const voted = (award: string, who: { voters: string; panel: number; scale: number[] }, pool: VoteCand[]) => {
+    const results = vote(rng, pool, who.panel, who.scale);
+    ballots.push({ award, ...who, results });
+    push(award, results[0]);
+  };
+  /** Decided by the numbers: the top five by the stat, no ballots. */
+  const byNumbers = (award: string, pool: VoteCand[], note: string) => {
+    const results = [...pool]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map((c) => ({ ...c, pts: 0, firsts: 0, named: 0 }));
+    ballots.push({ award, voters: '', panel: 0, scale: [], results, note });
+    push(award, results[0]);
   };
 
-  const artRoss = best(skaters, (c) => points(c.s) + c.s.g * 0.01);
-  push(AWARD_NAMES.scoring, artRoss, artRoss ? `${points(artRoss.s)} pts` : '');
-  const rocket = best(skaters, (c) => c.s.g + points(c.s) * 0.001);
-  push(AWARD_NAMES.goals, rocket, rocket ? `${rocket.s.g} goals` : '');
+  byNumbers(
+    AWARD_NAMES.scoring,
+    skaters.map((c) => vc(c, points(c.s) + c.s.g * 0.01, `${points(c.s)} pts (${c.s.g} G)`)),
+    'Most regular-season points (goals break a tie).',
+  );
+  byNumbers(
+    AWARD_NAMES.goals,
+    skaters.map((c) => vc(c, c.s.g + points(c.s) * 0.001, `${c.s.g} goals`)),
+    'Most regular-season goals.',
+  );
 
-  const hartSk = best(skaters.filter((c) => c.s.gp >= 40), (c) => SCORERS.hartSkater(league, c));
-  const hartG = best(goalies, (c) => SCORERS.hartGoalie(league, c));
-  const hartSkScore = hartSk ? points(hartSk.s) + hartSk.s.g * 0.25 + (teamPct(hartSk.teamId) - 0.5) * 45 : -1;
-  const hartGScore = hartG ? gsax(hartG.s) * 2.1 + hartG.s.w * 0.6 + (teamPct(hartG.teamId) - 0.5) * 45 : -1;
-  const hart = hartGScore > hartSkScore ? hartG : hartSk;
-  push(AWARD_NAMES.mvp, hart, hart ? (hart.p.pos === 'G' ? `${savePct(hart.s).toFixed(3)} SV%, ${gsax(hart.s).toFixed(1)} GSAx` : `${points(hart.s)} pts`) : '');
-
-  const vezina = best(goalies, (c) => SCORERS.vezina(league, c));
-  push(AWARD_NAMES.goalie, vezina, vezina ? `${savePct(vezina.s).toFixed(3)} SV%, ${gsax(vezina.s).toFixed(1)} GSAx` : '');
-
-  const dmen = skaters.filter((c) => c.p.pos === 'D' && c.s.gp >= 40);
-  const norris = best(dmen, (c) => SCORERS.norris(league, c));
-  push(AWARD_NAMES.defense, norris, norris ? `${points(norris.s)} pts, ${(norris.s.toi / norris.s.gp / 60).toFixed(1)} TOI` : '');
-
-  const rookies = cands.filter((c) => isRookieSeason(c.p, league.season) && c.s.gp >= 25);
-  const calder = best(rookies, (c) => SCORERS.calder(league, c));
-  push(AWARD_NAMES.rookie, calder, calder ? (calder.p.pos === 'G' ? `${savePct(calder.s).toFixed(3)} SV%` : `${points(calder.s)} pts`) : '');
-
-  const fwds = skaters.filter((c) => c.p.pos !== 'D' && c.s.gp >= 50);
-  const selke = best(fwds, (c) => SCORERS.selke(league, c));
-  push(AWARD_NAMES.selke, selke, selke ? `${selke.s.tk} TK, ${(faceoffPct(selke.s) * 100).toFixed(1)} FO%` : '');
+  const hartPool = [...skaters.filter((c) => c.s.gp >= 40).map((c) => vc(c, SCORERS.hartSkater(league, c), `${points(c.s)} pts`)), ...goalies.map((c) => vc(c, SCORERS.hartGoalie(league, c), gLine(c)))];
+  voted(AWARD_NAMES.mvp, WRITERS, hartPool);
+  // The players' award: the same contenders, judged without the standings.
+  voted(AWARD_NAMES.lindsay, PLAYERS, [
+    ...skaters.filter((c) => c.s.gp >= 40).map((c) => vc(c, points(c.s) + c.s.g * 0.25 + (c.p.pos === 'D' ? 8 : 0), `${points(c.s)} pts`)),
+    ...goalies.map((c) => vc(c, gsax(c.s) * 2.1 + c.s.w * 0.6, gLine(c))),
+  ]);
+  voted(
+    AWARD_NAMES.goalie,
+    GMS(league.teams.length),
+    goalies.map((c) => vc(c, SCORERS.vezina(league, c), gLine(c))),
+  );
+  voted(
+    AWARD_NAMES.defense,
+    WRITERS,
+    skaters.filter((c) => c.p.pos === 'D' && c.s.gp >= 40).map((c) => vc(c, SCORERS.norris(league, c), `${points(c.s)} pts, ${(c.s.toi / c.s.gp / 60).toFixed(1)} TOI`)),
+  );
+  voted(
+    AWARD_NAMES.rookie,
+    WRITERS,
+    cands.filter((c) => isRookieSeason(c.p, league.season) && c.s.gp >= 25).map((c) => vc(c, SCORERS.calder(league, c), c.p.pos === 'G' ? `${savePct(c.s).toFixed(3)} SV%` : `${points(c.s)} pts`)),
+  );
+  voted(
+    AWARD_NAMES.selke,
+    WRITERS,
+    skaters.filter((c) => c.p.pos !== 'D' && c.s.gp >= 50).map((c) => vc(c, SCORERS.selke(league, c), `${c.s.tk} TK, ${(faceoffPct(c.s) * 100).toFixed(1)} FO%`)),
+  );
+  // Sportsmanship with a high standard of play: production, with every penalty minute held against him.
+  voted(
+    AWARD_NAMES.byng,
+    WRITERS,
+    skaters.filter((c) => c.s.gp >= 60 && points(c.s) >= 40).map((c) => vc(c, points(c.s) - c.s.pim * 1.5, `${points(c.s)} pts, ${c.s.pim} PIM`)),
+  );
 
   // Coach of the year: biggest over-achievement vs preseason projection.
-  const coachPick = best(league.teams, (t) => {
-    const r = league.standings[t.id];
-    return r ? recPoints(r) - (league.projections[t.id] ?? 92) : -99;
-  });
-  if (coachPick && coachPick.staff.headCoach !== null) {
-    const r = league.standings[coachPick.id];
-    out.push({ award: AWARD_NAMES.coach, coachId: coachPick.staff.headCoach, teamId: coachPick.id, value: `${recPoints(r)} pts (proj. ${league.projections[coachPick.id] ?? 92})` });
+  voted(
+    AWARD_NAMES.coach,
+    BROADCASTERS,
+    league.teams
+      .filter((t) => t.staff.headCoach !== null && league.standings[t.id])
+      .map((t) => {
+        const r = league.standings[t.id];
+        const proj = league.projections[t.id] ?? 92;
+        return {
+          coachId: t.staff.headCoach!,
+          teamId: t.id,
+          score: recPoints(r) - proj,
+          value: `${recPoints(r)} pts (proj. ${proj})`,
+        };
+      }),
+  );
+
+  // Jennings: the goalies (25+ games) of the club allowing the fewest goals.
+  const fewest = best(league.teams, (t) => -(league.standings[t.id]?.ga ?? 999));
+  if (fewest) {
+    const ga = league.standings[fewest.id]?.ga ?? 0;
+    const gs = cands.filter((c) => c.p.pos === 'G' && c.teamId === fewest.id && c.s.gp >= 25).sort((a, b) => b.s.gp - a.s.gp);
+    const others = league.teams
+      .filter((t) => t.id !== fewest.id && league.standings[t.id])
+      .sort((a, b) => league.standings[a.id].ga - league.standings[b.id].ga)
+      .slice(0, 4);
+    const lead = gs[0];
+    const results: Finalist[] = [];
+    if (lead)
+      results.push({
+        playerId: lead.p.id,
+        teamId: fewest.id,
+        score: -ga,
+        value: `${ga} GA${
+          gs.length > 1
+            ? `, shared with ${gs
+                .slice(1)
+                .map((g) => fullName(g.p))
+                .join(', ')}`
+            : ''
+        }`,
+        pts: 0,
+        firsts: 0,
+        named: 0,
+      });
+    for (const t of others)
+      results.push({
+        teamId: t.id,
+        score: -league.standings[t.id].ga,
+        value: `${league.standings[t.id].ga} GA`,
+        pts: 0,
+        firsts: 0,
+        named: 0,
+      });
+    if (lead) {
+      ballots.push({
+        award: AWARD_NAMES.jennings,
+        voters: '',
+        panel: 0,
+        scale: [],
+        results,
+        note: 'Goaltenders with 25+ games for the club allowing the fewest goals.',
+      });
+      out.push({
+        award: AWARD_NAMES.jennings,
+        playerId: lead.p.id,
+        teamId: fewest.id,
+        value: results[0].value,
+      });
+      for (const g of gs.slice(1)) g.p.awards.push({ season: league.season, award: AWARD_NAMES.jennings });
+    }
   }
 
   // Presidents' Trophy
@@ -127,9 +238,100 @@ export function computeAwards(league: League): SeasonAwardResult[] {
     const r = league.standings[t.id];
     return r ? recPoints(r) * 1000 + r.rw : -1;
   });
-  if (pres) out.push({ award: AWARD_NAMES.presidents, teamId: pres.id, value: `${recPoints(league.standings[pres.id])} pts` });
+  if (pres)
+    out.push({
+      award: AWARD_NAMES.presidents,
+      teamId: pres.id,
+      value: `${recPoints(league.standings[pres.id])} pts`,
+    });
 
+  league.awardsNight = {
+    season: league.season,
+    ballots,
+    allStars: allStarTeams(league, rng, cands),
+    revealed: [],
+  };
   return out;
+}
+
+/**
+ * First and second All-Star teams: each writer names a first and a second
+ * team at every position (two defencemen per team).
+ * SIMPLIFICATION: three points for a first-team vote, one for a second.
+ */
+function allStarTeams(league: League, rng: Rng, cands: Cand[]): AwardsNight['allStars'] {
+  const panel = WRITERS.panel;
+  const first: AllStarSlot[] = [];
+  const second: AllStarSlot[] = [];
+  const fwdScore = (c: Cand) => points(c.s) + c.s.g * 0.25 + (teamPctOf(league, c.teamId) - 0.5) * 20;
+  const slots: {
+    pos: string;
+    n: number;
+    pool: Cand[];
+    score: (c: Cand) => number;
+    value: (c: Cand) => string;
+  }[] = [
+    {
+      pos: 'C',
+      n: 1,
+      pool: cands.filter((c) => c.p.pos === 'C' && c.s.gp >= 40),
+      score: fwdScore,
+      value: (c) => `${points(c.s)} pts`,
+    },
+    {
+      pos: 'LW',
+      n: 1,
+      pool: cands.filter((c) => c.p.pos === 'LW' && c.s.gp >= 40),
+      score: fwdScore,
+      value: (c) => `${points(c.s)} pts`,
+    },
+    {
+      pos: 'RW',
+      n: 1,
+      pool: cands.filter((c) => c.p.pos === 'RW' && c.s.gp >= 40),
+      score: fwdScore,
+      value: (c) => `${points(c.s)} pts`,
+    },
+    {
+      pos: 'D',
+      n: 2,
+      pool: cands.filter((c) => c.p.pos === 'D' && c.s.gp >= 40),
+      score: (c) => SCORERS.norris(league, c),
+      value: (c) => `${points(c.s)} pts, ${(c.s.toi / c.s.gp / 60).toFixed(1)} TOI`,
+    },
+    {
+      pos: 'G',
+      n: 1,
+      pool: cands.filter((c) => c.p.pos === 'G' && c.s.gp >= 25),
+      score: (c) => SCORERS.vezina(league, c),
+      value: (c) => `${savePct(c.s).toFixed(3)} SV%`,
+    },
+  ];
+  for (const sl of slots) {
+    const pool = sl.pool
+      .map((c) => ({ c, s: sl.score(c) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 8);
+    if (!pool.length) continue;
+    const sd = judgementSd(pool.map((x) => x.s));
+    const pts = new Array(pool.length).fill(0);
+    for (let v = 0; v < panel; v++) {
+      const order = pool.map((x, i) => ({ i, s: x.s + rng.normal(0, sd) })).sort((a, b) => b.s - a.s);
+      for (let k = 0; k < sl.n * 2 && k < order.length; k++) pts[order[k].i] += k < sl.n ? 3 : 1;
+    }
+    const ranked = pool.map((x, i) => ({ ...x, pts: pts[i] })).sort((a, b) => b.pts - a.pts || b.s - a.s);
+    ranked.forEach((x, k) => {
+      if (k >= sl.n * 2) return;
+      (k < sl.n ? first : second).push({
+        pos: sl.pos,
+        playerId: x.c.p.id,
+        teamId: x.c.teamId,
+        pts: x.pts,
+        value: sl.value(x.c),
+      });
+    });
+  }
+  return { first, second, panel };
 }
 
 export function computePlayoffMvp(league: League): SeasonAwardResult | null {
@@ -166,6 +368,34 @@ export function announceAwards(league: League, awards: SeasonAwardResult[]): voi
     } else {
       addNews(league, { category: 'award', headline: `${teamName(league, a.teamId)} claim the ${a.award} (${a.value})`, teamIds: [a.teamId], playerIds: [], importance: 3 });
     }
+  }
+  const night = league.awardsNight;
+  if (night?.season === league.season) {
+    for (const [team, label] of [
+      [night.allStars.first, 'First'],
+      [night.allStars.second, 'Second'],
+    ] as const)
+      for (const x of team) {
+        const p = league.players[x.playerId];
+        if (!p) continue;
+        p.awards.push({
+          season: league.season,
+          award: `${label} All-Star Team`,
+        });
+        p.reputation = Math.min(100, p.reputation + (label === 'First' ? 3 : 1));
+      }
+    const names = night.allStars.first
+      .map((x) => league.players[x.playerId])
+      .filter(Boolean)
+      .map((p) => `${fullName(p)} (${p.pos})`);
+    if (names.length)
+      addNews(league, {
+        category: 'award',
+        headline: `First All-Star Team: ${names.join(', ')}`,
+        teamIds: [...new Set(night.allStars.first.map((x) => x.teamId))],
+        playerIds: night.allStars.first.map((x) => x.playerId),
+        importance: 3,
+      });
   }
 }
 

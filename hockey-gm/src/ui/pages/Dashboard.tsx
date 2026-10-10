@@ -13,7 +13,8 @@ import { injuryLabel } from '../../engine/player/injuries';
 import { teamStrength } from '../../engine/team/strength';
 import { currentPick } from '../../engine/economy/draft';
 import { expiringPlayers, FA_DAYS } from '../../engine/economy/freeAgency';
-import { dateForDay, pct, sv, PHASE_LABEL } from '../format';
+import { dateForDay, pct, sv, PHASE_LABEL, seasonLabel } from '../format';
+import { currentAwardsNight, unrevealed } from './AwardsNight';
 import { playoffRoundName } from '../../engine/league/playoffs';
 import { NewsList } from './News';
 import { OwnerCard } from './Owner';
@@ -138,6 +139,20 @@ export function Dashboard() {
         </div>
       </div>
       {banner}
+      {(() => {
+        const night = currentAwardsNight(league);
+        if (!night || !unrevealed(night)) return null;
+        const fin = night.ballots.filter((b) => b.panel > 0 && b.results.slice(0, 3).some((f) => f.teamId === team.id)).length;
+        return (
+          <div className="banner" style={{ marginBottom: 14 }}>
+            <b>🏆 Awards night</b>
+            <span className="muted" style={{ flex: 1 }}>The {seasonLabel(night.season)} trophies are being handed out.{fin ? ` Your club has ${fin} finalist${fin > 1 ? 's' : ''}.` : ''}</span>
+            <button className="btn primary small" onClick={() => navigate('awardsnight')}>
+              Watch the ceremony
+            </button>
+          </div>
+        );
+      })()}
       {league.phase === 'regular' && league.tradeDeadlineDay - league.day >= 0 && league.tradeDeadlineDay - league.day <= 7 && (
         <div className="banner" style={{ marginBottom: 14 }}>
           <b>⏱ {league.tradeDeadlineDay === league.day ? 'Trade deadline today' : `Trade deadline in ${league.tradeDeadlineDay - league.day} day${league.tradeDeadlineDay - league.day === 1 ? '' : 's'}`}</b>

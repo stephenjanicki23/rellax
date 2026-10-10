@@ -98,6 +98,7 @@ function recordHistory(league: League, awards: SeasonHistory['awards']): void {
     awards,
     standings: rows.map((r) => ({ teamId: r.team.id, w: r.rec.w, l: r.rec.l, otl: r.rec.otl, pts: r.pts, gf: r.rec.gf, ga: r.rec.ga, playoff: playoffResultFor(league, r.team.id) })),
     leaders: seasonLeaders(league),
+    allStarTeams: league.awardsNight?.season === league.season ? { first: league.awardsNight.allStars.first.map((x) => x.playerId), second: league.awardsNight.allStars.second.map((x) => x.playerId) } : undefined,
   });
   closeCoachSeason(league);
 }
@@ -126,7 +127,14 @@ export function finishSeason(league: League): void {
   // Awards (regular season + playoffs).
   const awards = computeAwards(league);
   const mvp = computePlayoffMvp(league);
-  if (mvp) awards.push(mvp);
+  if (mvp) {
+    awards.push(mvp);
+    const night = league.awardsNight;
+    if (night?.season === league.season) {
+      night.ballots.push({ award: mvp.award, voters: '', panel: 0, scale: [], results: [{ playerId: mvp.playerId, teamId: mvp.teamId, score: 0, value: mvp.value ?? '', pts: 0, firsts: 0, named: 0 }], note: 'Presented on the ice after the Final.' });
+      night.revealed.push(mvp.award);
+    }
+  }
   processWaivers(league, true);
   settlePerformanceBonuses(league);
   archiveCareers(league);
