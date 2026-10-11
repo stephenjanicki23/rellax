@@ -101,7 +101,7 @@ export const AGENT = {
   /** Skater rating spread relative to the possession engine (edges compound when contested every second). */
   talentSpread: 0.3,
   /** Score effects: weight in puck battles, and how much a trailing team's shooters force the issue. */
-  scoreFx: 0.09,
+  scoreFx: 0.06,
   urgency: 0.02,
   /** Finishing offset on top of the shared shot model (log-odds). */
   finish: 0.23,
