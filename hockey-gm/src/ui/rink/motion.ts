@@ -214,6 +214,8 @@ const SHOT_SPEED = 115;
 const passSpeed = (len: number) => 48 + Math.min(34, len * 0.4);
 /** Below this line (feet from the bottom boards) players heading to the bench may leave the ice. */
 const CORNER_GATE = 6;
+/** Blue lines sit 25 ft either side of centre. */
+const BLUE_X = 25;
 
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 /** Keep a puck position on the ice surface. */
@@ -490,6 +492,45 @@ export class RinkMotion {
         this.boxBound.delete(b.id);
       }
     }
+    this.unstack(want, !!target.faceoff, dt);
+  }
+
+  /**
+   * Markers never sit on top of each other: teammates keep a full marker
+   * apart, opponents may touch (a defender tight on his man) but not cover
+   * each other. Positions ease apart at a skating pace, so nobody jumps;
+   * the puck carrier holds his line and the other man gives way.
+   */
+  private unstack(want: Record<number, Pt>, faceoff: boolean, dt: number): void {
+    const on: Body[] = [];
+    for (const b of this.bodies.values()) if (want[b.id]) on.push(b);
+    const carrier = this.puck.mode.kind === 'carried' ? this.puck.mode.carrier : null;
+    const ease = 14 * dt;
+    for (let i = 0; i < on.length; i++)
+      for (let j = i + 1; j < on.length; j++) {
+        const a = on[i];
+        const b = on[j];
+        const MIN = a.team === b.team ? 6.4 : faceoff ? 3 : 5.4;
+        const dx = b.pos.x - a.pos.x;
+        const dy = b.pos.y - a.pos.y;
+        const d = Math.hypot(dx, dy);
+        if (d >= MIN) continue;
+        let ux = d > 1e-3 ? dx / d : Math.cos(a.id - b.id);
+        let uy = d > 1e-3 ? dy / d : Math.sin(a.id - b.id);
+        // At a blue line they spread along it, so nobody gets nudged offside.
+        if (Math.abs(Math.abs(a.pos.x - RINK.cx) - BLUE_X) < 6 || Math.abs(Math.abs(b.pos.x - RINK.cx) - BLUE_X) < 6) {
+          ux = 0;
+          uy = dy >= 0 ? 1 : -1;
+        }
+        const gap = Math.min(MIN - d, ease);
+        // Goalies and the puck carrier hold their ground.
+        const fa = a.goalie || a.id === carrier ? 0 : 1;
+        const fb = b.goalie || b.id === carrier ? 0 : 1;
+        if (fa + fb === 0) continue;
+        const wa = fa / (fa + fb);
+        a.pos = onSurface({ x: a.pos.x - ux * gap * wa, y: a.pos.y - uy * gap * wa }, 2);
+        b.pos = onSurface({ x: b.pos.x + ux * gap * (1 - wa), y: b.pos.y + uy * gap * (1 - wa) }, 2);
+      }
   }
 
   /**

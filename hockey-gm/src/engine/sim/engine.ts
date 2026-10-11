@@ -81,19 +81,21 @@ export const AGENT = {
   /** Seconds between decisions: every player decides this often (0.25 = four times a second). */
   tick: 0.25,
   /** Seconds a player needs to settle a puck before he can pass or shoot it again (one-timers excepted). */
-  settle: 0.5,
+  settle: 0.35,
   /** Decision-noise scale for the tick length (√tick keeps a second's worth of judgement error constant). */
   noise: 1,
+  /** How reluctant players are to throw the puck away from their own zone. */
+  clearCost: 0.32,
   /** Bonus for sticking with last tick's choice (commitment to a play). */
   commit: 0.12,
   /** Scale from expected goals to decision utility. */
   shoot: 4.5,
   /** Utility a shot must clear before it beats keeping the puck. */
-  shootBar: 0.26,
+  shootBar: 0.27,
   /** Base log-odds that a pressuring defender wins the puck in a second of contact. */
-  take: -1.55,
+  take: -3.2,
   /** Chance a defender squarely in a shooting lane blocks the shot. */
-  block: 0.4,
+  block: 0.27,
   /** Weight of team-level edges (coaching, system fit, chemistry, momentum) in each second's puck battles. */
   teamEdge: 0.25,
   /** Skater rating spread relative to the possession engine (edges compound when contested every second). */
@@ -102,13 +104,13 @@ export const AGENT = {
   scoreFx: 0.06,
   urgency: 0.02,
   /** Finishing offset on top of the shared shot model (log-odds). */
-  finish: 0.25,
+  finish: 0.45,
   /** How strongly home ice tilts puck battles (multiplies the engine's home advantage). */
-  homeEdge: 1.1,
+  homeEdge: 1.25,
   /** Share of puck wins the scorer would actually record as a takeaway (only clear, deliberate steals). */
   tkCredit: 0.07,
   /** Appetite for finishing checks (scaled by each player's physical style). */
-  hit: 0.15,
+  hit: 0.14,
   /** Half-width of a shooting lane a defender can get a piece of (feet). */
   blockLane: 4,
   /** Scale on pass interceptions. */
@@ -120,7 +122,7 @@ export const AGENT = {
   traffic: 0.38,
   pointShot: 0.28,
   /** Chance a defender right on the shooter (stick on stick) takes the shot away before it's released. */
-  shotDenial: 0.65,
+  shotDenial: 0.45,
   /** How much a passer values moving the puck to a better scoring spot, and how much he fears interceptions. */
   passGain: 0.25,
   passRisk: 2.5,
@@ -521,6 +523,9 @@ export class GameSim {
   private blockedBy: SP | null = null;
   /** When the current carrier got the puck (he needs a moment to settle it). */
   private gotPuckAt = 0;
+  /** Last dump-in (the dumping team's forecheckers go hard after it). */
+  private dumpAt = -99;
+  private dumpTeam: Side = 0;
   /** Each team's manpower situation this second, and reusable structure options. */
   private sitNow: ['ES' | 'PP' | 'PK', 'ES' | 'PP' | 'PK'] = ['ES', 'ES'];
   private sOpts: [StructureOpts, StructureOpts] = [
@@ -1092,6 +1097,11 @@ export class GameSim {
       }
       const stoppage = this.faceoff !== null;
       if (stoppage && this.noChange === t.idx) continue;
+      // Nobody changes while he has the puck on his stick.
+      if (!stoppage && this.mode === 'agent' && this.puck.carrier && this.puck.carrier.team === t.idx) {
+        const shiftF0 = this.elapsed - t.fStart;
+        if (shiftF0 < 95) continue;
+      }
       const canChange = stoppage || this.poss === t.idx || this.zone === 'N';
       const shiftF = this.elapsed - t.fStart;
       const shiftD = this.elapsed - t.dStart;
@@ -2286,17 +2296,19 @@ export class GameSim {
         if (qu > BLUE_LINE - 6 && qu < BLUE_LINE + 14 && Math.abs(q.y - v) < 22) atLine++;
       }
       const closed = front < 8 && atLine >= 2;
-      let dumpU = -0.12 + (closed ? 0.28 : 0) + (front < 15 ? (o === 'dumpChase' ? 0.18 : o === 'cycle' ? 0.06 : 0) : 0);
+      // Only dump-and-chase teams lean on it; everyone else would rather regroup and try again.
+      let dumpU = -0.16 + (closed ? (o === 'dumpChase' ? 0.38 : o === 'cycle' ? 0.22 : 0.06) : front < 10 && o === 'dumpChase' ? 0.1 : 0);
       const tired = A.onIce.reduce((s, m) => s + m.energy, 0) / Math.max(1, A.onIce.length) < 55;
       if (tired) dumpU += 0.15;
       if (u < 0 && !pk) dumpU -= 0.55;
       consider(dumpU, 'dump', p.x, p.y);
     }
     // Clear the zone.
-    if (u < -BLUE_LINE && !settling) consider((pressure < 5 ? 0.22 : -0.15) + (pk ? 0.35 : 0) - 0.12, 'clear', p.x, p.y);
+    // Clearing gives the puck away: a last resort when he's being run (or killing a penalty).
+    if (u < -BLUE_LINE && !settling) consider((pressure < 3.5 ? 0.08 : -0.3) + (pk ? 0.35 : 0) - AGENT.clearCost, 'clear', p.x, p.y);
     // Protect it and wait for something to open.
     const holdTarget = clampToIce(p.x + this.rng.float(-3, 3), p.y + this.rng.float(-3, 3));
-    consider(0.04 + 0.03 * p.e.hands + (u > BLUE_LINE ? 0.05 : -0.05), 'hold', holdTarget[0], holdTarget[1]);
+    consider(0.04 + 0.03 * p.e.hands + (u > BLUE_LINE ? 0.05 : u < -BLUE_LINE ? 0.02 : -0.01), 'hold', holdTarget[0], holdTarget[1]);
     return { act: bAct, tx: bx, ty: by, target: bt };
   }
 
@@ -2429,7 +2441,9 @@ export class GameSim {
     const dp = dist(p.x, p.y, this.puck.x, this.puck.y);
     let rank = 0;
     for (const m of t.onIce) if (m !== p && dist(m.x, m.y, this.puck.x, this.puck.y) < dp) rank++;
-    const chase = (rank === 0 ? 0.6 : rank === 1 ? 0.3 : -0.2) * Math.exp(-dp / 40) + this.jitter(0.1);
+    // After a dump-in the forecheckers go hard after it.
+    const forecheck = p.team === this.dumpTeam && this.elapsed - this.dumpAt < 4 && p.isF ? 0.35 : 0;
+    const chase = (rank === 0 ? 0.6 : rank === 1 ? 0.3 : -0.2) * Math.exp(-dp / 40) + forecheck + this.jitter(0.1);
     const [sx, sy] = this.structure(p, p.team === this.poss);
     if (chase > 0.12) return { act: 'chase', tx: this.puck.x, ty: this.puck.y };
     return { act: p.team === this.poss ? 'support' : 'cover', tx: sx, ty: sy };
@@ -2523,8 +2537,14 @@ export class GameSim {
       return;
     }
     const B = this.teams[1 - A.idx];
-    const left = B.onIce.filter((o) => o.y < 0).length;
-    const side = left > B.onIce.length / 2 ? 1 : -1;
+    // Rim it to the side his forechecker is driving to (away from their deepest man if nobody is going).
+    let fc: SP | null = null;
+    for (const m of A.onIce) if (m !== p && m.isF && (!fc || m.x * d > fc.x * d)) fc = m;
+    let nearD: SP | null = null;
+    for (const o of B.onIce) if (!nearD || o.x * d > nearD.x * d) nearD = o;
+    const side = fc && fc.x * d > startU - 5 ? (fc.y >= 0 ? 1 : -1) : nearD ? (nearD.y > 0 ? -1 : 1) : 1;
+    this.dumpAt = this.elapsed;
+    this.dumpTeam = A.idx;
     this.ev('dumpIn', A.idx, p.id);
     if (startU < 0 && !pk && this.rng.chance(0.85)) {
       this.ev('icing', A.idx, p.id);
@@ -2624,7 +2644,7 @@ export class GameSim {
     const teams = new Set(near.map((n) => n.p.team));
     const w = this.pickW(
       near.map((n) => n.p),
-      (p) => Math.exp(-dist(p.x, p.y, this.puck.x, this.puck.y) / 2.5) * Math.exp(0.3 * (p.e.hands + p.e.skate + p.e.phys) / 3) * (p.plan?.act === 'chase' ? 1.4 : 1),
+      (p) => Math.exp(-dist(p.x, p.y, this.puck.x, this.puck.y) / 2.5) * Math.exp(0.3 * (p.e.hands + p.e.skate + p.e.phys) / 3) * (p.plan?.act === 'chase' ? 1.4 : 1) * (p.team === this.dumpTeam && this.elapsed - this.dumpAt < 4 ? 1.5 : 1),
     );
     if (teams.size > 1) {
       const loser = near.filter((n) => n.p.team !== w.team).sort((a, b) => a.d - b.d)[0].p;
