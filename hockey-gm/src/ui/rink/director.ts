@@ -297,6 +297,7 @@ export class RinkDirector {
         return { x: RINK.cx, y: RINK.cy };
       case 'icing':
       case 'freeze':
+      case 'outOfPlay':
       case 'penalty':
         return ownZone(e.team);
       case 'offside':
@@ -569,6 +570,7 @@ export class RinkDirector {
         this.puck = { x: attackNetX(t, p) - d * (6 + hash(seed, 11) * 6), y: RINK.cy + side * (4 + hash(seed, 12) * 9) };
         return [this.frame(ice, 'pass', this.flash('REBOUND', 'info', t))];
       case 'freeze':
+      case 'outOfPlay':
         this.carrier = null;
         return [this.frame(ice, 'still')];
       case 'clear':
@@ -700,6 +702,7 @@ export function whistleHold(type: GameEvent['type']): number {
     case 'injury':
       return 3.5;
     case 'freeze':
+    case 'outOfPlay':
     case 'offside':
     case 'goalieChange':
       return 3.2;

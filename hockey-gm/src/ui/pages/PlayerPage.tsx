@@ -8,6 +8,7 @@ import { SystemFit, SystemFitStrip } from '../components/SystemFit';
 import { ScoutReportCard } from '../components/ScoutReportCard';
 import { ShotChart } from '../components/ShotChart';
 import { PlayerAdvanced } from '../components/PlayerAdvanced';
+import { CareerTimeline } from '../components/CareerTimeline';
 import { ATTR_GROUPS, GOALIE_ATTR_GROUPS, type StatLine } from '../../engine/types';
 import { attr20 } from '../../engine/player/ability';
 import { ARCHETYPES } from '../../engine/player/archetypes';
@@ -32,7 +33,7 @@ export function PlayerPage({ id }: { id: number }) {
   const { league, version } = useGame();
   const [neg, setNeg] = useState(false);
   const [statView, setStatView] = useState<'reg' | 'po'>('reg');
-  const [view, setView] = useState<'card' | 'details' | 'advanced'>('card');
+  const [view, setView] = useState<'card' | 'details' | 'advanced' | 'career'>('card');
   const p = league.players[id];
   if (!p) return <div className="empty">Player not found (he may have left the league).</div>;
   const age = league.season - p.birthYear;
@@ -94,7 +95,8 @@ export function PlayerPage({ id }: { id: number }) {
           {p.status === 'fa' && <button className="btn primary" onClick={() => setNeg(true)}>Make offer</button>}
         </div>
       </div>
-      <Tabs value={view} onChange={setView} tabs={[{ id: 'card', label: 'Player card' }, { id: 'details', label: 'Stats, contract & scouting' }, { id: 'advanced', label: 'Advanced stats' }]} />
+      <Tabs value={view} onChange={setView} tabs={[{ id: 'card', label: 'Player card' }, { id: 'details', label: 'Stats, contract & scouting' }, { id: 'advanced', label: 'Advanced stats' }, { id: 'career', label: 'Career' }]} />
+      {view === 'career' && <CareerTimeline league={league} p={p} version={version} ratings={e.exact || e.caLow === e.caHigh} />}
       {view === 'card' && <SystemFitStrip league={league} p={p} />}
       {view === 'card' ? (
         <PlayerCardView

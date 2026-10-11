@@ -22,7 +22,8 @@ describe('live rink believability', () => {
       expect(m.offside).toBeLessThan(RINK_LIMITS.offside);
       expect(m.goalieSquare).toBeGreaterThan(RINK_LIMITS.goalieSquare);
       expect(m.faceoffMiss).toBeLessThan(RINK_LIMITS.faceoffMiss);
-      expect(m.minStoppage).toBeGreaterThan(RINK_LIMITS.minStoppage);
+      // At least the minimum pause (allowing for floating-point error in summed holds).
+      expect(m.minStoppage).toBeGreaterThan(RINK_LIMITS.minStoppage - 1e-6);
     });
   }
 });

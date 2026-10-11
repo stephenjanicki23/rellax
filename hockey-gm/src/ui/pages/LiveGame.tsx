@@ -3,6 +3,7 @@ import { useGame, runSim, mutate, toast } from '../store';
 import { navigate } from '../router';
 
 import { GameSim, simulateGame } from '../../engine/sim/engine';
+import { simMany } from '../sim/pool';
 import { buildGameInput } from '../../engine/league/gameInput';
 import { prepareUserGame } from '../../engine/league/season';
 import { describe, periodLabel } from '../../engine/sim/commentary';
@@ -49,18 +50,19 @@ export function LiveGame() {
   const others = useMemo(() => (game && game.id >= 0 ? league.schedule.filter((g) => g.day === game.day && g.id !== game.id && !g.played) : []), [game]); // eslint-disable-line react-hooks/exhaustive-deps
   const simOther = (g: ScheduledGame): TickerGame => ({ id: g.id, home: league.teams[g.home], away: league.teams[g.away], result: simulateGame(buildGameInput(league, g.id)) });
   useEffect(() => {
-    // One game per tick, so simulating tonight's slate never freezes the live view.
-    let i = 0;
-    let id: ReturnType<typeof setTimeout>;
-    const next = () => {
-      const g = others[i++];
-      if (!g) return;
-      if (!tickerRef.current.some((t) => t.id === g.id)) tickerRef.current = [...tickerRef.current, simOther(g)];
+    // Tonight's slate runs on worker threads, so the live view never stutters.
+    let cancelled = false;
+    const todo = others.filter((g) => !tickerRef.current.some((t) => t.id === g.id));
+    if (!todo.length) return;
+    void simMany(todo.map((g) => buildGameInput(league, g.id))).then((results) => {
+      if (cancelled) return;
+      const add = todo.map((g, i) => ({ id: g.id, home: league.teams[g.home], away: league.teams[g.away], result: results[i] }));
+      tickerRef.current = [...tickerRef.current, ...add.filter((t) => !tickerRef.current.some((x) => x.id === t.id))];
       setTicker(tickerRef.current);
-      id = setTimeout(next, 40);
+    });
+    return () => {
+      cancelled = true;
     };
-    id = setTimeout(next, 200);
-    return () => clearTimeout(id);
   }, [others]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Every other game tonight (simulating any the ticker hasn't reached yet). */
   const allOthers = (): TickerGame[] => {
@@ -214,7 +216,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   if (!playRef.current) playRef.current = { t: 0, cur: { elapsed: 0, snap: sim.snapshot() }, queue: [], pending: [], hold: 0, pres: 0 };
   const [dispT, setDispT] = useState(0);
   // Shared with the rink without re-rendering: events (tagged with who was on the ice) and the presentation clock.
-  const feed = useRef<RinkFeed>({ items: [], pres: 0, presAt: 0, rate: 0, done: false }).current;
+  const feed = useRef<RinkFeed>({ items: [], tracks: [], pres: 0, presAt: 0, rate: 0, done: false }).current;
   const rinkPlayers = useMemo<RinkPlayer[]>(
     () => ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null, first: p.first, last: p.last }))),
     [input],
@@ -233,6 +235,8 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
       pb.pending.push(...evs);
       pb.queue.push({ elapsed: sim.elapsed, snap: snapNow });
       for (const e of evs) feed.items.push({ e, ice: { period: snapNow.inShootout ? 5 : e.period, onIce: snapNow.onIce, goalies: snapNow.goalies } });
+      // Where everyone actually is after this second of play (every player decides each second).
+      if (snapNow.ice && !snapNow.inShootout) (feed.tracks ??= []).push({ track: snapNow.ice, ice: { period: snapNow.ice.period, onIce: snapNow.onIce, goalies: snapNow.goalies } });
     }
     while (pb.queue.length && pb.queue[0].elapsed <= t) pb.cur = pb.queue.shift()!;
     const due = pb.pending.filter((e) => e.t <= t);

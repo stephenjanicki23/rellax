@@ -313,6 +313,14 @@ export interface CareerSeason {
   stats: StatLine;
 }
 
+export interface TimelineEvent {
+  season: number;
+  day: number;
+  kind: string;
+  text: string;
+  teamIds?: number[];
+}
+
 export interface PlayerAward {
   season: number;
   award: string;
@@ -413,6 +421,8 @@ export interface Player {
   signBySeason?: number;
   career: CareerSeason[];
   awards: PlayerAward[];
+  /** Career events kept with the player (trades, signings, milestones…), newest last. */
+  timeline?: TimelineEvent[];
   /** Public reputation 0-100 (league-wide perception). */
   reputation: number;
   /** Playoff reputation in roughly [-1, 1]. Small effect only. */

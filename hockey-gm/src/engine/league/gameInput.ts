@@ -132,3 +132,35 @@ export function buildGameInput(league: League, gameId: number, recordEvents = fa
     ratingBaseline: league.ratingBaseline ?? 120,
   };
 }
+
+/** A game input with its chemistry function replaced by a table, so it can cross to a worker thread. */
+export interface PortableGameInput extends Omit<GameInput, 'home' | 'away'> {
+  home: Omit<GameTeamInput, 'chemistry'> & { chemTable: Record<string, number> };
+  away: Omit<GameTeamInput, 'chemistry'> & { chemTable: Record<string, number> };
+}
+
+function portableTeam(t: GameTeamInput): PortableGameInput['home'] {
+  const { chemistry, ...rest } = t;
+  const chemTable: Record<string, number> = {};
+  if (chemistry) {
+    const ids = t.players.map((p) => p.id);
+    for (let i = 0; i < ids.length; i++)
+      for (let j = i + 1; j < ids.length; j++) {
+        const v = chemistry(ids[i], ids[j]);
+        if (v) chemTable[pairKey(ids[i], ids[j])] = v;
+      }
+  }
+  return { ...rest, chemTable };
+}
+
+export function portableInput(input: GameInput): PortableGameInput {
+  return { ...input, home: portableTeam(input.home), away: portableTeam(input.away) };
+}
+
+export function hydrateInput(p: PortableGameInput): GameInput {
+  const team = (t: PortableGameInput['home']): GameTeamInput => {
+    const { chemTable, ...rest } = t;
+    return { ...rest, chemistry: (a: number, b: number) => chemTable[pairKey(a, b)] ?? 0 };
+  };
+  return { ...p, home: team(p.home), away: team(p.away) };
+}

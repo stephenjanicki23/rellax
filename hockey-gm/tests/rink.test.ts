@@ -64,7 +64,10 @@ describe('continuous rink motion', () => {
   while (!sim.finished) {
     const evs = sim.step();
     const s = sim.snapshot();
-    tl.add(evs.map((e): TimelineItem => ({ e, ice: { period: s.inShootout ? 5 : e.period, onIce: s.onIce, goalies: s.goalies } })));
+    const items = evs.map((e): TimelineItem => ({ e, ice: { period: s.inShootout ? 5 : e.period, onIce: s.onIce, goalies: s.goalies } }));
+    // Per-second engine: the rink is driven by where everyone actually is.
+    if (s.ice && !s.inShootout) tl.addMixed(items, [{ track: s.ice, ice: { period: s.ice.period, onIce: s.onIce, goalies: s.goalies } }]);
+    else tl.add(items);
   }
   const motion = new RinkMotion(tl, meta);
   const dt = 1 / 60;
@@ -91,6 +94,7 @@ describe('continuous rink motion', () => {
   const lastPos = new Map<number, { x: number; y: number }>();
   const boxExits: number[] = [];
   let offsideLooks = 0;
+  const wasOut = [true, true];
   let goalieSquare = 0;
   let backwards = 0;
   let movingSamples = 0;
@@ -164,6 +168,7 @@ describe('continuous rink motion', () => {
     lastPos.clear();
     for (const b of motion.bodies.values()) lastPos.set(b.id, { ...b.pos });
     // Offside-looking: at the moment the carrier brings the puck over the blue line, a teammate is already in.
+    // It's only an entry if the puck had left the zone (crossed the whole 1 ft line), not skated along it.
     if (motion.puck.mode.kind === 'carried') {
       const cid = motion.puck.mode.carrier;
       const team = meta.get(cid)?.team;
@@ -171,12 +176,17 @@ describe('continuous rink motion', () => {
         const dd = attackDir(team, motion.period);
         const pu = (p.x - RINK.cx) * dd;
         const before = (p0.x - RINK.cx) * dd;
-        if (before < 25 && pu >= 25 && pu < 40) {
+        if (before < 25 && pu >= 25 && pu < 40 && wasOut[team]) {
           carriedNz++;
           const offs = [...motion.bodies.values()].filter((b) => b.team === team && !b.goalie && b.id !== cid && b.leaving === 0 && (b.pos.x - RINK.cx) * dd > 27);
           if (offs.length) offsideLooks++;
         }
       }
+    }
+    for (const team of [0, 1] as const) {
+      const pu = (p.x - RINK.cx) * attackDir(team, motion.period);
+      if (pu < 24) wasOut[team] = true;
+      else if (pu > 25) wasOut[team] = false;
     }
     // Markers stacked on each other (away from the puck, the crease and the bench).
     frameCount++;

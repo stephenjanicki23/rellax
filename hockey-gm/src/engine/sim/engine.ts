@@ -1,12 +1,21 @@
 /**
- * Event-driven hockey game engine.
+ * Hockey game engine.
  *
- * A game is a sequence of puck-possession steps: faceoffs, breakouts, zone
- * entries, offensive-zone plays (passes / shots / turnovers), shot resolution
- * (block / miss / save / rebound / goal), penalties, line changes and goalie
- * decisions. Every probability is derived from the players on the ice, their
- * fatigue, tactics, coaching, chemistry, momentum and home ice. The final score
- * is simply what falls out of those events.
+ * By default every player on the ice makes his own decision every second of
+ * the game. The puck carrier weighs shooting, passing to each teammate,
+ * carrying, dumping it in, clearing or protecting it; his teammates choose
+ * where to get open; defenders choose whom to pressure, mark or block; the
+ * goalies set their angle. Each reads the same picture of the ice (positions
+ * in feet), decides independently, with judgement errors that shrink as his
+ * decision-making improves, and then everything resolves: passes and
+ * interceptions, shots (blocks, misses, saves, rebounds, goals), skating,
+ * stick battles, hits, loose pucks, offside and icing. Lines, penalties,
+ * goalie pulls, overtime, the shootout and the box score are shared with the
+ * older possession-step engine ('classic'), kept for comparison.
+ *
+ * Every probability comes from the players involved, their fatigue, tactics,
+ * coaching, chemistry, momentum and home ice. The final score is simply what
+ * falls out of those decisions.
  *
  * The engine is pure: given the same GameInput (rosters, ratings, tactics,
  * injuries, seed) it always produces the same GameResult.
@@ -27,12 +36,14 @@ import type {
   GameSnapshot,
   GameTeamInput,
   GoalRecord,
+  TrackFrame,
   InjuryRecord,
   PenaltyRecord,
   PlayerGameLine,
   TeamGameStats,
 } from './gameTypes';
-import { baseGoalProbability, baseMissProbability, type ShotType } from './shotModel';
+import { baseGoalProbability, baseMissProbability, dangerOf, type ShotType } from './shotModel';
+import { BLUE_LINE, GOAL_LINE, OUT, moveTo, clampToIce, dirOf, dist, distToSegment, along, shotGeometry, structureSpot, type Role, type StructureOpts } from './ice';
 
 /** Balance knobs. Exposed so the analytics screen / tests can inspect them. */
 export const TUNING = {
@@ -65,10 +76,101 @@ export const TUNING = {
   ratingScale: Number(globalThis.process?.env?.HGM_RATING_SCALE ?? 45),
 };
 
+/** Knobs for the per-second engine (how players weigh their options, how contests resolve). */
+export const AGENT = {
+  /** Seconds between decisions: every player decides this often (0.25 = four times a second). */
+  tick: 0.25,
+  /** Seconds a player needs to settle a puck before he can pass or shoot it again (one-timers excepted). */
+  settle: 0.35,
+  /** Decision-noise scale for the tick length (√tick keeps a second's worth of judgement error constant). */
+  noise: 1,
+  /** How reluctant players are to throw the puck away from their own zone. */
+  clearCost: 0.32,
+  /** Bonus for sticking with last tick's choice (commitment to a play). */
+  commit: 0.12,
+  /** Scale from expected goals to decision utility. */
+  shoot: 4.5,
+  /** Utility a shot must clear before it beats keeping the puck. */
+  shootBar: 0.27,
+  /** Base log-odds that a pressuring defender wins the puck in a second of contact. */
+  take: -3.2,
+  /** Chance a defender squarely in a shooting lane blocks the shot. */
+  block: 0.27,
+  /** Weight of team-level edges (coaching, system fit, chemistry, momentum) in each second's puck battles. */
+  teamEdge: 0.25,
+  /** Skater rating spread relative to the possession engine (edges compound when contested every second). */
+  talentSpread: 0.3,
+  /** Score effects: weight in puck battles, and how much a trailing team's shooters force the issue. */
+  scoreFx: 0.06,
+  urgency: 0.02,
+  /** Finishing offset on top of the shared shot model (log-odds). */
+  finish: 0.45,
+  /** How strongly home ice tilts puck battles (multiplies the engine's home advantage). */
+  homeEdge: 1.25,
+  /** Share of puck wins the scorer would actually record as a takeaway (only clear, deliberate steals). */
+  tkCredit: 0.07,
+  /** Appetite for finishing checks (scaled by each player's physical style). */
+  hit: 0.14,
+  /** Half-width of a shooting lane a defender can get a piece of (feet). */
+  blockLane: 4,
+  /** Scale on pass interceptions. */
+  intercept: 0.85,
+  /** Skating speed: feet per second at average skating, and per z of skating. */
+  speed: 15,
+  speedZ: 3,
+  /** Value of a shot from distance per screener in front, and for defencemen getting it through from the point. */
+  traffic: 0.38,
+  pointShot: 0.28,
+  /** Chance a defender right on the shooter (stick on stick) takes the shot away before it's released. */
+  shotDenial: 0.45,
+  /** How much a passer values moving the puck to a better scoring spot, and how much he fears interceptions. */
+  passGain: 0.25,
+  passRisk: 2.5,
+  /** Implied-touch assist padding (first, second) — far less than the possession engine needed. */
+  assistPad: [0.82, 0.66] as [number, number],
+};
+// Calibration runs can override knobs: HGM_AGENT='{"shoot":6}'.
+{
+  const raw = globalThis.process?.env?.HGM_AGENT;
+  if (raw) Object.assign(AGENT, JSON.parse(raw));
+}
+
+// Expected-goal value of every square foot of the attacking zone, computed once.
+const SPOT_U = 76;
+const SPOT_V = 87;
+const SPOT_TABLE = new Float32Array(SPOT_U * SPOT_V);
+const SPOT_EMPTY = new Float32Array(SPOT_U * SPOT_V);
+for (let iu = 0; iu < SPOT_U; iu++)
+  for (let iv = 0; iv < SPOT_V; iv++) {
+    const g = shotGeometry(iu + BLUE_LINE, iv - 43);
+    const miss = 1 - baseMissProbability('wrist', g.dist);
+    SPOT_TABLE[iu * SPOT_V + iv] = baseGoalProbability({ dist: g.dist, angle: g.angle, type: 'wrist' }) * miss;
+    SPOT_EMPTY[iu * SPOT_V + iv] = baseGoalProbability({ dist: g.dist, angle: g.angle, type: 'wrist', empty: true }) * miss;
+  }
+
+/** Optional tally of shots by distance and how the shooter got the puck (calibration). */
+export let SHOT_DEBUG: Record<string, number> | null = null;
+export const enableShotDebug = (): Record<string, number> => (SHOT_DEBUG = {});
+
+/** Convert a chance per second of contact into the chance for one decision tick. */
+const perTick = (p: number): number => 1 - Math.pow(1 - clamp(p, 0, 0.999), AGENT.tick);
+
+const SUPPORT_OFFSETS = [0, 0, 0, 8, 0, -8, 6, 0, -6, 0];
+
+type Act = 'shoot' | 'pass' | 'carry' | 'dump' | 'clear' | 'hold' | 'support' | 'drive' | 'pressure' | 'hit' | 'mark' | 'cover' | 'block' | 'chase' | 'goalie' | 'faceoff';
+interface Plan {
+  act: Act;
+  tx: number;
+  ty: number;
+  target?: SP;
+}
+
 type Zone = 'D' | 'N' | 'O';
 type Side = 0 | 1;
 
 let BASE = 120;
+/** Skater talent spread for the engine being built (the per-second engine compounds edges every second, so it compresses them). */
+let SPREAD = 1;
 /** Ratings → engine z-scores; the scale sets how much a talent gap matters on the ice (and so league parity). */
 const zs = (v: number): number => (v - BASE) / TUNING.ratingScale;
 
@@ -122,6 +224,24 @@ interface SP {
   injurySeverity: number;
   ageDrain: number;
   stat: PlayerGameLine;
+  // per-second engine: position on the ice (feet), role in the structure, current plan
+  x: number;
+  y: number;
+  role: Role;
+  /** What he chose to do this tick (per-second engine), and what he was doing the tick before. */
+  plan: Plan | null;
+  last: Act | null;
+  lastTarget: SP | null;
+  /** Per-second scratch: effective ratings this second (form and fatigue applied). */
+  e: { skate: number; hands: number; decide: number; defIQ: number; offIQ: number; stickD: number; pass: number; block: number; phys: number };
+  /** Per-second scratch: distance to the nearest opponent, and the two nearest opposing defenders. */
+  near: number;
+  /** Distance to the puck carrier this second, and how many teammates are closer to him. */
+  dc: number;
+  rank: number;
+  d1: number;
+  d1p: SP | null;
+  d2: number;
 }
 
 interface Pen {
@@ -286,7 +406,23 @@ function buildPlayer(inp: GamePlayerInput, team: Side, rng: Rng, playoff: boolea
     injurySeverity: inp.injurySeverity,
     ageDrain: inp.age > 31 ? 1 + (inp.age - 31) * 0.012 : 1,
     stat: { ...emptyStatLine(), team },
+    x: 0,
+    y: -41,
+    role: 'X',
+    near: 99,
+    dc: 99,
+    rank: 0,
+    d1: 99,
+    d1p: null,
+    d2: 99,
+    e: { skate: 0, hands: 0, decide: 0, defIQ: 0, offIQ: 0, stickD: 0, pass: 0, block: 0, phys: 0 },
+    plan: null,
+    last: null,
+    lastTarget: null,
   };
+  if (!isG && SPREAD !== 1) {
+    for (const k of ['skate', 'hands', 'pass', 'shot', 'slap', 'oneT', 'back', 'acc', 'offIQ', 'defIQ', 'stickD', 'block', 'phys', 'fo', 'recv', 'decide', 'so', 'ovr'] as const) sp[k] *= SPREAD;
+  }
   if (isG) {
     // Goalies carry back-to-back fatigue as a performance penalty rather than shift drain.
     sp.form += ((inp.energy - 100) / 100) * 0.35;
@@ -367,6 +503,37 @@ export class GameSim {
   soScore: [number, number] = [0, 0];
   readonly regOT: { minutes: number; skaters: number; shootout: boolean };
   private readonly homeAdv: number;
+  /** Which engine runs the play: every player deciding each second, or possession steps. */
+  readonly mode: 'agent' | 'classic';
+  /** Puck for the per-second engine (feet; home attacks +x). */
+  puck: { x: number; y: number; carrier: SP | null; dead: boolean } = { x: 0, y: 0, carrier: null, dead: true };
+  /** Individual decisions made so far (each player, each second). */
+  decisions = 0;
+  track: TrackFrame[] = [];
+  private possSince = 0;
+  private entryAt = -99;
+  private entryRush = false;
+  private entryOdd = false;
+  private takeawayAt = -99;
+  private takeawayOZ = false;
+  private crossSlotAt = -99;
+  private lastReceiver: SP | null = null;
+  private reboundAt = -99;
+  /** Defender who stood the carrier up this second (forces a puck battle). */
+  private blockedBy: SP | null = null;
+  /** When the current carrier got the puck (he needs a moment to settle it). */
+  private gotPuckAt = 0;
+  /** Last dump-in (the dumping team's forecheckers go hard after it). */
+  private dumpAt = -99;
+  private dumpTeam: Side = 0;
+  /** Each team's manpower situation this second, and reusable structure options. */
+  private sitNow: ['ES' | 'PP' | 'PK', 'ES' | 'PP' | 'PK'] = ['ES', 'ES'];
+  private sOpts: [StructureOpts, StructureOpts] = [
+    { forecheck: '', defense: '', offense: '', pp: false, pk: false, onside: false },
+    { forecheck: '', defense: '', offense: '', pp: false, pk: false, onside: false },
+  ];
+  /** How the current carrier got the puck (diagnostics). */
+  private acquired = 'faceoff';
 
   constructor(input: GameInput) {
     this.input = input;
@@ -374,6 +541,8 @@ export class GameSim {
     this.rng = new Rng(`game|${input.seed}`);
     this.regOT = input.regularSeasonOT ?? { minutes: 5, skaters: 3, shootout: true };
     this.homeAdv = input.neutral ? 0 : TUNING.homeAdv;
+    this.mode = input.engine ?? ((globalThis.process?.env?.HGM_ENGINE as 'agent' | 'classic' | undefined) || 'agent');
+    SPREAD = this.mode === 'agent' ? AGENT.talentSpread : 1;
     this.teams = [this.buildTeam(input.home, 0), this.buildTeam(input.away, 1)];
     for (const t of this.teams) {
       t.kind = this.kindFor(t.idx);
@@ -446,6 +615,15 @@ export class GameSim {
     const t0 = this.elapsed;
     this.manageGoalies();
     this.manageLines();
+    if (this.mode === 'agent') {
+      this.tick();
+      if (!this.finished) {
+        this.randomEvents(this.elapsed - t0);
+        if (this.clock >= this.periodLength - 1e-9) this.endPeriod();
+      }
+      this.emitted = this.events.length;
+      return this.events.slice(before);
+    }
     if (this.faceoff !== null) this.doFaceoff();
     else if (!this.emptyNetAttempt()) {
       if (this.zone === 'D') this.breakout();
@@ -462,7 +640,7 @@ export class GameSim {
 
   simulate(): GameResult {
     let guard = 0;
-    while (!this.finished && guard++ < 20000) this.step();
+    while (!this.finished && guard++ < 200000) this.step();
     if (!this.finished) this.finish();
     return this.result();
   }
@@ -495,6 +673,7 @@ export class GameSim {
       lineIdx: [h.fIdx, a.fIdx],
       teamStats: [{ ...h.stats, shotsByPeriod: [...h.stats.shotsByPeriod], goalsByPeriod: [...h.stats.goalsByPeriod] }, { ...a.stats, shotsByPeriod: [...a.stats.shotsByPeriod], goalsByPeriod: [...a.stats.goalsByPeriod] }],
       box: this.penalties.map((p) => ({ team: p.team, player: p.player.id, remaining: p.remaining, minutes: p.minutes, coincidental: !!p.coincidental })),
+      ice: this.mode === 'agent' ? this.frame() : undefined,
     };
   }
 
@@ -579,6 +758,16 @@ export class GameSim {
       else if (diff > 0) scoreFx = -TUNING.scoreEffect * 0.5 * Math.min(2, diff);
     }
     return home * 0.5 + mom + t.lineChem * TUNING.chemWeight + t.morale + scoreFx;
+  }
+
+  /** Score effects alone: + when trailing (pushing), - when protecting a lead. */
+  private scoreEffect(i: Side): number {
+    if (this.period < 2) return 0;
+    const [sh, sa] = this.score;
+    const diff = i === 0 ? sh - sa : sa - sh;
+    if (diff < 0) return Math.min(2, -diff) * (this.period >= 3 ? 1.4 : 1);
+    if (diff > 0) return -0.5 * Math.min(2, diff) * (this.period >= 3 ? 1.4 : 1);
+    return 0;
   }
 
   private openIce(): number {
@@ -783,8 +972,17 @@ export class GameSim {
       }
       if (best) out.push(best);
     }
-    for (const p of out) p.onIce = true;
+    const prev = new Set(t.onIce);
+    for (const p of out) {
+      p.onIce = true;
+      // New skaters come over the boards from the bench.
+      if (!prev.has(p)) {
+        p.x = (t.idx === 0 ? -12 : 12) + this.rng.float(-4, 4);
+        p.y = -40;
+      }
+    }
     t.onIce = out;
+    this.assignRoles(out);
     t.onIceSince = this.elapsed;
     t.lineChem = this.computeChem(t);
   }
@@ -899,10 +1097,17 @@ export class GameSim {
       }
       const stoppage = this.faceoff !== null;
       if (stoppage && this.noChange === t.idx) continue;
+      // Nobody changes while he has the puck on his stick.
+      if (!stoppage && this.mode === 'agent' && this.puck.carrier && this.puck.carrier.team === t.idx) {
+        const shiftF0 = this.elapsed - t.fStart;
+        if (shiftF0 < 95) continue;
+      }
       const canChange = stoppage || this.poss === t.idx || this.zone === 'N';
       const shiftF = this.elapsed - t.fStart;
       const shiftD = this.elapsed - t.dStart;
       if (!canChange && shiftF < 95) continue;
+      // Nobody is due for a change this early in a shift.
+      if (shiftF < 26 && shiftD < 30) continue;
       let changed = false;
       const base = t.kind.replace('+', '');
       if (base === 'ES5' || base === 'ES4') {
@@ -1544,6 +1749,1112 @@ export class GameSim {
     return s + g.form + t.goalieConf + t.coachGk;
   }
 
+  // ───────────────────────────── per-second engine ─────────────────────────────
+  //
+  // Every second, every player on the ice (skaters and goalies) looks at where
+  // everyone is and picks what to do: the puck carrier weighs shooting,
+  // passing to each teammate, carrying, dumping, clearing or protecting;
+  // teammates choose where to get open; defenders choose whom to pressure,
+  // mark or block; goalies set their angle. Choices are made independently and
+  // simultaneously, with a little noise that shrinks with decision-making
+  // ability. Then everything resolves: passes, shots, movement, stick
+  // battles, loose pucks, offside and icing.
+
+  /** Distances everyone reads this second: nearest opponent, and each skater's two closest markers. */
+  private scanIce(): void {
+    const [a, b] = this.teams;
+    this.sitNow[0] = this.situation(0);
+    this.sitNow[1] = this.situation(1);
+    for (const t of this.teams)
+      for (const p of t.onIce) {
+        const e = p.e;
+        const f = p.form;
+        const fat = p.fat;
+        e.skate = p.skate + f + fat;
+        e.hands = p.hands + f + fat * 0.7;
+        e.decide = p.decide + f + fat * 0.6;
+        e.defIQ = p.defIQ + f + fat * 0.6;
+        e.offIQ = p.offIQ + f + fat * 0.6;
+        e.stickD = p.stickD + f + fat * 0.7;
+        e.pass = p.pass + f + fat * 0.7;
+        e.block = p.block + f + fat * 0.7;
+        e.phys = p.phys + f + fat * 0.8;
+      }
+    for (const p of a.onIce) {
+      p.near = 99;
+      p.d1 = p.d2 = 99;
+      p.d1p = null;
+    }
+    for (const p of b.onIce) {
+      p.near = 99;
+      p.d1 = p.d2 = 99;
+      p.d1p = null;
+    }
+    for (const p of a.onIce)
+      for (const q of b.onIce) {
+        const d = dist(p.x, p.y, q.x, q.y);
+        if (d < p.near) p.near = d;
+        if (d < q.near) q.near = d;
+        if (d < p.d1) {
+          p.d2 = p.d1;
+          p.d1 = d;
+          p.d1p = q;
+        } else if (d < p.d2) p.d2 = d;
+        if (d < q.d1) {
+          q.d2 = q.d1;
+          q.d1 = d;
+          q.d1p = p;
+        } else if (d < q.d2) q.d2 = d;
+      }
+  }
+
+  /** Each defender's distance to the puck carrier and his rank among teammates (0 = nearest). */
+  private rankToCarrier(c: SP): void {
+    const D = this.teams[1 - c.team].onIce;
+    for (const p of D) p.dc = dist(p.x, p.y, c.x, c.y);
+    for (const p of D) {
+      let r = 0;
+      for (const m of D) if (m !== p && m.dc < p.dc) r++;
+      p.rank = r;
+    }
+  }
+
+  private assignRoles(out: SP[]): void {
+    const fw = out.filter((p) => p.isF);
+    const dm = out.filter((p) => !p.isF);
+    const want: Role[] = fw.length >= 3 ? ['C', 'LW', 'RW'] : fw.length === 2 ? ['C', 'RW'] : ['C'];
+    const left = new Set(want);
+    const unassigned: SP[] = [];
+    for (const p of fw) {
+      const r = p.pos as Role;
+      if (left.has(r)) {
+        p.role = r;
+        left.delete(r);
+      } else unassigned.push(p);
+    }
+    for (const p of unassigned) {
+      const r = [...left][0];
+      if (r) {
+        p.role = r;
+        left.delete(r);
+      } else p.role = 'X';
+    }
+    const dRoles: Role[] = dm.length >= 2 ? ['LD', 'RD'] : ['LD'];
+    dm.forEach((p, i) => (p.role = dRoles[i] ?? 'X'));
+  }
+
+  private frame(): TrackFrame {
+    const players: TrackFrame['players'] = [];
+    for (const t of this.teams) {
+      for (const p of t.onIce) players.push([p.id, Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10, t.idx]);
+      if (t.goalie) players.push([t.goalie.id, Math.round(t.goalie.x * 10) / 10, Math.round(t.goalie.y * 10) / 10, t.idx]);
+    }
+    const acts: Record<number, string> = {};
+    for (const t of this.teams) for (const p of t.onIce) if (p.plan) acts[p.id] = p.plan.act;
+    return { t: this.elapsed, period: this.period, clock: this.clock, puck: [Math.round(this.puck.x * 10) / 10, Math.round(this.puck.y * 10) / 10], carrier: this.puck.carrier?.id ?? null, players, acts };
+  }
+
+  /** Scoring value of a spot in the attacking frame (expected goals for an average unblocked wrist shot). */
+  private spotVal(u: number, v: number, empty: boolean): number {
+    if (u < BLUE_LINE) return 0;
+    const iu = Math.min(SPOT_U - 1, Math.max(0, Math.round(u) - BLUE_LINE));
+    const iv = Math.min(SPOT_V - 1, Math.max(0, Math.round(v + 43)));
+    return (empty ? SPOT_EMPTY : SPOT_TABLE)[iu * SPOT_V + iv];
+  }
+
+  /** Cheap zero-mean noise with standard deviation sd (a decision's judgement error). */
+  private jitter(sd: number): number {
+    // Judgement errors are redrawn every tick: scale them so a second of play carries the same noise at any tick rate.
+    return (this.rng.next() - 0.5) * 3.464 * sd * AGENT.noise;
+  }
+
+  private nearestDist(x: number, y: number, list: SP[]): number {
+    let m = 99;
+    for (const o of list) {
+      const d = dist(o.x, o.y, x, y);
+      if (d < m) m = d;
+    }
+    return m;
+  }
+
+  private aggression(t: ST): number {
+    if (this.isPK(t.idx)) return t.tactics.pk === 'aggressive' ? 0.75 : t.tactics.pk === 'passive' ? 0.5 : 0.6;
+    // Systems change how hard players chase the puck, within a band: none of them is simply better.
+    const d = t.tactics.defense;
+    const base = d === 'aggressive' ? 0.88 : d === 'physical' ? 0.84 : d === 'passive' ? 0.66 : d === 'trap' ? 0.64 : 0.76;
+    return 1 + (base - 1) * t.tacMult.def;
+  }
+
+  private shootTac(t: ST, pp: boolean): number {
+    if (pp) return t.tactics.pp === 'shooting' ? 1.2 : t.tactics.pp === 'overload' ? 0.9 : 1;
+    const o = t.tactics.offense;
+    return o === 'rush' ? 1.04 : o === 'possession' ? 0.96 : o === 'cycle' ? 0.98 : o === 'dumpChase' ? 1.02 : 1;
+  }
+
+  private setPoss(side: Side, carrier: SP | null): void {
+    if (carrier !== this.puck.carrier) this.gotPuckAt = this.elapsed;
+    if (side !== this.poss) {
+      this.poss = side;
+      this.resetPossession();
+      this.possSince = this.elapsed;
+      this.entryAt = -99;
+      this.transition = true;
+    }
+    this.puck.carrier = carrier;
+    this.puck.dead = false;
+    if (carrier) {
+      this.puck.x = carrier.x;
+      this.puck.y = carrier.y;
+    }
+  }
+
+  private loosePuck(x: number, y: number): void {
+    [this.puck.x, this.puck.y] = clampToIce(x, y);
+    this.puck.carrier = null;
+    this.puck.dead = false;
+  }
+
+  /** Team whose attacking zone the puck is in. The puck has to cross the whole (1 ft) blue line to get in or out, so skating along the line doesn't flicker it in and out. */
+  private ozFor: Side | null = null;
+
+  private updateZone(): void {
+    const u = this.puck.x * dirOf(this.poss);
+    if (this.ozFor !== this.poss) this.ozFor = u > BLUE_LINE ? this.poss : null;
+    else if (u < BLUE_LINE - 1) this.ozFor = null;
+    this.zone = this.ozFor === this.poss ? 'O' : u < -BLUE_LINE ? 'D' : 'N';
+  }
+
+  private placeGoalies(): void {
+    for (const t of this.teams) {
+      const g = t.goalie;
+      if (!g) continue;
+      const d = dirOf(t.idx);
+      const gx = -GOAL_LINE * d;
+      const dx = this.puck.x - gx;
+      const dy = this.puck.y;
+      const len = Math.hypot(dx, dy) || 1;
+      // Out to the top of the crease against shots from the slot, deeper when the puck is far or behind the net.
+      const depth = dx * d < 0 ? 0.5 : len < 30 ? 3.5 : 2.5;
+      g.x = gx + (dx / len) * depth;
+      g.y = (dy / len) * depth;
+      this.decisions++;
+    }
+  }
+
+  private formationSpot(role: Role, isTaker: boolean): [number, number] {
+    if (isTaker) return [-1.5, 0];
+    switch (role) {
+      case 'LW':
+        return [-2, -15];
+      case 'RW':
+        return [-2, 15];
+      case 'LD':
+        return [-24, -10];
+      case 'RD':
+        return [-24, 10];
+      case 'C':
+        return [-1.5, 0];
+      default:
+        return [-8, 6];
+    }
+  }
+
+  private agentFaceoff(): void {
+    const spot = this.faceoff!;
+    let fx = 0;
+    let fy = 0;
+    if (spot !== 'C') {
+      fx = -69 * dirOf(spot as Side);
+      fy = this.puck.y >= 0 ? 22 : -22;
+    }
+    const [t0, t1] = this.teams;
+    const c0 = this.center(t0);
+    const c1 = this.center(t1);
+    if (!c0 || !c1) {
+      this.faceoff = null;
+      return;
+    }
+    for (const t of this.teams) {
+      const d = dirOf(t.idx);
+      const taker = t.idx === 0 ? c0 : c1;
+      for (const p of t.onIce) {
+        const [ou, ov] = this.formationSpot(p.role, p === taker);
+        [p.x, p.y] = clampToIce(fx + ou * d, fy + ov);
+      }
+    }
+    this.puck.x = fx;
+    this.puck.y = fy;
+    this.placeGoalies();
+    this.decisions += t0.onIce.length + t1.onIce.length;
+    const l = 0.75 * (this.val(c0, 'fo') - this.val(c1, 'fo')) + this.homeAdv * 0.8;
+    const w: Side = this.rng.chance(logistic(l)) ? 0 : 1;
+    const winner = w === 0 ? c0 : c1;
+    const loser = w === 0 ? c1 : c0;
+    winner.stat.fow++;
+    loser.stat.fol++;
+    this.teams[w].stats.fow++;
+    this.teams[1 - w].stats.fol++;
+    this.poss = w;
+    this.resetPossession();
+    this.possSince = this.elapsed;
+    this.entryAt = -99;
+    const carrier = this.pickW(this.teams[w].onIce, (p) => (p === winner ? 0.3 : p.isF ? 0.7 : 1.5));
+    if (carrier !== winner) this.addChain(winner);
+    this.faceoff = null;
+    this.noChange = -1;
+    this.setPoss(w, carrier);
+    this.updateZone();
+    if (this.zone === 'O') this.entryAt = this.elapsed;
+    this.ev('faceoff', w, winner.id, loser.id, undefined, { zone: this.zone });
+    for (const t of this.teams)
+      for (const p of t.onIce) {
+        p.plan = null;
+        p.last = null;
+      }
+    if (this.input.recordTrack) this.track.push(this.frame());
+    this.advance(1);
+  }
+
+  /** One decision tick of play (a quarter of a second by default). */
+  private tick(): void {
+    if (this.faceoff !== null) {
+      this.agentFaceoff();
+      return;
+    }
+    if (!this.puck.carrier && this.puck.dead) this.loosePuck(this.puck.x, this.puck.y);
+    // A carrier who just went off (change, penalty, injury) leaves the puck where he was.
+    if (this.puck.carrier && (!this.puck.carrier.onIce || this.puck.carrier.out)) this.loosePuck(this.puck.x, this.puck.y);
+    // 1. Everyone decides at once, from the same picture of the ice.
+    for (const t of this.teams)
+      for (const p of t.onIce) {
+        p.last = p.plan?.act ?? null;
+        p.lastTarget = p.plan?.target ?? null;
+        p.plan = null;
+      }
+    const carrier = this.puck.carrier;
+    this.scanIce();
+    if (carrier) this.rankToCarrier(carrier);
+    for (const t of this.teams) {
+      for (const p of t.onIce) {
+        this.decisions++;
+        let plan: Plan;
+        if (p === carrier) plan = this.decideCarrier(p);
+        else if (!carrier) plan = this.decideLoose(p);
+        else if (carrier.team === p.team) plan = this.decideSupport(p, carrier);
+        else plan = this.decideDefender(p, carrier);
+        p.plan = plan;
+      }
+    }
+    this.placeGoalies();
+    const startU = this.puck.x * dirOf(this.poss);
+    const wasIn = this.ozFor === this.poss;
+    const startPoss = this.poss;
+    // 2. The puck carrier acts first: passes and shots beat the skaters' feet.
+    let passed = false;
+    if (carrier) {
+      const plan = carrier.plan!;
+      const A = this.teams[carrier.team];
+      const B = this.teams[1 - carrier.team];
+      switch (plan.act) {
+        case 'shoot':
+          this.agentShot(A, B, carrier);
+          break;
+        case 'pass':
+          passed = true;
+          this.agentPass(A, B, carrier, plan.target!);
+          break;
+        case 'dump':
+          if (SHOT_DEBUG) {
+            const k = `dump:u${Math.round((carrier.x * dirOf(carrier.team)) / 5) * 5}:${this.acquired}:${A.tactics.offense}`;
+            SHOT_DEBUG[k] = (SHOT_DEBUG[k] ?? 0) + 1;
+          }
+          this.agentDump(A, carrier, false);
+          break;
+        case 'clear':
+          this.agentDump(A, carrier, true);
+          break;
+        default:
+          break;
+      }
+    }
+    if (this.faceoff !== null || this.finished) return this.endTick();
+    // 3. Everyone skates toward where he chose to be — all at once, from where they stood.
+    this.blockedBy = null;
+    const moves: (SP | number)[] = [];
+    for (const t of this.teams) {
+      for (const p of t.onIce) {
+        const plan = p.plan;
+        if (!plan) continue;
+        const withPuck = this.puck.carrier === p;
+        let spd = AGENT.speed + AGENT.speedZ * p.e.skate;
+        if (withPuck) {
+          spd *= 0.9;
+          // A defender standing in his path stops him: no skating through bodies.
+          const len = dist(p.x, p.y, plan.tx, plan.ty);
+          if (len > 0.5) {
+            for (const o of this.teams[1 - p.team].onIce) {
+              const tt = along(o.x, o.y, p.x, p.y, plan.tx, plan.ty);
+              if (tt <= 0 || distToSegment(o.x, o.y, p.x, p.y, plan.tx, plan.ty) > 3.5) continue;
+              spd = Math.min(spd, Math.max(0, tt * len - 3) / AGENT.tick);
+              this.blockedBy = o;
+            }
+          }
+        }
+        spd = clamp(spd, 0, 25) * AGENT.tick;
+        moveTo(p.x, p.y, plan.tx, plan.ty, spd);
+        moves.push(p, OUT[0], OUT[1]);
+      }
+    }
+    for (let k = 0; k < moves.length; k += 3) {
+      const p = moves[k] as SP;
+      p.x = moves[k + 1] as number;
+      p.y = moves[k + 2] as number;
+    }
+    if (this.puck.carrier) {
+      this.puck.x = this.puck.carrier.x;
+      this.puck.y = this.puck.carrier.y;
+    }
+    // 4. Contact: pressure on the puck carrier, hits, loose-puck races.
+    this.resolveContact();
+    if (this.faceoff !== null || this.finished) return this.endTick();
+    if (!this.puck.carrier) this.resolveLoose();
+    if (this.faceoff !== null || this.finished) return this.endTick();
+    // 5. Lines: breakouts, zone entries, offside.
+    const c = this.puck.carrier;
+    if (c && this.poss === startPoss) {
+      const u = c.x * dirOf(c.team);
+      if (startU <= -BLUE_LINE && u > -BLUE_LINE) this.ev('breakout', c.team, c.id);
+      if (!wasIn && startU <= BLUE_LINE && u > BLUE_LINE && !passed) {
+        const A = this.teams[c.team];
+        const offside = A.onIce.some((m) => m !== c && m.x * dirOf(c.team) > BLUE_LINE + 0.5);
+        if (offside && this.rng.chance(0.92)) {
+          this.ev('offside', c.team, c.id);
+          this.faceoff = 'C';
+          this.puck.carrier = null;
+          return this.endTick();
+        }
+        const B = this.teams[1 - c.team];
+        const att = A.onIce.filter((m) => m.x * dirOf(c.team) >= u - 14).length;
+        const back = B.onIce.filter((m) => m.x * dirOf(c.team) > u).length;
+        this.entryAt = this.elapsed;
+        this.entryRush = this.elapsed - this.possSince <= 7;
+        this.entryOdd = att > back;
+        this.addChain(c);
+        this.ev('entry', c.team, c.id, undefined, undefined, { rush: this.entryRush, oddMan: this.entryOdd, success: true });
+      }
+    }
+    this.endTick();
+  }
+
+  private endTick(): void {
+    if (this.faceoff !== null) {
+      this.puck.carrier = null;
+      this.puck.dead = true;
+    }
+    this.updateZone();
+    if (this.input.recordTrack) this.track.push(this.frame());
+    this.advance(AGENT.tick);
+  }
+
+  // ── decisions ──
+
+  private decideCarrier(p: SP): Plan {
+    const A = this.teams[p.team];
+    const B = this.teams[1 - p.team];
+    const d = dirOf(p.team);
+    const u = p.x * d;
+    const v = p.y;
+    const opp = B.onIce;
+    const sit = this.situation(p.team);
+    const pp = sit === 'PP';
+    const pk = sit === 'PK';
+    const empty = B.goalie === null;
+    const sd = clamp(0.16 - 0.05 * p.e.decide, 0.05, 0.3);
+    let bestU = -Infinity;
+    let bAct: Act = 'hold';
+    let bx = p.x;
+    let by = p.y;
+    let bt: SP | undefined;
+    const consider = (util: number, act: Act, tx: number, ty: number, target?: SP) => {
+      // Players commit to a play: sticking with it beats switching unless something clearly better opens up.
+      const x = util + this.jitter(sd) + (act === p.last && (target ?? null) === p.lastTarget ? AGENT.commit : 0);
+      if (x > bestU) {
+        bestU = x;
+        bAct = act;
+        bx = tx;
+        by = ty;
+        bt = target;
+      }
+    };
+    const gx = GOAL_LINE * d;
+    const pressure = p.near;
+    // Just got it: settle the puck first (a one-timer or a rebound goes straight back out).
+    const settling = this.elapsed - this.gotPuckAt < AGENT.settle;
+    const quick = (this.elapsed - this.crossSlotAt <= 1 && this.lastReceiver === p) || this.elapsed - this.reboundAt <= 1.5;
+    // Shoot.
+    if ((u > BLUE_LINE || (empty && u > -40)) && (!settling || quick)) {
+      const g = shotGeometry(u, v);
+      let xs = baseGoalProbability({ dist: g.dist, angle: g.angle, type: 'wrist', empty }) * (1 - baseMissProbability('wrist', g.dist));
+      let lane = 0;
+      for (const o of opp) if (distToSegment(o.x, o.y, p.x, p.y, gx, 0) < 3.5 && along(o.x, o.y, p.x, p.y, gx, 0) < 0.92) lane++;
+      xs *= Math.pow(0.62, lane);
+      // From behind the goal line there is almost nothing to shoot at.
+      if (u > GOAL_LINE - 2) xs *= 0.2;
+      // A defender on top of him hurries the shot.
+      if (pressure < 5) xs *= 0.45 + 0.11 * pressure;
+      let screens = 0;
+      for (const m of A.onIce) if (m !== p && m.x * d > 74 && Math.abs(m.y) < 9) screens++;
+      const ozTime = this.entryAt > 0 ? this.elapsed - Math.max(this.entryAt, this.possSince) : 0;
+      // Getting pucks to the net from distance pays off through tips, screens and rebounds when there's traffic.
+      const traffic = g.dist > 28 ? Math.min(2, screens) * AGENT.traffic + (p.isF ? 0 : AGENT.pointShot) : 0;
+      let util = xs * AGENT.shoot * p.style.shoot * this.shootTac(A, pp) + traffic * (lane ? 0.4 : 1) + Math.min(0.2, ozTime * 0.01) - AGENT.shootBar;
+      if (this.elapsed - this.crossSlotAt <= 1 && this.lastReceiver === p) util += 0.25;
+      // Chasing the game: get pucks to the net. Protecting a lead: only good looks.
+      util += AGENT.urgency * this.scoreEffect(p.team);
+      if (this.elapsed - this.reboundAt <= 2 && g.dist < 15) util += 0.4;
+      // Empty net: only with a clear lane, and not from so deep that a miss is icing.
+      if (empty) util = xs * 1.2 - 0.55 - lane * 0.8 - (u < 0 ? 0.6 : 0) - (g.dist > 110 ? 0.5 : 0);
+      consider(util, 'shoot', p.x, p.y);
+    }
+    // Pass to each teammate.
+    for (const m of A.onIce) {
+      if (m === p || settling) continue;
+      if (Math.abs(m.x - p.x) > 110) continue;
+      const mu = m.x * d;
+      const mv = m.y;
+      // A pass across the blue line to someone already inside is offside.
+      if (this.ozFor !== p.team && mu > BLUE_LINE + 0.5) continue;
+      let risk = 0;
+      const lx = Math.min(p.x, m.x) - 10;
+      const hx = Math.max(p.x, m.x) + 10;
+      const ly = Math.min(p.y, m.y) - 10;
+      const hy = Math.max(p.y, m.y) + 10;
+      for (const o of opp) {
+        if (o.x < lx || o.x > hx || o.y < ly || o.y > hy) continue;
+        const dl = distToSegment(o.x, o.y, p.x, p.y, m.x, m.y);
+        if (dl < 10) risk = 1 - (1 - risk) * (1 - Math.exp(-dl / 3.2) * (0.5 + 0.1 * o.defIQ));
+      }
+      const len = dist(p.x, p.y, m.x, m.y);
+      risk += len / 450;
+      const open = Math.min(25, m.near);
+      // A man in the slot is only worth finding if he's actually open.
+      const gain = mu > BLUE_LINE ? (this.spotVal(mu, mv, empty) * clamp((open - 2) / 10, 0.15, 1) - this.spotVal(Math.max(u, BLUE_LINE), v, empty)) * AGENT.shoot : 0;
+      const prog = clamp((mu - u) * 0.004, -0.15, 0.25);
+      let util = 0.08 + gain * AGENT.passGain + prog + open * 0.008 + (A.tactics.offense === 'possession' ? 0.03 : 0) + (pp ? 0.05 : 0) + (p.style.pass - 1) * 0.12 - risk * AGENT.passRisk;
+      if (pressure < 5) util += 0.06;
+      consider(util, 'pass', m.x, m.y, m);
+    }
+    // Carry.
+    let front = 40;
+    for (const o of opp) {
+      const ou = o.x * d - u;
+      const ov = o.y - v;
+      if (ou > -2 && ou < 30 && Math.abs(ov) < 14) front = Math.min(front, Math.hypot(ou, ov));
+    }
+    let tu: number;
+    let tv: number;
+    if (u > BLUE_LINE) {
+      // In the zone: drive the slot if it's open, otherwise work the wall or walk the line.
+      const opts: [number, number, number][] = [
+        [Math.min(GOAL_LINE - 6, u + 10), v * 0.55, 0.06],
+        [clamp(u + this.rng.float(-10, 6), 50, GOAL_LINE + 4), (Math.sign(v) || 1) * clamp(Math.abs(v) + 4, 22, 38), 0],
+        [p.isF ? u : 58, clamp(v + (v > 0 ? -12 : 12), -28, 28), p.isF ? -0.04 : 0.04],
+      ];
+      tu = opts[0][0];
+      tv = opts[0][1];
+      let bestScore = -Infinity;
+      for (const [ou, ov, bias] of opts) {
+        let block = 99;
+        for (const o of opp) block = Math.min(block, distToSegment(o.x, o.y, p.x, p.y, ou * d, ov));
+        const sc = this.spotVal(ou, ov, empty) * AGENT.shoot * 0.5 + Math.min(block, 12) * 0.03 + bias + this.jitter(sd);
+        if (sc > bestScore) {
+          bestScore = sc;
+          tu = ou;
+          tv = ov;
+        }
+      }
+    } else {
+      tu = u + 26;
+      tv = v;
+      let bestOpen = -1;
+      for (const dv of [-12, 0, 12]) {
+        const cv = clamp(v + dv, -36, 36);
+        const o = this.nearestDist(tu * d, cv, opp);
+        if (o > bestOpen) {
+          bestOpen = o;
+          tv = cv;
+        }
+      }
+    }
+    let carryU = 0.15 + 0.1 * Math.min(1.5, front / 20) + 0.04 * (p.e.skate + p.e.hands) + (u < BLUE_LINE ? 0.08 : 0);
+    if (pressure < 4.5) carryU -= 0.22 - 0.06 * p.e.hands;
+    // He usually sees a teammate offside and holds up — not always.
+    if (u > BLUE_LINE - 18 && this.ozFor !== p.team && A.onIce.some((m) => m !== p && m.x * d > BLUE_LINE + 0.5)) carryU -= 0.35 * clamp(0.8 + 0.15 * p.e.decide, 0.5, 1);
+    consider(carryU, 'carry', tu * d, tv);
+    // Dump it in.
+    // Over the red line only: from his own half it would be icing.
+    if (u > 8 && u <= BLUE_LINE + 2 && !settling) {
+      const o = A.tactics.offense;
+      // Dump it in when the blue line is closed (or the system says so).
+      let atLine = 0;
+      for (const q of opp) {
+        const qu = q.x * d;
+        if (qu > BLUE_LINE - 6 && qu < BLUE_LINE + 14 && Math.abs(q.y - v) < 22) atLine++;
+      }
+      const closed = front < 8 && atLine >= 2;
+      // Only dump-and-chase teams lean on it; everyone else would rather regroup and try again.
+      let dumpU = -0.16 + (closed ? (o === 'dumpChase' ? 0.38 : o === 'cycle' ? 0.22 : 0.06) : front < 10 && o === 'dumpChase' ? 0.1 : 0);
+      const tired = A.onIce.reduce((s, m) => s + m.energy, 0) / Math.max(1, A.onIce.length) < 55;
+      if (tired) dumpU += 0.15;
+      if (u < 0 && !pk) dumpU -= 0.55;
+      consider(dumpU, 'dump', p.x, p.y);
+    }
+    // Clear the zone.
+    // Clearing gives the puck away: a last resort when he's being run (or killing a penalty).
+    if (u < -BLUE_LINE && !settling) consider((pressure < 3.5 ? 0.08 : -0.3) + (pk ? 0.35 : 0) - AGENT.clearCost, 'clear', p.x, p.y);
+    // Protect it and wait for something to open.
+    const holdTarget = clampToIce(p.x + this.rng.float(-3, 3), p.y + this.rng.float(-3, 3));
+    consider(0.04 + 0.03 * p.e.hands + (u > BLUE_LINE ? 0.05 : u < -BLUE_LINE ? 0.02 : -0.01), 'hold', holdTarget[0], holdTarget[1]);
+    return { act: bAct, tx: bx, ty: by, target: bt };
+  }
+
+  private structure(p: SP, hasPuck: boolean): [number, number] {
+    const t = this.teams[p.team];
+    const d = dirOf(p.team);
+    const pu = this.puck.x * d;
+    const c = this.puck.carrier;
+    const onside = hasPuck && (!c || this.ozFor !== p.team);
+    const o = this.sOpts[p.team];
+    o.forecheck = t.tactics.forecheck;
+    o.defense = t.tactics.defense;
+    o.offense = t.tactics.offense;
+    o.pp = this.sitNow[p.team] === 'PP';
+    o.pk = this.sitNow[p.team] === 'PK';
+    o.onside = onside;
+    structureSpot(p.role, hasPuck, pu, this.puck.y, o);
+    return [OUT[0] * d, OUT[1]];
+  }
+
+  private decideSupport(p: SP, carrier: SP): Plan {
+    const A = this.teams[p.team];
+    const B = this.teams[1 - p.team];
+    const d = dirOf(p.team);
+    const empty = B.goalie === null;
+    const [sx, sy] = this.structure(p, true);
+    const sd = clamp(0.12 - 0.04 * p.e.offIQ, 0.04, 0.25);
+    let best: Plan = { act: 'support', tx: sx, ty: sy };
+    let bestU = -Infinity;
+    // A few spots around his place in the structure: he picks the most open, most dangerous one
+    // (far from the play, his spot in the structure is the only sensible choice).
+    const far = Math.abs(p.x - this.puck.x) > 70;
+    for (let k = 0; k < (far ? 2 : SUPPORT_OFFSETS.length); k += 2) {
+      const [qx, qy] = clampToIce(sx + SUPPORT_OFFSETS[k] * d, sy + SUPPORT_OFFSETS[k + 1]);
+      if (this.ozFor !== p.team && qx * d > BLUE_LINE - 0.5) continue;
+      const open = Math.min(20, this.nearestDist(qx, qy, B.onIce));
+      const util = open * 0.02 + this.spotVal(qx * d, qy, empty) * AGENT.shoot * 0.6 - dist(p.x, p.y, qx, qy) * 0.002 + this.jitter(sd);
+      if (util > bestU) {
+        bestU = util;
+        best.tx = qx;
+        best.ty = qy;
+      }
+    }
+    // Drive the net when the puck is in deep.
+    if (p.isF && carrier.x * d > BLUE_LINE) {
+      const util = 0.12 * p.style.netFront + (this.elapsed - this.reboundAt < 2 ? 0.3 : 0) + this.jitter(sd) + 0.1 + (p.last === 'drive' ? AGENT.commit : 0);
+      if (util > bestU) best = { act: 'drive', tx: (GOAL_LINE - 9) * d, ty: clamp(p.y, -6, 6) };
+    }
+    // Stay onside: anyone caught inside the zone while the puck is out tags up.
+    if (p.x * d > BLUE_LINE && this.ozFor !== p.team && this.rng.chance(clamp(0.95 + 0.03 * p.e.offIQ, 0.85, 0.99))) {
+      best = { act: 'support', tx: (BLUE_LINE - 3) * d, ty: p.y };
+    }
+    void A;
+    return best;
+  }
+
+  private decideDefender(p: SP, carrier: SP): Plan {
+    const D = this.teams[p.team];
+    const A = this.teams[carrier.team];
+    const da = dirOf(carrier.team);
+    const cu = carrier.x * da;
+    const gx = GOAL_LINE * da;
+    const sd = clamp(0.15 - 0.05 * p.e.defIQ, 0.05, 0.3);
+    let bestU = -Infinity;
+    let bAct: Act = 'cover';
+    let bx = p.x;
+    let by = p.y;
+    let bt: SP | undefined;
+    const consider = (util: number, act: Act, tx: number, ty: number, target?: SP) => {
+      // Players commit to a play: sticking with it beats switching unless something clearly better opens up.
+      const x = util + this.jitter(sd) + (act === p.last && (target ?? null) === p.lastTarget ? AGENT.commit : 0);
+      if (x > bestU) {
+        bestU = x;
+        bAct = act;
+        bx = tx;
+        by = ty;
+        bt = target;
+      }
+    };
+    const dc = p.dc;
+    const rank = p.rank;
+    // Forecheck depth limits who chases deep in the attackers' end.
+    const deep = D.tactics.forecheck === '2-1-2' ? 2 : D.tactics.forecheck === '1-3-1' || D.tactics.defense === 'trap' ? 1 : 1;
+    // He can see who else is closer: the nearest man takes the puck, others think twice.
+    let press = this.aggression(D) * Math.exp(-dc / 18) + (rank === 0 ? 0.32 : rank === 1 ? -0.2 : -0.55) + (cu > BLUE_LINE ? 0.08 : 0);
+    if (cu < -BLUE_LINE && rank >= deep) press -= 0.5;
+    if (this.isPK(p.team) && cu < BLUE_LINE) press -= 0.25;
+    // Caught behind the play: skate to a spot in front of the carrier rather than chase his heels.
+    // The net he defends is the one the carrier attacks.
+    const ownGx = gx;
+    const behind = dist(p.x, p.y, ownGx, 0) > dist(carrier.x, carrier.y, ownGx, 0) + 2;
+    let ptx = carrier.x;
+    let pty = carrier.y;
+    if (behind) {
+      const gl = dist(carrier.x, carrier.y, ownGx, 0) || 1;
+      ptx = carrier.x + ((ownGx - carrier.x) / gl) * 8;
+      pty = carrier.y + ((0 - carrier.y) / gl) * 8;
+      press -= 0.12;
+    }
+    consider(press, 'pressure', ptx, pty, carrier);
+    if (dc < 10 && p.hitProp > 0.2) {
+      const phys = D.tactics.defense === 'physical' ? 1.4 : 1;
+      consider(AGENT.hit * p.hitProp * phys + (Math.abs(carrier.y) > 30 ? 0.08 : 0) - 0.06, 'hit', carrier.x, carrier.y, carrier);
+    }
+    // Mark the dangerous men.
+    for (const j of A.onIce) {
+      if (j === carrier) continue;
+      // Too far away to be his man this second.
+      if (Math.abs(j.x - p.x) > 45 || Math.abs(j.y - p.y) > 45) continue;
+      const ju = j.x * da;
+      const threat = this.spotVal(ju, j.y, false) * AGENT.shoot + (ju > BLUE_LINE ? 0.05 : 0);
+      const dj = dist(p.x, p.y, j.x, j.y);
+      const taken = (j.d1p === p ? j.d2 : j.d1) < dj - 3;
+      const util = threat * Math.exp(-dj / 20) + 0.04 - (taken ? 0.12 : 0);
+      const gl = dist(gx, 0, j.x, j.y) || 1;
+      consider(util, 'mark', j.x + ((gx - j.x) / gl) * 3, j.y + (-j.y / gl) * 3, j);
+    }
+    // Hold structure.
+    const [sx, sy] = this.structure(p, false);
+    consider(0.2 + 0.05 * p.e.defIQ, 'cover', sx, sy);
+    // Get into the shooting lane.
+    if (cu > 40 && distToSegment(p.x, p.y, carrier.x, carrier.y, gx, 0) < 10) {
+      consider(0.24 + 0.08 * p.e.block, 'block', carrier.x + (gx - carrier.x) * 0.35, carrier.y * 0.65);
+    }
+    return bestU === -Infinity ? { act: 'cover', tx: sx, ty: sy } : { act: bAct, tx: bx, ty: by, target: bt };
+  }
+
+  private decideLoose(p: SP): Plan {
+    const t = this.teams[p.team];
+    const dp = dist(p.x, p.y, this.puck.x, this.puck.y);
+    let rank = 0;
+    for (const m of t.onIce) if (m !== p && dist(m.x, m.y, this.puck.x, this.puck.y) < dp) rank++;
+    // After a dump-in the forecheckers go hard after it.
+    const forecheck = p.team === this.dumpTeam && this.elapsed - this.dumpAt < 4 && p.isF ? 0.35 : 0;
+    const chase = (rank === 0 ? 0.6 : rank === 1 ? 0.3 : -0.2) * Math.exp(-dp / 40) + forecheck + this.jitter(0.1);
+    const [sx, sy] = this.structure(p, p.team === this.poss);
+    if (chase > 0.12) return { act: 'chase', tx: this.puck.x, ty: this.puck.y };
+    return { act: p.team === this.poss ? 'support' : 'cover', tx: sx, ty: sy };
+  }
+
+  // ── resolution ──
+
+  private agentPass(A: ST, B: ST, p: SP, m: SP): void {
+    const d = dirOf(A.idx);
+    // Defenders along the lane may pick it off.
+    const lanes = B.onIce
+      .map((o) => ({ o, dl: distToSegment(o.x, o.y, p.x, p.y, m.x, m.y), t: along(o.x, o.y, p.x, p.y, m.x, m.y) }))
+      .filter((x) => x.dl < 8)
+      .sort((a, b) => a.t - b.t);
+    for (const { o, dl } of lanes) {
+      const pInt = clamp(Math.exp(-dl / 2.6) * (0.42 + 0.1 * o.e.defIQ + 0.06 * o.e.stickD) * AGENT.intercept - 0.05 * p.e.pass, 0, 0.9);
+      if (this.rng.chance(pInt)) {
+        const roll = this.rng.next();
+        if (roll < 0.22) {
+          p.stat.gv++;
+          A.stats.gv++;
+          this.ev('giveaway', A.idx, p.id, o.id, undefined, { zone: this.zone });
+        } else if (roll < 0.22 + 0.5 * AGENT.tkCredit) {
+          o.stat.tk++;
+          B.stats.tk++;
+          this.ev('takeaway', B.idx, o.id, p.id, undefined, { zone: this.zone });
+        }
+        this.takeawayAt = this.elapsed;
+        this.takeawayOZ = o.x * dirOf(B.idx) > BLUE_LINE;
+        this.setPoss(B.idx, o);
+        return;
+      }
+    }
+    const len = dist(p.x, p.y, m.x, m.y);
+    const pBad = clamp(0.02 + len / 700 - 0.02 * p.e.pass - 0.015 * m.recv, 0.004, 0.25);
+    if (this.rng.chance(pBad)) {
+      this.loosePuck(m.x + this.rng.float(-8, 8), m.y + this.rng.float(-8, 8));
+      return;
+    }
+    // A tightly marked receiver has a stick on him as the puck arrives.
+    let marker: SP | null = null;
+    let md = 99;
+    for (const o of B.onIce) {
+      const dd = dist(o.x, o.y, m.x, m.y);
+      if (dd < md) {
+        md = dd;
+        marker = o;
+      }
+    }
+    if (marker && md < 5 && this.rng.chance(logistic(-0.5 - md * 0.25 + TUNING.contest * 2 * (0.5 * marker.e.stickD + 0.5 * marker.e.defIQ - 0.5 * m.recv - 0.5 * m.e.hands)))) {
+      if (this.rng.chance(0.35)) {
+        if (this.rng.chance(AGENT.tkCredit)) {
+          marker.stat.tk++;
+          B.stats.tk++;
+          this.ev('takeaway', B.idx, marker.id, m.id, undefined, { zone: this.zone });
+        }
+        this.setPoss(B.idx, marker);
+        return;
+      }
+      this.loosePuck(m.x + this.rng.float(-6, 6), m.y + this.rng.float(-6, 6));
+      return;
+    }
+    this.addChain(p);
+    const cross = p.x * d > 45 && m.x * d > 45 && Math.sign(p.y) !== Math.sign(m.y) && Math.abs(p.y - m.y) > 18;
+    if (cross) this.crossSlotAt = this.elapsed;
+    this.lastReceiver = m;
+    this.acquired = 'pass';
+    if (m.x * d > BLUE_LINE) this.ev('pass', A.idx, p.id, m.id, undefined, { big: cross });
+    this.setPoss(A.idx, m);
+  }
+
+  private agentDump(A: ST, p: SP, clearing: boolean): void {
+    const d = dirOf(A.idx);
+    const startU = p.x * d;
+    const pk = this.isPK(A.idx);
+    this.addChain(p);
+    if (clearing) {
+      const far = !pk && this.rng.chance(0.07);
+      this.ev('clear', A.idx, p.id);
+      if (far && startU < 0) {
+        this.ev('icing', A.idx, p.id);
+        this.faceoff = A.idx;
+        this.noChange = A.idx;
+        return;
+      }
+      // Off the glass and out toward the most advanced teammate (on the PK, just get it down the ice).
+      let ahead: SP | null = null;
+      for (const m of A.onIce) if (m !== p && (!ahead || m.x * d > ahead.x * d)) ahead = m;
+      if (!pk && ahead && ahead.x * d > startU + 15) this.loosePuck(ahead.x + d * this.rng.float(0, 14), ahead.y + this.rng.float(-10, 10));
+      else this.loosePuck(this.rng.float(-8, 45) * d, this.rng.float(-30, 30));
+      return;
+    }
+    const B = this.teams[1 - A.idx];
+    // Rim it to the side his forechecker is driving to (away from their deepest man if nobody is going).
+    let fc: SP | null = null;
+    for (const m of A.onIce) if (m !== p && m.isF && (!fc || m.x * d > fc.x * d)) fc = m;
+    let nearD: SP | null = null;
+    for (const o of B.onIce) if (!nearD || o.x * d > nearD.x * d) nearD = o;
+    const side = fc && fc.x * d > startU - 5 ? (fc.y >= 0 ? 1 : -1) : nearD ? (nearD.y > 0 ? -1 : 1) : 1;
+    this.dumpAt = this.elapsed;
+    this.dumpTeam = A.idx;
+    this.ev('dumpIn', A.idx, p.id);
+    if (startU < 0 && !pk && this.rng.chance(0.85)) {
+      this.ev('icing', A.idx, p.id);
+      this.faceoff = A.idx;
+      this.noChange = A.idx;
+      return;
+    }
+    this.loosePuck((GOAL_LINE + this.rng.float(2, 9)) * d, side * this.rng.float(18, 34));
+  }
+
+  private resolveContact(): void {
+    const c = this.puck.carrier;
+    if (!c) return;
+    const A = this.teams[c.team];
+    const B = this.teams[1 - c.team];
+    let who: SP | null = null;
+    let wd = 99;
+    for (const o of B.onIce) {
+      const pl = o.plan;
+      if (!pl || pl.target !== c || (pl.act !== 'pressure' && pl.act !== 'hit')) continue;
+      const dd = dist(o.x, o.y, c.x, c.y);
+      if (dd < wd) {
+        wd = dd;
+        who = o;
+      }
+    }
+    if ((!who || wd > 5.5) && this.blockedBy && this.blockedBy.onIce && dist(this.blockedBy.x, this.blockedBy.y, c.x, c.y) < 5.5) {
+      who = this.blockedBy;
+      wd = dist(who.x, who.y, c.x, c.y);
+    }
+    if (!who || wd > 5.5) return;
+    const plan = who.plan!;
+    if (plan.act === 'hit' && plan.target === c) {
+      const boards = Math.abs(c.y) > 30 || Math.abs(c.x) > 80 ? 0.35 : 0;
+      if (this.rng.chance(perTick(logistic(-0.2 + 0.55 * (who.e.phys - 0.5 * c.e.skate) + boards)))) {
+        this.hit(who, c);
+        if (this.faceoff !== null) return;
+        if (this.rng.chance(0.38)) this.loosePuck(c.x + this.rng.float(-5, 5), c.y + this.rng.float(-5, 5));
+      }
+      return;
+    }
+    const l =
+      AGENT.take +
+      TUNING.contest * 1.6 * (0.6 * who.e.stickD + 0.4 * who.e.defIQ - 0.7 * c.e.hands - 0.3 * c.e.skate) +
+      AGENT.teamEdge * (this.ctx(who.team) - this.ctx(c.team)) +
+      AGENT.scoreFx * (this.scoreEffect(who.team) - this.scoreEffect(c.team)) +
+      (this.isPK(c.team) ? 0.3 : 0) + (this.situation(c.team) === 'PP' ? -0.5 : 0) + AGENT.teamEdge * (B.coachDef - A.coachOff + B.sys.def - A.sys.off) +
+      (c.team === 0 ? -1 : 1) * this.homeAdv * AGENT.homeEdge;
+    if (!this.rng.chance(perTick(logistic(l)))) return;
+    if (this.rng.chance(0.55)) {
+      if (this.rng.chance(AGENT.tkCredit * 1.4)) {
+        who.stat.tk++;
+        B.stats.tk++;
+        this.ev('takeaway', B.idx, who.id, c.id, undefined, { zone: this.zone });
+      }
+      this.takeawayAt = this.elapsed;
+      this.takeawayOZ = who.x * dirOf(B.idx) > BLUE_LINE;
+      this.setPoss(B.idx, who);
+    } else {
+      if (this.rng.chance(0.12)) {
+        c.stat.gv++;
+        A.stats.gv++;
+        this.ev('giveaway', A.idx, c.id, who.id, undefined, { zone: this.zone });
+      }
+      this.loosePuck(c.x + this.rng.float(-6, 6), c.y + this.rng.float(-6, 6));
+    }
+  }
+
+  private resolveLoose(): void {
+    // Goalies smother pucks in the crease.
+    for (const t of this.teams) {
+      const g = t.goalie;
+      if (!g) continue;
+      const gx = -GOAL_LINE * dirOf(t.idx);
+      if (dist(this.puck.x, this.puck.y, gx, 0) < 7) {
+        const opp = this.teams[1 - t.idx].onIce;
+        const near = this.nearestDist(this.puck.x, this.puck.y, opp);
+        if (near > 2.5) {
+          if (this.rng.chance(0.6)) {
+            this.ev('freeze', t.idx, g.id);
+            this.faceoff = t.idx;
+            return;
+          }
+          const mates = t.onIce.filter((p) => !p.isF);
+          const to = (mates.length ? mates : t.onIce).reduce<SP | null>((b, p) => (!b || dist(p.x, p.y, gx, 0) < dist(b.x, b.y, gx, 0) ? p : b), null);
+          if (to) this.setPoss(t.idx, to);
+          return;
+        }
+      }
+    }
+    const near: { p: SP; d: number }[] = [];
+    for (const t of this.teams) for (const p of t.onIce) {
+      const dd = dist(p.x, p.y, this.puck.x, this.puck.y);
+      if (dd < 4.5) near.push({ p, d: dd });
+    }
+    if (!near.length) return;
+    const teams = new Set(near.map((n) => n.p.team));
+    const w = this.pickW(
+      near.map((n) => n.p),
+      (p) => Math.exp(-dist(p.x, p.y, this.puck.x, this.puck.y) / 2.5) * Math.exp(0.3 * (p.e.hands + p.e.skate + p.e.phys) / 3) * (p.plan?.act === 'chase' ? 1.4 : 1) * (p.team === this.dumpTeam && this.elapsed - this.dumpAt < 4 ? 1.5 : 1),
+    );
+    if (teams.size > 1) {
+      const loser = near.filter((n) => n.p.team !== w.team).sort((a, b) => a.d - b.d)[0].p;
+      this.ev('battle', w.team, w.id, loser.id);
+      const hitter = this.rng.chance(0.5) ? w : loser;
+      const target = hitter === w ? loser : w;
+      if (this.rng.chance(perTick(0.1 * hitter.hitProp))) {
+        this.hit(hitter, target);
+        if (this.faceoff !== null) return;
+      }
+    }
+    this.setPoss(w.team, w);
+    this.acquired = this.elapsed - this.reboundAt <= 2 ? 'rebound' : 'loose';
+  }
+
+  private agentShot(A: ST, B: ST, carrier: SP): void {
+    const rng = this.rng;
+    const d = dirOf(A.idx);
+    const gx = GOAL_LINE * d;
+    const sitA = this.situation(A.idx);
+    const pp = sitA === 'PP' ? A.tactics.pp : null;
+    const pkStyle = sitA === 'PP' ? B.tactics.pk : null;
+    let shooter = carrier;
+    let geo = shotGeometry(shooter.x * d, shooter.y);
+    if (SHOT_DEBUG) {
+      const k = `${geo.dist < 20 ? 'close' : geo.dist < 36 ? 'mid' : 'far'}:${this.acquired}:near${shooter.near < 4 ? '<4' : shooter.near < 8 ? '4-8' : shooter.near < 15 ? '8-15' : '15+'}`;
+      SHOT_DEBUG[k] = (SHOT_DEBUG[k] ?? 0) + 1;
+    }
+    let danger = dangerOf(geo.dist);
+    const rebound = this.elapsed - this.reboundAt <= 2 && geo.dist < 22;
+    let type: ShotType;
+    if (rebound) type = 'rebound';
+    else if (this.elapsed - this.crossSlotAt <= 1 && this.lastReceiver === shooter && danger !== 'low' && rng.chance(0.7)) type = 'oneTimer';
+    else if (danger === 'low') type = rng.chance(shooter.isF ? 0.15 : 0.6) ? 'slap' : rng.chance(0.25) ? 'snap' : 'wrist';
+    else if (danger === 'high') type = shooter.x * d > GOAL_LINE - 1 ? 'wraparound' : rng.chance(0.2) ? 'backhand' : rng.chance(0.25) ? 'snap' : 'wrist';
+    else type = rng.chance(0.1) ? 'slap' : rng.chance(0.25) ? 'snap' : rng.chance(0.06) ? 'backhand' : 'wrist';
+    // Point shots get tipped by whoever is parked at the net.
+    if (geo.dist > 33) {
+      const tippers = A.onIce.filter((m) => m !== shooter && m.x * d > 76 && Math.abs(m.y) < 9);
+      if (tippers.length) {
+        const tipper = this.pickW(tippers, (m) => m.style.netFront);
+        if (rng.chance(0.12 * tipper.style.netFront + (pp === 'netFront' ? 0.05 : 0))) {
+          this.addChain(shooter);
+          shooter = tipper;
+          type = 'tip';
+          geo = shotGeometry(shooter.x * d, shooter.y);
+          danger = dangerOf(geo.dist);
+        }
+      }
+    }
+    const dist0 = geo.dist;
+    const angle = geo.angle;
+    const screened = B.goalie !== null && A.onIce.some((m) => m !== shooter && m.x * d > 72 && distToSegment(m.x, m.y, shooter.x, shooter.y, gx, 0) < 4) && rng.chance(0.55);
+    const rush = this.entryRush && this.elapsed - this.entryAt <= 4;
+    const oddMan = rush && this.entryOdd;
+    const turnover = this.takeawayOZ && this.elapsed - this.takeawayAt <= 4;
+    // A defender tight on him can lift his stick or tie him up before he gets it away.
+    for (const o of B.onIce) {
+      const pl = o.plan;
+      if (!pl || pl.target !== shooter) continue;
+      const dd = dist(o.x, o.y, shooter.x, shooter.y);
+      if (dd > 4) continue;
+      if (rng.chance(AGENT.shotDenial * (1 - dd / 5) * logistic(0.5 * (o.e.stickD + o.e.defIQ - shooter.e.hands - shooter.e.decide)) * 2)) {
+        if (rng.chance(0.4)) {
+          if (rng.chance(AGENT.tkCredit)) {
+            o.stat.tk++;
+            B.stats.tk++;
+            this.ev('takeaway', B.idx, o.id, shooter.id, undefined, { zone: this.zone });
+          }
+          this.setPoss(B.idx, o);
+        } else this.loosePuck(shooter.x + rng.float(-5, 5), shooter.y + rng.float(-5, 5));
+        return;
+      }
+    }
+    shooter.stat.att++;
+    A.stats.attempts++;
+    for (const p of A.onIce) p.stat.cf++;
+    for (const p of B.onIce) p.stat.ca++;
+    this.reboundAt = -99;
+    // Blocks: anyone squarely in the lane.
+    const lane = B.onIce
+      .map((o) => ({ o, dl: distToSegment(o.x, o.y, shooter.x, shooter.y, gx, 0), t: along(o.x, o.y, shooter.x, shooter.y, gx, 0) }))
+      .filter((x) => x.dl < AGENT.blockLane && x.t > 0.05 && x.t < 0.9)
+      .sort((a, b) => a.t - b.t);
+    for (const { o, dl } of lane) {
+      let pb = AGENT.block * (1 - dl / (AGENT.blockLane + 1)) * (1 + 0.15 * o.e.block);
+      if (type === 'oneTimer' || type === 'tip' || type === 'rebound') pb *= 0.55;
+      if (pkStyle === 'box' || pkStyle === 'diamond') pb *= 1.1;
+      if (rng.chance(clamp(pb, 0, 0.8))) {
+        o.stat.blocks++;
+        B.stats.blocks++;
+        shooter.stat.blockedAtt++;
+        A.stats.blockedAtt++;
+        this.ev('blocked', B.idx, o.id, shooter.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle) });
+        if (rng.chance(TUNING.injuryBlock * o.injuryRisk * (type === 'slap' ? 1.5 : 1))) this.injure(o, 'block');
+        this.loosePuck(o.x + rng.float(-7, 7), o.y + rng.float(-7, 7));
+        return;
+      }
+    }
+    // A defender on the shooter gets a stick or body on it, or forces him wide.
+    let close = 99;
+    let closer: SP | null = null;
+    for (const o of B.onIce) {
+      const dd = dist(o.x, o.y, shooter.x, shooter.y);
+      if (dd < close) {
+        close = dd;
+        closer = o;
+      }
+    }
+    if (closer && close < 6 && type !== 'tip' && rng.chance(0.3 * (1 - close / 6) * (1 + 0.15 * closer.e.block))) {
+      closer.stat.blocks++;
+      B.stats.blocks++;
+      shooter.stat.blockedAtt++;
+      A.stats.blockedAtt++;
+      this.ev('blocked', B.idx, closer.id, shooter.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle) });
+      this.loosePuck(closer.x + rng.float(-7, 7), closer.y + rng.float(-7, 7));
+      return;
+    }
+    const pMissAvg = baseMissProbability(type, dist0);
+    const xgOnNet = baseGoalProbability({ dist: dist0, angle, type, rush, oddMan, screened, turnover, empty: B.goalie === null });
+    const xg = (1 - pMissAvg) * xgOnNet;
+    shooter.stat.ixg += xg;
+    A.stats.xg += xg;
+    for (const p of A.onIce) p.stat.xgf += xg;
+    for (const p of B.onIce) p.stat.xga += xg;
+    const passer = this.chain.length ? this.chain[this.chain.length - 1] : null;
+    if (passer && passer !== shooter && passer.team === A.idx) passer.stat.ixa += xg;
+    const accSkill = type === 'slap' ? this.val(shooter, 'slap') : this.val(shooter, 'acc');
+    let lMiss = logit(pMissAvg) - 0.3 * accSkill + (shooter.fat < 0 ? -shooter.fat * 0.5 : 0) + (close < 6 ? 0.35 * (1 - close / 6) : 0);
+    if (B.goalie === null) lMiss = logit(clamp(0.15 + dist0 * 0.005, 0.1, 0.75)) - 0.3 * accSkill;
+    if (B.tactics.defense === 'aggressive' || pkStyle === 'aggressive') lMiss += 0.08;
+    if (rng.chance(logistic(lMiss))) {
+      shooter.stat.missed++;
+      A.stats.missed++;
+      this.ev('missed', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger, en: B.goalie === null || undefined });
+      if (B.goalie === null && shooter.x * d < 0 && !this.isPK(A.idx)) {
+        this.ev('icing', A.idx, shooter.id);
+        this.faceoff = A.idx;
+        this.noChange = A.idx;
+        return;
+      }
+      if (rng.chance(0.06)) {
+        this.ev('outOfPlay', B.idx, shooter.id);
+        this.faceoff = B.idx;
+        return;
+      }
+      this.addChain(shooter);
+      this.loosePuck(gx + d * rng.float(3, 10), (Math.sign(shooter.y) || 1) * -1 * rng.float(5, 30));
+      return;
+    }
+    shooter.stat.sog++;
+    const zone = shotZone(dist0, angle);
+    const zsArr = (this.shotZones[shooter.id] ??= new Array(ZONE_COUNT * 2).fill(0));
+    zsArr[zone]++;
+    A.stats.shots++;
+    A.stats.shotsByPeriod[Math.min(this.period, 4) - 1] = (A.stats.shotsByPeriod[Math.min(this.period, 4) - 1] ?? 0) + 1;
+    const hd = danger === 'high';
+    if (hd) A.stats.hdShots++;
+    const g = B.goalie;
+    if (!g) {
+      this.ev('shot', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger, en: true });
+      zsArr[ZONE_COUNT + zone]++;
+      this.scoreGoal(A, B, shooter, xg, type, true);
+      return;
+    }
+    g.stat.sa++;
+    g.stat.gxga += xgOnNet;
+    if (hd) g.stat.hdsa++;
+    this.ev('shot', A.idx, shooter.id, g.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger });
+    const shooterSkill = this.shooterSkill(shooter, type);
+    const gSkill = this.goalieSkill(g, B, danger, type, screened);
+    const late = this.period >= 3 && this.periodLength - this.clock < 300 && Math.abs(this.score[0] - this.score[1]) <= 1;
+    const clutch = late || this.input.playoff ? 0.05 * shooter.clutch : 0;
+    const adj = TUNING.shooterWeight * shooterSkill - TUNING.goalieWeight * gSkill + clutch + TUNING.finishOffset + AGENT.finish + this.ctx(A.idx) * 0.3 - this.ctx(B.idx) * 0.3;
+    if (rng.chance(logistic(logit(xgOnNet) + adj))) {
+      if (hd) g.stat.hdga++;
+      zsArr[ZONE_COUNT + zone]++;
+      this.scoreGoal(A, B, shooter, xg, type, false);
+      return;
+    }
+    const big = xgOnNet > 0.2;
+    this.ev('save', B.idx, g.id, shooter.id, undefined, { big, xg: xgOnNet });
+    if (big) this.bumpMomentum(B.idx, 0.06);
+    this.addChain(shooter);
+    let pReb = 0.08 - 0.03 * (g.gReb + g.form) + (type === 'slap' ? 0.03 : 0) + (type === 'tip' ? 0.02 : 0) + (screened ? 0.02 : 0);
+    if (pp === 'shooting') pReb += 0.01;
+    pReb = clamp(pReb, 0.02, 0.2);
+    if (type !== 'rebound' && rng.chance(pReb)) {
+      g.stat.reb++;
+      this.ev('rebound', A.idx, shooter.id);
+      this.reboundAt = this.elapsed + AGENT.tick;
+      this.loosePuck(gx - d * rng.float(5, 11), rng.float(-9, 9));
+      return;
+    }
+    const pFreeze = clamp(0.5 + 0.08 * g.gReb + (danger === 'low' ? -0.08 : 0.06), 0.25, 0.75);
+    if (rng.chance(pFreeze)) {
+      this.ev('freeze', B.idx, g.id);
+      this.faceoff = B.idx;
+      return;
+    }
+    // Kicked into the corner.
+    this.loosePuck(gx - d * rng.float(-6, 10), (rng.chance(0.5) ? 1 : -1) * rng.float(18, 34));
+  }
+
   // ───────────────────────────── goals ─────────────────────────────
 
   private scoreGoal(A: ST, B: ST, shooter: SP, xg: number, type: ShotType | string, emptyNet: boolean): void {
@@ -1572,7 +2883,7 @@ export class GameSim {
     // battles); credit those implied touches to on-ice teammates.
     if (!emptyNet || assists.length) {
       while (assists.length < 2) {
-        const p = assists.length === 0 ? 0.78 : 0.58;
+        const p = this.mode === 'agent' ? AGENT.assistPad[assists.length] : assists.length === 0 ? 0.78 : 0.58;
         if (!this.rng.chance(p)) break;
         const pool = A.onIce.filter((x) => x !== shooter && !assists.includes(x));
         if (!pool.length) break;
@@ -1778,8 +3089,8 @@ export class GameSim {
         return;
       }
     }
-    // Open-ice / board hits not tied to a specific battle.
-    if (rng.chance(TUNING.hitRate * dt)) {
+    // Open-ice / board hits not tied to a specific battle (the per-second engine has players choose their hits).
+    if (this.mode !== 'agent' && rng.chance(TUNING.hitRate * dt)) {
       const defSide = (this.zone === 'O' ? 1 - this.poss : this.zone === 'D' ? this.poss : 1 - this.poss) as Side;
       const hitSide = (rng.chance(0.62) ? defSide : 1 - defSide) as Side;
       const H = this.teams[hitSide];
@@ -1956,6 +3267,8 @@ export class GameSim {
       goaliesUsed,
       shootout: this.shootout,
       events: this.events,
+      ...(this.mode === 'agent' ? { decisions: this.decisions } : {}),
+      ...(this.input.recordTrack ? { track: this.track } : {}),
     };
   }
 
