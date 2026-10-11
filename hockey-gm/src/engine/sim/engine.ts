@@ -1914,9 +1914,14 @@ export class GameSim {
     this.puck.dead = false;
   }
 
+  /** Team whose attacking zone the puck is in. The puck has to cross the whole (1 ft) blue line to get in or out, so skating along the line doesn't flicker it in and out. */
+  private ozFor: Side | null = null;
+
   private updateZone(): void {
     const u = this.puck.x * dirOf(this.poss);
-    this.zone = u > BLUE_LINE ? 'O' : u < -BLUE_LINE ? 'D' : 'N';
+    if (this.ozFor !== this.poss) this.ozFor = u > BLUE_LINE ? this.poss : null;
+    else if (u < BLUE_LINE - 1) this.ozFor = null;
+    this.zone = this.ozFor === this.poss ? 'O' : u < -BLUE_LINE ? 'D' : 'N';
   }
 
   private placeGoalies(): void {
@@ -2042,6 +2047,7 @@ export class GameSim {
     }
     this.placeGoalies();
     const startU = this.puck.x * dirOf(this.poss);
+    const wasIn = this.ozFor === this.poss;
     const startPoss = this.poss;
     // 2. The puck carrier acts first: passes and shots beat the skaters' feet.
     let passed = false;
@@ -2118,7 +2124,7 @@ export class GameSim {
     if (c && this.poss === startPoss) {
       const u = c.x * dirOf(c.team);
       if (startU <= -BLUE_LINE && u > -BLUE_LINE) this.ev('breakout', c.team, c.id);
-      if (startU <= BLUE_LINE && u > BLUE_LINE && !passed) {
+      if (!wasIn && startU <= BLUE_LINE && u > BLUE_LINE && !passed) {
         const A = this.teams[c.team];
         const offside = A.onIce.some((m) => m !== c && m.x * dirOf(c.team) > BLUE_LINE + 0.5);
         if (offside && this.rng.chance(0.92)) {
@@ -2217,7 +2223,7 @@ export class GameSim {
       const mu = m.x * d;
       const mv = m.y;
       // A pass across the blue line to someone already inside is offside.
-      if (u <= BLUE_LINE && mu > BLUE_LINE + 0.5) continue;
+      if (this.ozFor !== p.team && mu > BLUE_LINE + 0.5) continue;
       let risk = 0;
       const lx = Math.min(p.x, m.x) - 10;
       const hx = Math.max(p.x, m.x) + 10;
@@ -2283,7 +2289,7 @@ export class GameSim {
     let carryU = 0.15 + 0.1 * Math.min(1.5, front / 20) + 0.04 * (p.e.skate + p.e.hands) + (u < BLUE_LINE ? 0.08 : 0);
     if (pressure < 4.5) carryU -= 0.22 - 0.06 * p.e.hands;
     // He usually sees a teammate offside and holds up — not always.
-    if (u > BLUE_LINE - 18 && u <= BLUE_LINE && A.onIce.some((m) => m !== p && m.x * d > BLUE_LINE + 0.5)) carryU -= 0.35 * clamp(0.8 + 0.15 * p.e.decide, 0.5, 1);
+    if (u > BLUE_LINE - 18 && this.ozFor !== p.team && A.onIce.some((m) => m !== p && m.x * d > BLUE_LINE + 0.5)) carryU -= 0.35 * clamp(0.8 + 0.15 * p.e.decide, 0.5, 1);
     consider(carryU, 'carry', tu * d, tv);
     // Dump it in.
     // Over the red line only: from his own half it would be icing.
@@ -2317,7 +2323,7 @@ export class GameSim {
     const d = dirOf(p.team);
     const pu = this.puck.x * d;
     const c = this.puck.carrier;
-    const onside = hasPuck && (!c || c.x * d <= BLUE_LINE);
+    const onside = hasPuck && (!c || this.ozFor !== p.team);
     const o = this.sOpts[p.team];
     o.forecheck = t.tactics.forecheck;
     o.defense = t.tactics.defense;
@@ -2343,7 +2349,7 @@ export class GameSim {
     const far = Math.abs(p.x - this.puck.x) > 70;
     for (let k = 0; k < (far ? 2 : SUPPORT_OFFSETS.length); k += 2) {
       const [qx, qy] = clampToIce(sx + SUPPORT_OFFSETS[k] * d, sy + SUPPORT_OFFSETS[k + 1]);
-      if (carrier.x * d <= BLUE_LINE && qx * d > BLUE_LINE - 0.5) continue;
+      if (this.ozFor !== p.team && qx * d > BLUE_LINE - 0.5) continue;
       const open = Math.min(20, this.nearestDist(qx, qy, B.onIce));
       const util = open * 0.02 + this.spotVal(qx * d, qy, empty) * AGENT.shoot * 0.6 - dist(p.x, p.y, qx, qy) * 0.002 + this.jitter(sd);
       if (util > bestU) {
@@ -2358,8 +2364,8 @@ export class GameSim {
       if (util > bestU) best = { act: 'drive', tx: (GOAL_LINE - 9) * d, ty: clamp(p.y, -6, 6) };
     }
     // Stay onside: anyone caught inside the zone while the puck is out tags up.
-    if (p.x * d > BLUE_LINE && carrier.x * d <= BLUE_LINE && this.rng.chance(clamp(0.9 + 0.04 * p.e.offIQ, 0.75, 0.98))) {
-      best = { act: 'support', tx: (BLUE_LINE - 2) * d, ty: p.y };
+    if (p.x * d > BLUE_LINE && this.ozFor !== p.team && this.rng.chance(clamp(0.95 + 0.03 * p.e.offIQ, 0.85, 0.99))) {
+      best = { act: 'support', tx: (BLUE_LINE - 3) * d, ty: p.y };
     }
     void A;
     return best;
