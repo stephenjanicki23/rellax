@@ -24,6 +24,8 @@ export interface Key extends Frame {
   /** Presentation time (game seconds plus whistle pauses). */
   s: number;
   period: number;
+  /** Where the engine had everyone at this instant (event frames in between only copy these). */
+  track?: boolean;
 }
 
 /** Minimum spacing after the previous keyframe when events share a timestamp. */
@@ -45,6 +47,8 @@ const GAP: Partial<Record<GameEventType, number>> = {
   periodStart: 0.1,
 };
 const WAYPOINT_EVERY = 1.1;
+/** Engine positions blended either side of each one when smoothing paths (2 = half a second each way). */
+const SMOOTH_HALF = 2;
 
 export class RinkTimeline {
   keys: Key[] = [];
@@ -99,9 +103,107 @@ export class RinkTimeline {
     const puck = RinkTimeline.toRink(track.puck[0], track.puck[1], period);
     this.live = { players, puck, carrier: track.carrier, period };
     const s = Math.max(this.lastS + 0.05, track.t + this.holdSum);
+    // A fresh run of positions after a stoppage, a period break or a gap.
+    const lastTrack = this.run.length ? this.keys[this.run[this.run.length - 1].k] : null;
+    if (!lastTrack || this.stopped || lastTrack.period !== period || s - lastTrack.s > 0.8) this.endRun();
+    this.spread(players, track.carrier);
     this.push({ puck, motion: 'carry', carrier: track.carrier, players, flash: null, goalLight: null }, s, period);
+    this.keys[this.keys.length - 1].track = true;
+    this.run.push({ k: this.keys.length - 1, raw: { ...players } });
+    // Smooth the position SMOOTH_HALF back now that its neighbours either side are known.
+    if (this.run.length > SMOOTH_HALF) this.smooth(this.run.length - 1 - SMOOTH_HALF);
+    if (this.run.length > SMOOTH_HALF * 2 + 1) this.run.shift();
     this.lastS = s;
     this.lastIce = ice;
+  }
+
+  /**
+   * Markers take up room: where the engine has two players on the same spot
+   * (a defender tight on his man), their drawn spots are eased apart before
+   * anyone skates to them, so markers never sit on top of each other or
+   * fight over a spot. Teammates keep a full marker apart, opponents may
+   * touch; goalies and the puck carrier hold their spots.
+   */
+  private spread(players: Record<number, Pt>, carrier: number | null): void {
+    const ids = Object.keys(players).map(Number);
+    const meta = this.director.meta;
+    for (let pass = 0; pass < 3; pass++)
+      for (let i = 0; i < ids.length; i++)
+        for (let j = i + 1; j < ids.length; j++) {
+          const ma = meta.get(ids[i]);
+          const mb = meta.get(ids[j]);
+          const a = players[ids[i]];
+          const b = players[ids[j]];
+          const MIN = ma?.team === mb?.team ? 6.6 : 5.6;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const d = Math.hypot(dx, dy);
+          if (d >= MIN) continue;
+          const fa = ma?.pos === 'G' || ids[i] === carrier ? 0 : 1;
+          const fb = mb?.pos === 'G' || ids[j] === carrier ? 0 : 1;
+          if (fa + fb === 0) continue;
+          const ux = d > 1e-3 ? dx / d : Math.cos(ids[i] - ids[j]);
+          const uy = d > 1e-3 ? dy / d : Math.sin(ids[i] - ids[j]);
+          const gap = MIN - d;
+          const wa = fa / (fa + fb);
+          players[ids[i]] = onSurface({ x: a.x - ux * gap * wa, y: a.y - uy * gap * wa }, 1.5);
+          players[ids[j]] = onSurface({ x: b.x + ux * gap * (1 - wa), y: b.y + uy * gap * (1 - wa) }, 1.5);
+        }
+  }
+
+  /** The latest engine positions in the current run of play (raw, before smoothing). */
+  private run: { k: number; raw: Record<number, Pt> }[] = [];
+
+  /** The run of play ended: smooth what's left with the neighbours it has. */
+  private endRun(): void {
+    for (let i = Math.max(0, this.run.length - SMOOTH_HALF); i < this.run.length; i++) this.smooth(i);
+    this.run = [];
+  }
+
+  /**
+   * The engine re-decides four times a second, so raw positions zig-zag from
+   * one quarter second to the next. Each position is blended with its
+   * neighbours (half a second either way, nearer ones counting more), so
+   * skaters carve smooth paths through where the engine had them.
+   */
+  private smooth(ci: number): void {
+    const run = this.run;
+    const center = this.keys[run[ci].k];
+    const out: Record<number, Pt> = {};
+    for (const idStr of Object.keys(run[ci].raw)) {
+      const id = +idStr;
+      // The puck carrier is drawn exactly where he is: his tight moves with the puck are the point.
+      if (id === center.carrier) {
+        out[id] = run[ci].raw[id];
+        continue;
+      }
+      let sx = 0;
+      let sy = 0;
+      let sw = 0;
+      for (let k = Math.max(0, ci - SMOOTH_HALF); k <= Math.min(run.length - 1, ci + SMOOTH_HALF); k++) {
+        const pt = run[k].raw[id];
+        if (!pt) continue;
+        const w = SMOOTH_HALF + 1 - Math.abs(k - ci);
+        sx += pt.x * w;
+        sy += pt.y * w;
+        sw += w;
+      }
+      out[id] = onSurface({ x: sx / sw, y: sy / sw }, 1.5);
+      // Blending in where he'll be next mustn't draw an onside attacker over the blue line early.
+      const team = this.director.meta.get(id)?.team;
+      const ct = center.carrier !== null ? this.director.meta.get(center.carrier)?.team : undefined;
+      if (team !== undefined && team === ct) {
+        const d = attackDir(team, center.period);
+        const line = RINK.cx + d * 25.5;
+        const raw = run[ci].raw[id];
+        if ((raw.x - line) * d <= 0 && (out[id].x - line) * d > 0) out[id] = { x: line, y: out[id].y };
+      }
+    }
+    this.spread(out, center.carrier);
+    // In place: event frames in between share this object, so they move with it.
+    Object.assign(center.players, out);
+    // The puck rides on the carrier's stick.
+    if (center.carrier !== null && out[center.carrier]) center.puck = { ...out[center.carrier] };
   }
 
   /** Presentation time of the latest scheduled keyframe. */
@@ -214,8 +316,6 @@ const SHOT_SPEED = 115;
 const passSpeed = (len: number) => 48 + Math.min(34, len * 0.4);
 /** Below this line (feet from the bottom boards) players heading to the bench may leave the ice. */
 const CORNER_GATE = 6;
-/** Blue lines sit 25 ft either side of centre. */
-const BLUE_X = 25;
 
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 /** Keep a puck position on the ice surface. */
@@ -373,6 +473,20 @@ export class RinkMotion {
 
   private moveBodies(target: Key, remaining: number, dt: number): void {
     const want = target.players;
+    // The engine positions either side of now (event frames in between only copy the earlier one).
+    const keys = this.tl.keys;
+    let prev: Key | undefined;
+    let next: Key | undefined;
+    for (let i = this.k - 1; i >= Math.max(0, this.k - 8); i--)
+      if (keys[i].track) {
+        prev = keys[i];
+        break;
+      } else if (keys[i].faceoff || keys[i].motion === 'still') break;
+    for (let i = this.k; i < Math.min(keys.length, this.k + 8); i++)
+      if (keys[i].track) {
+        next = keys[i];
+        break;
+      } else if (keys[i].faceoff || keys[i].motion === 'still') break;
     for (const idStr of Object.keys(want)) {
       const id = +idStr;
       if (!this.bodies.has(id)) this.bodies.set(id, this.newBody(id, want[id]));
@@ -387,6 +501,8 @@ export class RinkMotion {
       const kind = b.goalie ? 'G' : m?.pos === 'D' ? 'D' : 'F';
       let tgt: Pt;
       let T = remaining;
+      let wx = 0;
+      let wy = 0;
       if (want[b.id]) {
         b.leaving = 0;
         const w = want[b.id];
@@ -394,9 +510,14 @@ export class RinkMotion {
         // Nearly still while lined up for a faceoff.
         const amp = b.goalie ? 0.6 : target.faceoff ? 0.2 : 1.8;
         const ph = b.id * 0.37;
-        tgt = { x: w.x + Math.sin(this.P * 0.9 + ph) * amp, y: w.y + Math.cos(this.P * 0.7 + ph * 1.3) * amp };
+        wx = Math.sin(this.P * 0.9 + ph) * amp;
+        wy = Math.cos(this.P * 0.7 + ph * 1.3) * amp;
+        tgt = { x: w.x + wx, y: w.y + wy };
         // The carrier skates the puck to where the next keyframe wants it.
-        if (this.puck.mode.kind === 'carried' && this.puck.mode.carrier === b.id && target.carrier === b.id) tgt = { ...w };
+        if (this.puck.mode.kind === 'carried' && this.puck.mode.carrier === b.id && target.carrier === b.id) {
+          tgt = { ...w };
+          wx = wy = 0;
+        }
         if (b.goalie) {
           tgt = this.goalieSpot(b);
           T = 0.25;
@@ -420,7 +541,19 @@ export class RinkMotion {
         tgt = this.boxBound.has(b.id) ? { x: RINK.cx + (b.team === 0 ? -7 : 7), y: -2 } : { x: RINK.cx + (attackDir(b.team, this.period) > 0 ? -18 : 18), y: RINK.h + 2 };
         T = this.boxBound.has(b.id) ? 2.2 : 1.2;
       }
-      const desired = { x: (tgt.x - b.pos.x) / T, y: (tgt.y - b.pos.y) / T };
+      let desired = { x: (tgt.x - b.pos.x) / T, y: (tgt.y - b.pos.y) / T };
+      // Between two engine positions a quarter second apart: skate the line between them at its pace
+      // (and close any gap gently) rather than lunging at each new spot.
+      const p0 = prev?.players[b.id];
+      const p1 = next?.players[b.id];
+      const span = prev && next ? next.s - prev.s : 0;
+      const isCarrier = this.puck.mode.kind === 'carried' && this.puck.mode.carrier === b.id;
+      if (p0 && p1 && want[b.id] && !b.goalie && !target.faceoff && span > 0.05 && span < 0.6 && !(onsideFor !== null && b.team === onsideFor && !isCarrier)) {
+        const a = Math.min(1, Math.max(0, (this.P - prev!.s) / span));
+        const ix = p0.x + (p1.x - p0.x) * a + wx;
+        const iy = p0.y + (p1.y - p0.y) * a + wy;
+        desired = { x: (p1.x - p0.x) / span + (ix - b.pos.x) * 3, y: (p1.y - p0.y) / span + (iy - b.pos.y) * 3 };
+      }
       // Goalies shuffle in the crease but skate hard when far out of position.
       // Setting up for a faceoff, everyone glides into place a little quicker than game speed.
       // (players coming a long way, e.g. off the bench for a faceoff in the far end, hurry more).
@@ -492,45 +625,6 @@ export class RinkMotion {
         this.boxBound.delete(b.id);
       }
     }
-    this.unstack(want, !!target.faceoff, dt);
-  }
-
-  /**
-   * Markers never sit on top of each other: teammates keep a full marker
-   * apart, opponents may touch (a defender tight on his man) but not cover
-   * each other. Positions ease apart at a skating pace, so nobody jumps;
-   * the puck carrier holds his line and the other man gives way.
-   */
-  private unstack(want: Record<number, Pt>, faceoff: boolean, dt: number): void {
-    const on: Body[] = [];
-    for (const b of this.bodies.values()) if (want[b.id]) on.push(b);
-    const carrier = this.puck.mode.kind === 'carried' ? this.puck.mode.carrier : null;
-    const ease = 14 * dt;
-    for (let i = 0; i < on.length; i++)
-      for (let j = i + 1; j < on.length; j++) {
-        const a = on[i];
-        const b = on[j];
-        const MIN = a.team === b.team ? 6.4 : faceoff ? 3 : 5.4;
-        const dx = b.pos.x - a.pos.x;
-        const dy = b.pos.y - a.pos.y;
-        const d = Math.hypot(dx, dy);
-        if (d >= MIN) continue;
-        let ux = d > 1e-3 ? dx / d : Math.cos(a.id - b.id);
-        let uy = d > 1e-3 ? dy / d : Math.sin(a.id - b.id);
-        // At a blue line they spread along it, so nobody gets nudged offside.
-        if (Math.abs(Math.abs(a.pos.x - RINK.cx) - BLUE_X) < 6 || Math.abs(Math.abs(b.pos.x - RINK.cx) - BLUE_X) < 6) {
-          ux = 0;
-          uy = dy >= 0 ? 1 : -1;
-        }
-        const gap = Math.min(MIN - d, ease);
-        // Goalies and the puck carrier hold their ground.
-        const fa = a.goalie || a.id === carrier ? 0 : 1;
-        const fb = b.goalie || b.id === carrier ? 0 : 1;
-        if (fa + fb === 0) continue;
-        const wa = fa / (fa + fb);
-        a.pos = onSurface({ x: a.pos.x - ux * gap * wa, y: a.pos.y - uy * gap * wa }, 2);
-        b.pos = onSurface({ x: b.pos.x + ux * gap * (1 - wa), y: b.pos.y + uy * gap * (1 - wa) }, 2);
-      }
   }
 
   /**
@@ -605,8 +699,13 @@ export class RinkMotion {
       const sp = Math.hypot(b.vel.x, b.vel.y);
       const dir = sp > 3 ? { x: b.vel.x / sp, y: b.vel.y / sp } : { x: attackDir(b.team, this.period), y: 0 };
       // On the blade, just outside the jersey so the puck stays visible.
-      const tx = b.pos.x + dir.x * 4.6 + dir.y * 1.2;
+      let tx = b.pos.x + dir.x * 4.6 + dir.y * 1.2;
       const ty = b.pos.y + dir.y * 4.6 - dir.x * 1.2 + 0.4;
+      // Near a blue line the blade stays on his side of it: it's where he is that decides the zone, not his reach.
+      for (const line of [RINK.cx - 25, RINK.cx + 25]) {
+        const bs = b.pos.x - line;
+        if (Math.abs(bs) < 6 && Math.sign(tx - line) !== Math.sign(bs)) tx = line + Math.sign(bs) * 0.6;
+      }
       // Stickhandling: ease toward the blade, never faster than a quick pass.
       const ease = Math.min(1, dt * 14);
       let mx = (tx - this.puck.pos.x) * ease;

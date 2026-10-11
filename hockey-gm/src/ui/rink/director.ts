@@ -242,7 +242,7 @@ export class RinkDirector {
   private pendingMark: ShotMark | undefined;
 
   constructor(
-    private meta: Map<number, RinkPlayer>,
+    readonly meta: Map<number, RinkPlayer>,
     private abbr: [string, string],
     /** Each team's tactics (home, away): the systems the players set up in. */
     private tactics?: [Tactics | undefined, Tactics | undefined],
