@@ -99,6 +99,8 @@ export type GameEventType =
   | 'save'
   | 'rebound'
   | 'freeze'
+  /** Puck out of play (over the glass / netting): whistle, faceoff in the defending team's zone. */
+  | 'outOfPlay'
   | 'goal'
   | 'hit'
   | 'takeaway'

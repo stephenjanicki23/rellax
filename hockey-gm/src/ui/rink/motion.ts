@@ -54,6 +54,8 @@ export class RinkTimeline {
   /** In a stoppage (between a whistle and the next faceoff). */
   private stopped = false;
   private lastIce: IceState | null = null;
+  /** Earliest presentation time the next faceoff may drop (the last whistle plus its pause). */
+  private whistleEnd = 0;
 
   /** Latest engine positions (rink coordinates) when the engine reports where everyone is each second. */
   private live: { players: Record<number, Pt>; puck: Pt; carrier: number | null; period: number } | null = null;
@@ -115,7 +117,9 @@ export class RinkTimeline {
       // During a stoppage, line changes and other housekeeping happen right after the whistle,
       // leaving the rest of the pause for everyone to line up for the faceoff.
       const housekeeping = this.stopped && e.type !== 'faceoff' && e.type !== 'periodStart' && whistleHold(e.type) === 0;
-      const s = housekeeping ? this.lastS + Math.max(gap, 0.4) : Math.max(this.lastS + gap, e.t + this.holdSum);
+      let s = housekeeping ? this.lastS + Math.max(gap, 0.4) : Math.max(this.lastS + gap, e.t + this.holdSum);
+      // The puck never drops before the whistle's full pause has played out (even if the whistle itself landed late).
+      if (e.type === 'faceoff' && this.whistleEnd > s) s = this.whistleEnd;
       const live = this.live;
       if (live) {
         // Let the director work from where the engine really has the puck.
@@ -170,6 +174,7 @@ export class RinkTimeline {
       if (hold > 0) {
         this.holdSum += hold;
         this.stopped = true;
+        this.whistleEnd = Math.max(this.whistleEnd, this.lastS + hold);
       }
     }
   }

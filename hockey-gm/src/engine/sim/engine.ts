@@ -2273,7 +2273,7 @@ export class GameSim {
     let carryU = 0.15 + 0.1 * Math.min(1.5, front / 20) + 0.04 * (p.e.skate + p.e.hands) + (u < BLUE_LINE ? 0.08 : 0);
     if (pressure < 4.5) carryU -= 0.22 - 0.06 * p.e.hands;
     // He usually sees a teammate offside and holds up — not always.
-    if (u > BLUE_LINE - 18 && u <= BLUE_LINE && A.onIce.some((m) => m !== p && m.x * d > BLUE_LINE + 0.5)) carryU -= 0.3 * clamp(0.6 + 0.2 * p.e.decide, 0.2, 1);
+    if (u > BLUE_LINE - 18 && u <= BLUE_LINE && A.onIce.some((m) => m !== p && m.x * d > BLUE_LINE + 0.5)) carryU -= 0.35 * clamp(0.8 + 0.15 * p.e.decide, 0.5, 1);
     consider(carryU, 'carry', tu * d, tv);
     // Dump it in.
     // Over the red line only: from his own half it would be icing.
@@ -2346,7 +2346,7 @@ export class GameSim {
       if (util > bestU) best = { act: 'drive', tx: (GOAL_LINE - 9) * d, ty: clamp(p.y, -6, 6) };
     }
     // Stay onside: anyone caught inside the zone while the puck is out tags up.
-    if (p.x * d > BLUE_LINE && carrier.x * d <= BLUE_LINE && this.rng.chance(clamp(0.78 + 0.06 * p.e.offIQ, 0.55, 0.95))) {
+    if (p.x * d > BLUE_LINE && carrier.x * d <= BLUE_LINE && this.rng.chance(clamp(0.9 + 0.04 * p.e.offIQ, 0.75, 0.98))) {
       best = { act: 'support', tx: (BLUE_LINE - 2) * d, ty: p.y };
     }
     void A;
@@ -2767,6 +2767,7 @@ export class GameSim {
         return;
       }
       if (rng.chance(0.06)) {
+        this.ev('outOfPlay', B.idx, shooter.id);
         this.faceoff = B.idx;
         return;
       }

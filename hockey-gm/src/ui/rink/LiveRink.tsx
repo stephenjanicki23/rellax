@@ -232,6 +232,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
         case 'icing':
         case 'offside':
         case 'freeze':
+        case 'outOfPlay':
         case 'injury':
         case 'goalieChange':
           sfx.whistle();
@@ -332,6 +333,9 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           break;
         case 'freeze':
           stopFor('Whistle', `${who(e.p1)} covers the puck · faceoff in the ${abbr(e.team)} zone`, e.team);
+          break;
+        case 'outOfPlay':
+          stopFor('Puck out of play', `${who(e.p1)}'s shot leaves the rink · faceoff in the ${abbr(e.team)} zone`, e.team);
           break;
         case 'goalieChange':
           stopFor(`Goalie change · ${abbr(e.team)}`, `${who(e.p1)} comes in`, e.team);

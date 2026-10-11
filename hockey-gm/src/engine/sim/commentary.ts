@@ -85,6 +85,8 @@ export function describe(e: GameEvent, c: CommentaryContext): CommentaryLine | n
       return { ...base, kind: 'big', text: 'Rebound!' };
     case 'freeze':
       return { ...base, kind: 'info', text: `${n1} covers up for the whistle.` };
+    case 'outOfPlay':
+      return { ...base, kind: 'info', text: `${n1}'s shot goes over the glass. Whistle.` };
     case 'blocked':
       return { ...base, kind: 'info', text: pick([`${n1} blocks the shot from ${n2}.`, `${n2}'s shot is blocked by ${n1}.`, `${n1} gets in the lane to block it.`], e) };
     case 'missed':
