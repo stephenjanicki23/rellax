@@ -99,7 +99,7 @@ export const AGENT = {
   /** Weight of team-level edges (coaching, system fit, chemistry, momentum) in each second's puck battles. */
   teamEdge: 0.25,
   /** Skater rating spread relative to the possession engine (edges compound when contested every second). */
-  talentSpread: 0.3,
+  talentSpread: 0.27,
   /** Score effects: weight in puck battles, and how much a trailing team's shooters force the issue. */
   scoreFx: 0.06,
   urgency: 0.02,
