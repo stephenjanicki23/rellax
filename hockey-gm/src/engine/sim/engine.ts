@@ -91,22 +91,22 @@ export const AGENT = {
   /** Scale from expected goals to decision utility. */
   shoot: 4.5,
   /** Utility a shot must clear before it beats keeping the puck. */
-  shootBar: 0.27,
+  shootBar: 0.36,
   /** Base log-odds that a pressuring defender wins the puck in a second of contact. */
-  take: -3.2,
+  take: -2.5,
   /** Chance a defender squarely in a shooting lane blocks the shot. */
   block: 0.27,
   /** Weight of team-level edges (coaching, system fit, chemistry, momentum) in each second's puck battles. */
   teamEdge: 0.25,
   /** Skater rating spread relative to the possession engine (edges compound when contested every second). */
-  talentSpread: 0.3,
+  talentSpread: 0.27,
   /** Score effects: weight in puck battles, and how much a trailing team's shooters force the issue. */
   scoreFx: 0.06,
   urgency: 0.02,
   /** Finishing offset on top of the shared shot model (log-odds). */
-  finish: 0.45,
+  finish: 0.23,
   /** How strongly home ice tilts puck battles (multiplies the engine's home advantage). */
-  homeEdge: 1.25,
+  homeEdge: 1.6,
   /** Share of puck wins the scorer would actually record as a takeaway (only clear, deliberate steals). */
   tkCredit: 0.07,
   /** Appetite for finishing checks (scaled by each player's physical style). */
@@ -115,6 +115,8 @@ export const AGENT = {
   blockLane: 4,
   /** Scale on pass interceptions. */
   intercept: 0.85,
+  /** Skating acceleration (ft/s², per second of change in velocity; 0 = instant). */
+  accel: 30,
   /** Skating speed: feet per second at average skating, and per z of skating. */
   speed: 15,
   speedZ: 3,
@@ -134,6 +136,10 @@ export const AGENT = {
   const raw = globalThis.process?.env?.HGM_AGENT;
   if (raw) Object.assign(AGENT, JSON.parse(raw));
 }
+
+/** Puck protection loop: radius (ft) and how far round it he gets each decision (radians). */
+const CURL_R = 3.5;
+const CURL_STEP = 0.7;
 
 // Expected-goal value of every square foot of the attacking zone, computed once.
 const SPOT_U = 76;
@@ -242,6 +248,16 @@ interface SP {
   d1: number;
   d1p: SP | null;
   d2: number;
+  /** Skating velocity (ft/s): nobody changes speed or direction instantly. */
+  vx: number;
+  vy: number;
+  /** Protecting the puck he curls: the centre of his loop, where on it he is, and which way round. */
+  curlX: number;
+  curlY: number;
+  curlA: number;
+  curlDir: number;
+  /** When he last took a step on that loop. */
+  curlT: number;
 }
 
 interface Pen {
@@ -415,6 +431,13 @@ function buildPlayer(inp: GamePlayerInput, team: Side, rng: Rng, playoff: boolea
     d1: 99,
     d1p: null,
     d2: 99,
+    vx: 0,
+    vy: 0,
+    curlX: 0,
+    curlY: 0,
+    curlA: 0,
+    curlDir: 1,
+    curlT: -99,
     e: { skate: 0, hands: 0, decide: 0, defIQ: 0, offIQ: 0, stickD: 0, pass: 0, block: 0, phys: 0 },
     plan: null,
     last: null,
@@ -979,6 +1002,7 @@ export class GameSim {
       if (!prev.has(p)) {
         p.x = (t.idx === 0 ? -12 : 12) + this.rng.float(-4, 4);
         p.y = -40;
+        p.vx = p.vy = 0;
       }
     }
     t.onIce = out;
@@ -1980,6 +2004,7 @@ export class GameSim {
       for (const p of t.onIce) {
         const [ou, ov] = this.formationSpot(p.role, p === taker);
         [p.x, p.y] = clampToIce(fx + ou * d, fy + ov);
+        p.vx = p.vy = 0;
       }
     }
     this.puck.x = fx;
@@ -2087,8 +2112,10 @@ export class GameSim {
         if (!plan) continue;
         const withPuck = this.puck.carrier === p;
         let spd = AGENT.speed + AGENT.speedZ * p.e.skate;
-        if (withPuck) {
-          spd *= 0.9;
+        let tx = plan.tx;
+        let ty = plan.ty;
+        if (withPuck) spd *= 0.9;
+        if (withPuck && plan.act !== 'hold') {
           // A defender standing in his path stops him: no skating through bodies.
           const len = dist(p.x, p.y, plan.tx, plan.ty);
           if (len > 0.5) {
@@ -2099,9 +2126,46 @@ export class GameSim {
               this.blockedBy = o;
             }
           }
+          // Walled off: he doesn't stand there, he curls away to protect it.
+          if (this.blockedBy && spd < 5) {
+            [tx, ty] = this.curl(p, true);
+            spd = (AGENT.speed + AGENT.speedZ * p.e.skate) * 0.6;
+          }
         }
         spd = clamp(spd, 0, 25) * AGENT.tick;
-        moveTo(p.x, p.y, plan.tx, plan.ty, spd);
+        moveTo(p.x, p.y, tx, ty, spd);
+        if (AGENT.accel > 0) {
+          // Momentum: he can only change his velocity so fast (quicker with better skating).
+          const dt = AGENT.tick;
+          const A = AGENT.accel + 4 * p.e.skate;
+          let wx = (OUT[0] - p.x) / dt;
+          let wy = (OUT[1] - p.y) / dt;
+          // He eases off as he gets there, so he can stop on his spot instead of gliding past it.
+          const left = dist(p.x, p.y, tx, ty);
+          const wl = Math.sqrt(wx * wx + wy * wy);
+          const vstop = Math.sqrt(2 * A * left);
+          if (wl > vstop && wl > 1e-6) {
+            wx *= vstop / wl;
+            wy *= vstop / wl;
+          }
+          let ax = wx - p.vx;
+          let ay = wy - p.vy;
+          const amax = A * dt;
+          const al = Math.sqrt(ax * ax + ay * ay);
+          if (al > amax) {
+            ax *= amax / al;
+            ay *= amax / al;
+          }
+          const vx = p.vx + ax;
+          const vy = p.vy + ay;
+          moveTo(p.x, p.y, p.x + vx * dt, p.y + vy * dt, 99);
+          // Ahead of the puck he pulls up at the blue line rather than glide in offside.
+          const d = dirOf(p.team);
+          if (!withPuck && this.poss === p.team && this.puck.carrier && this.ozFor !== p.team && p.x * d <= BLUE_LINE - 0.5 && OUT[0] * d > BLUE_LINE - 0.5) OUT[0] = (BLUE_LINE - 0.5) * d;
+          // The boards and the crease stop him.
+          p.vx = (OUT[0] - p.x) / dt;
+          p.vy = (OUT[1] - p.y) / dt;
+        }
         moves.push(p, OUT[0], OUT[1]);
       }
     }
@@ -2313,9 +2377,36 @@ export class GameSim {
     // Clearing gives the puck away: a last resort when he's being run (or killing a penalty).
     if (u < -BLUE_LINE && !settling) consider((pressure < 3.5 ? 0.08 : -0.3) + (pk ? 0.35 : 0) - AGENT.clearCost, 'clear', p.x, p.y);
     // Protect it and wait for something to open.
-    const holdTarget = clampToIce(p.x + this.rng.float(-3, 3), p.y + this.rng.float(-3, 3));
+    const holdTarget = this.curl(p, false);
     consider(0.04 + 0.03 * p.e.hands + (u > BLUE_LINE ? 0.05 : u < -BLUE_LINE ? 0.02 : -0.01), 'hold', holdTarget[0], holdTarget[1]);
+    if (bAct === 'hold') this.curl(p, true);
     return { act: bAct, tx: bx, ty: by, target: bt };
+  }
+
+  /**
+   * Protecting the puck he keeps his feet moving: a tight curl around where he
+   * started protecting it, not drifting toward or away from anyone. Returns his
+   * next spot on the loop; `keep` stores the step.
+   */
+  private curl(p: SP, keep: boolean): [number, number] {
+    if (this.elapsed - p.curlT > AGENT.tick * 1.5) {
+      // Turning away from the boards side he's nearer.
+      p.curlDir = p.y >= 0 ? 1 : -1;
+      p.curlA = Math.atan2(p.vy, p.vx) - (p.curlDir * Math.PI) / 2;
+      p.curlX = p.x - CURL_R * Math.cos(p.curlA);
+      p.curlY = p.y - CURL_R * Math.sin(p.curlA);
+    }
+    const a = p.curlA + p.curlDir * CURL_STEP;
+    if (keep) {
+      p.curlA = a;
+      p.curlT = this.elapsed;
+    }
+    let x = p.curlX + CURL_R * Math.cos(a);
+    // Curling to protect it, he doesn't wander across the blue line either way.
+    const d = dirOf(p.team);
+    if (this.ozFor !== p.team && x * d > BLUE_LINE - 0.5 && p.x * d <= BLUE_LINE) x = (BLUE_LINE - 0.5) * d;
+    if (this.ozFor === p.team && x * d < BLUE_LINE + 1.5) x = (BLUE_LINE + 1.5) * d;
+    return clampToIce(x, p.curlY + CURL_R * Math.sin(a));
   }
 
   private structure(p: SP, hasPuck: boolean): [number, number] {
