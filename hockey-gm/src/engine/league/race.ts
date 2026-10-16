@@ -164,16 +164,22 @@ export function selectAllStars(league: League): void {
     // Every club sends someone: its best player replaces the weakest pick at his position group.
     for (const t of league.teams.filter((x) => x.conferenceId === conf.id)) {
       if (chosen.some((c) => c.teamId === t.id)) continue;
-      const best = pool.filter((c) => c.teamId === t.id && c.s.gp >= Math.round(15 * share)).sort((a, b) => merit(b) - merit(a))[0];
-      if (!best) continue;
       const group = (c: AwardCand) => (c.p.pos === 'G' ? 'G' : c.p.pos === 'D' ? 'D' : 'F');
       const counts = new Map<number, number>();
       for (const c of chosen) counts.set(c.teamId, (counts.get(c.teamId) ?? 0) + 1);
-      const swap = chosen
-        .map((c, i) => ({ c, i }))
-        .filter(({ c }) => group(c) === group(best) && (counts.get(c.teamId) ?? 0) > 1)
-        .sort((a, b) => merit(a.c) - merit(b.c))[0];
-      if (swap) chosen[swap.i] = best;
+      // His best player, or if no club with two picks can give up a spot in that position group,
+      // the club's next best player in a group that can.
+      const mine = pool.filter((c) => c.teamId === t.id && c.s.gp >= Math.round(15 * share)).sort((a, b) => merit(b) - merit(a));
+      for (const best of mine) {
+        const swap = chosen
+          .map((c, i) => ({ c, i }))
+          .filter(({ c }) => group(c) === group(best) && (counts.get(c.teamId) ?? 0) > 1)
+          .sort((a, b) => merit(a.c) - merit(b.c))[0];
+        if (swap) {
+          chosen[swap.i] = best;
+          break;
+        }
+      }
     }
     rosters[conf.id] = chosen.map((c) => c.p.id);
     for (const c of chosen) c.p.awards.push({ season: league.season, award: 'All-Star' });
