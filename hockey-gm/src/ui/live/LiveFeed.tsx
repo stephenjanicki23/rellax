@@ -37,7 +37,10 @@ export const LiveFeed = memo(function LiveFeed({ lines, home, away, playoff, run
             <span className="lf-icon" aria-hidden>
               {ICON[l.kind]}
             </span>
-            <span className="lf-text">{l.text}</span>
+            <span className="lf-text">
+              {l.text}
+              {l.why && <small className="lf-why">{l.why}</small>}
+            </span>
           </div>
         ))}
       </div>

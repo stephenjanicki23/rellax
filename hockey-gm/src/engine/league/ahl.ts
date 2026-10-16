@@ -16,6 +16,10 @@ import { clamp } from '../core/math';
 import type { AhlLine, AhlState, AhlTeamRecord, League, Player, Position, Team } from '../types';
 import { addNews, teamName } from './helpers';
 import { generatePlayer } from '../player/generate';
+import { autoLines } from '../team/lines';
+import { toGamePlayer } from './gameInput';
+import { simulateGame } from '../sim/engine';
+import type { GameInput, GameResult, GameTeamInput } from '../sim/gameTypes';
 import { isForward } from '../player/ability';
 import AFFILIATES_JSON from '../../../data/ahl/affiliates.json';
 
@@ -131,108 +135,154 @@ function line(league: League, p: Player, team: string): AhlLine & { team: string
   return (st[p.id] = { ...emptyLine(), team });
 }
 
-function poisson(rng: Rng, mean: number): number {
-  // Knuth's method for small means; a normal approximation for larger ones (shot counts).
-  if (mean > 12) return Math.max(0, Math.round(mean + Math.sqrt(mean) * rng.normal(0, 1)));
-  const L = Math.exp(-mean);
-  let k = 0;
-  let p = 1;
-  do {
-    k++;
-    p *= rng.next();
-  } while (p > L);
-  return k - 1;
+/** Replacement-level players for empty AHL slots (call-ups, injuries, a thin system): they play, but aren't tracked. */
+function filler(rng: Rng, league: League, pos: Position, id: number): Player {
+  const p = generatePlayer(rng, { id, pos, targetCA: REPLACEMENT, age: 24, season: league.season });
+  return { ...p, teamId: null, status: 'active' };
 }
 
-/** One AHL game between two affiliates. */
-function playGame(league: League, rng: Rng, home: AhlTeamRecord, away: AhlTeamRecord): void {
-  const sides = [home, away].map((t) => ({ t, d: dress(league, t.nhlTeamId) }));
-  const xg = sides.map((s, i) => clamp(3.05 * Math.exp(0.035 * (s.d.strength - sides[1 - i].d.strength)) + (i === 0 ? 0.12 : 0), 1.2, 5.5));
-  const goals = xg.map((m) => poisson(rng, m));
-  let ot = false;
-  let so = false;
-  if (goals[0] === goals[1]) {
-    ot = true;
-    const homeWins = rng.chance(clamp(0.5 + (sides[0].d.strength - sides[1].d.strength) * 0.01, 0.3, 0.7));
-    if (rng.chance(0.6)) goals[homeWins ? 0 : 1]++;
-    else so = true;
-    if (so) goals[homeWins ? 0 : 1]++; // shootout winner credited one goal on the scoreboard
+/** Phantom ids are negative and never collide with real players (or with the other bench). */
+const PHANTOM_BASE = -1_000_000;
+
+/** A full AHL lineup for tonight: the affiliate's dressed players plus replacement-level fill. */
+function lineup(league: League, rec: AhlTeamRecord, rng: Rng): Player[] {
+  const d = dress(league, rec.nhlTeamId);
+  const out = [...d.F, ...d.D, ...d.G.slice(0, 2)];
+  let k = 0;
+  const fill = (pos: Position) => out.push(filler(rng, league, pos, PHANTOM_BASE - rec.nhlTeamId * 100 - k++));
+  const fwdPos: Position[] = ['C', 'LW', 'RW'];
+  for (let i = d.F.length; i < 12; i++) fill(fwdPos[i % 3]);
+  for (let i = d.D.length; i < 6; i++) fill('D');
+  for (let i = Math.min(2, d.G.length); i < 2; i++) fill('G');
+  return out;
+}
+
+/** Reference: the average rating of NHL skaters (the engine's baseline is measured against it). */
+let nhlAttrRef: { key: string; v: number } | null = null;
+const meanAttr = (p: Player) => {
+  const v = Object.values(p.attrs) as number[];
+  return v.reduce((a, b) => a + b, 0) / v.length;
+};
+/**
+ * AHL players are rated well below NHL players, so the engine measures them against an AHL
+ * "average" instead: the NHL baseline shifted by how far AHL ratings sit below NHL ratings.
+ * An AHL game then plays like AHL hockey (similar scoring), not like two NHL fourth lines.
+ */
+function ahlBaseline(league: League, players: Player[]): number {
+  const key = `${league.season}`;
+  if (!nhlAttrRef || nhlAttrRef.key !== key) {
+    const nhl = Object.values(league.players).filter((p) => p.status === 'active' && p.teamId !== null && p.pos !== 'G');
+    nhlAttrRef = { key, v: nhl.length ? nhl.reduce((a, p) => a + meanAttr(p), 0) / nhl.length : 102 };
   }
+  const sk = players.filter((p) => p.pos !== 'G' && p.id >= 0);
+  const ahlMean = sk.length ? sk.reduce((a, p) => a + meanAttr(p), 0) / sk.length : nhlAttrRef.v - 21;
+  return (league.ratingBaseline ?? 120) + (ahlMean - nhlAttrRef.v);
+}
+
+function ahlTeamInput(league: League, rec: AhlTeamRecord, players: Player[]): GameTeamInput {
+  const lines = autoLines(players.map((p) => ({ ...p, status: 'active' as const })));
+  const parent = league.teams[rec.nhlTeamId];
+  return {
+    teamId: rec.nhlTeamId,
+    abbr: rec.abbrev,
+    name: rec.name,
+    players: players.map((p) => toGamePlayer(p, league.season)),
+    lines,
+    // Affiliates play their parent club's system.
+    tactics: parent.tactics,
+    coach: null,
+    morale: 0,
+  };
+}
+
+export interface AhlGame {
+  home: AhlTeamRecord;
+  away: AhlTeamRecord;
+  input: GameInput;
+}
+
+/** One AHL game, set up for the engine (the same engine the NHL plays on). */
+function ahlGame(league: League, home: AhlTeamRecord, away: AhlTeamRecord, seed: number, playoff: boolean): AhlGame {
+  const rng = new Rng(seed);
+  const hp = lineup(league, home, rng);
+  const ap = lineup(league, away, rng);
+  return {
+    home,
+    away,
+    input: {
+      home: ahlTeamInput(league, home, hp),
+      away: ahlTeamInput(league, away, ap),
+      seed,
+      playoff,
+      recordEvents: false,
+      regularSeasonOT: league.config.season.regularSeasonOT,
+      ratingBaseline: ahlBaseline(league, [...hp, ...ap]),
+    },
+  };
+}
+
+/** Book an engine result: standings, and every tracked player's line straight from the box score. */
+function applyAhlGame(league: League, g: AhlGame, r: GameResult): void {
+  const sides = [g.home, g.away] as const;
+  const goals = [r.homeGoals, r.awayGoals];
   const winner = goals[0] > goals[1] ? 0 : 1;
-  sides.forEach((s, i) => {
-    const rec = s.t;
-    const ga = goals[1 - i];
+  sides.forEach((rec, i) => {
     rec.gp++;
     rec.gf += goals[i];
-    rec.ga += ga;
+    rec.ga += goals[1 - i];
     if (i === winner) rec.w++;
-    else if (ot) rec.otl++;
+    else if (r.ot || r.so) rec.otl++;
     else rec.l++;
-    const skaters = [...s.d.F.map((p, k) => ({ p, w: F_SHARE[k] })), ...s.d.D.map((p, k) => ({ p, w: D_SHARE[k] * 0.75 }))];
-    for (const { p } of skaters) line(league, p, rec.abbrev).gp++;
-    const shots = Math.max(goals[i] + 8, poisson(rng, 29 + (xg[i] - 3) * 4));
-    // Shots and goals go to the dressed players by role and skill; empty slots are replacement players (not tracked).
-    const slots = [...skaters, ...Array.from({ length: Math.max(0, 18 - skaters.length) }, () => null)];
-    const scorer = (forAssist: boolean) => {
-      const weights = slots.map((x) => (x ? x.w * Math.exp(((forAssist ? x.p.attrs.passing : x.p.attrs.wristAccuracy) - 100) / 60) * (isForward(x.p.pos) ? 1 : forAssist ? 0.8 : 0.45) : 0.7));
-      const total = weights.reduce((a, b) => a + b, 0);
-      let r = rng.next() * total;
-      for (let k = 0; k < slots.length; k++) {
-        r -= weights[k];
-        if (r <= 0) return slots[k];
-      }
-      return null;
-    };
-    for (let k = 0; k < shots; k++) {
-      const x = scorer(false);
-      if (x) line(league, x.p, rec.abbrev).sog++;
-    }
-    const regGoals = so && i === winner ? goals[i] - 1 : goals[i];
-    for (let k = 0; k < regGoals; k++) {
-      const sc = scorer(false);
-      if (sc) line(league, sc.p, rec.abbrev).g++;
-      const assists = rng.chance(0.9) ? (rng.chance(0.7) ? 2 : 1) : 0;
-      const used = new Set<Player>(sc ? [sc.p] : []);
-      for (let a = 0; a < assists; a++) {
-        const as = scorer(true);
-        if (as && !used.has(as.p)) {
-          used.add(as.p);
-          line(league, as.p, rec.abbrev).a++;
-        }
-      }
-    }
-    for (const { p } of skaters) {
-      const l = line(league, p, rec.abbrev);
-      if (rng.chance(0.12)) l.pim += 2;
-      l.pm += goals[i] > ga ? (rng.chance(0.5) ? 1 : 0) : goals[i] < ga ? (rng.chance(0.5) ? -1 : 0) : 0;
-    }
-    // Goalie: the backup gets about a third of the starts.
-    const g = s.d.G[1] && rng.chance(0.32) ? s.d.G[1] : s.d.G[0];
-    if (g) {
-      const gl = line(league, g, rec.abbrev);
-      const oppShots = Math.max(ga + 8, poisson(rng, 29 + (xg[1 - i] - 3) * 4));
-      const regGa = so && i !== winner ? ga - 1 : ga;
-      gl.gp++;
-      gl.gs++;
-      gl.sa += oppShots;
-      gl.ga += regGa;
-      if (i === winner) gl.w++;
-      else if (ot) gl.otl++;
-      else gl.l++;
-      if (regGa === 0) gl.so++;
-    }
   });
+  for (const [idStr, pl] of Object.entries(r.players)) {
+    const id = Number(idStr);
+    if (id < 0 || !league.players[id]) continue;
+    const rec = sides[pl.team];
+    const l = line(league, league.players[id], rec.abbrev);
+    const goalie = league.players[id].pos === 'G';
+    if (goalie) {
+      if (pl.gtoi <= 0 && pl.sa <= 0) continue;
+      l.gp++;
+      const starter = (pl.team === 0 ? g.input.home : g.input.away).lines.goalies[0];
+      if (starter === id) l.gs++;
+      l.sa += pl.sa;
+      l.ga += pl.ga;
+      if (r.winningGoalie === id) {
+        l.w++;
+        if (pl.ga === 0) l.so++;
+      }
+      if (r.losingGoalie === id) {
+        if (r.ot || r.so) l.otl++;
+        else l.l++;
+      }
+      continue;
+    }
+    l.gp++;
+    l.g += pl.g;
+    l.a += pl.a1 + pl.a2;
+    l.sog += pl.sog;
+    l.pim += pl.pim;
+    l.pm += pl.pm;
+  }
 }
 
-/** Daily: about 42% of AHL teams play on a given NHL game day (72 games over the season). */
-export function ahlDay(league: League): void {
-  if (league.phase !== 'regular' || !league.ahl) return;
+/** Tonight's AHL slate: about 42% of teams play on a given NHL game day (72 games over the season). */
+export function planAhlDay(league: League): AhlGame[] {
+  if (league.phase !== 'regular' || !league.ahl) return [];
   const lastDay = league.schedule.reduce((m, g) => (g.playoff ? m : Math.max(m, g.day)), 0);
-  if (league.day > lastDay) return;
+  if (league.day > lastDay) return [];
   const rng = new Rng(seedFrom(league.seed, 'ahl', league.season, league.day));
   const remainingDays = Math.max(1, lastDay - league.day + 1);
   const playing = rng.shuffle(league.ahl.teams.filter((t) => t.gp < AHL_GAMES && rng.chance(clamp((AHL_GAMES - t.gp) / remainingDays, 0, 1))));
-  for (let i = 0; i + 1 < playing.length; i += 2) playGame(league, rng, playing[i], playing[i + 1]);
+  const games: AhlGame[] = [];
+  for (let i = 0; i + 1 < playing.length; i += 2) games.push(ahlGame(league, playing[i], playing[i + 1], seedFrom(league.seed, 'ahl-game', league.season, league.day, i), false));
+  return games;
+}
+
+/** Play (or book already-played results for) tonight's AHL games. */
+export function ahlDay(league: League, planned?: { games: AhlGame[]; results: GameResult[] }): void {
+  const games = planned?.games ?? planAhlDay(league);
+  games.forEach((g, i) => applyAhlGame(league, g, planned?.results[i] ?? simulateGame(g.input)));
 }
 
 export function ahlStandings(league: League): AhlTeamRecord[] {
@@ -248,10 +298,9 @@ export function ahlLeaders(league: League, n = 10): { p: Player; l: AhlLine & { 
     .slice(0, n);
 }
 
-/** Calder Cup: the top 16 by points, best-of-five then best-of-seven rounds decided by team strength. */
+/** Calder Cup: the top 16 by points play best-of-five then best-of-seven series, every game on the engine. */
 export function ahlPlayoffs(league: League): void {
   if (!league.ahl || league.ahl.champion !== null) return;
-  const rng = new Rng(seedFrom(league.seed, 'calder', league.season));
   let alive = ahlStandings(league).slice(0, 16);
   if (alive.length < 2) return;
   let round = 0;
@@ -261,10 +310,18 @@ export function ahlPlayoffs(league: League): void {
     for (let i = 0; i < alive.length / 2; i++) {
       const a = alive[i];
       const b = alive[alive.length - 1 - i];
-      const pa = clamp(0.5 + (dress(league, a.nhlTeamId).strength - dress(league, b.nhlTeamId).strength) * 0.012 + 0.03, 0.2, 0.8);
       let wa = 0;
       let wb = 0;
-      while (wa < need && wb < need) rng.chance(pa) ? wa++ : wb++;
+      // Higher seed has home ice: 2-2-1 (best of five) / 2-2-1-1-1 (best of seven).
+      const homeA = need === 3 ? [true, true, false, false, true] : [true, true, false, false, true, false, true];
+      for (let gno = 0; wa < need && wb < need; gno++) {
+        const aHome = homeA[gno];
+        const g = ahlGame(league, aHome ? a : b, aHome ? b : a, seedFrom(league.seed, 'calder', league.season, round, i, gno), true);
+        const r = simulateGame(g.input);
+        const homeWon = r.homeGoals > r.awayGoals;
+        if (homeWon === aHome) wa++;
+        else wb++;
+      }
       next.push(wa > wb ? a : b);
     }
     alive = next;

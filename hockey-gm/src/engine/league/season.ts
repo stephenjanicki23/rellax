@@ -3,7 +3,7 @@
  * persistent league state (standings, statistics, injuries, fatigue, form,
  * chemistry, news) and triggers playoffs and the offseason.
  */
-import { affiliateReport, ahlDay, ahlUsage } from './ahl';
+import { affiliateReport, ahlDay, ahlUsage, planAhlDay, type AhlGame } from './ahl';
 import { clamp } from '../core/math';
 import { emptyStatLine, addStatLine, points as statPoints } from '../core/statline';
 import type { GameSummary, League, Player, ScheduledGame } from '../types';
@@ -185,7 +185,7 @@ export function nextUserGame(league: League): ScheduledGame | undefined {
 }
 
 /** Daily maintenance: injuries heal, fatigue recovers, periodic development/morale/AI. */
-function dailyUpdates(league: League): void {
+function dailyUpdates(league: League, ahl?: { games: AhlGame[]; results: GameResult[] }): void {
   const day = league.day;
   for (const p of Object.values(league.players)) {
     if (p.status === 'retired' || p.status === 'draft') continue;
@@ -208,7 +208,7 @@ function dailyUpdates(league: League): void {
   if (day % 21 === 20) inSeasonDevelopment(league, 21 / 190);
   if (league.phase === 'regular' && day >= allStarDay(league) && league.allStars?.season !== league.season) selectAllStars(league);
   if (day % 30 === 29) breakoutNews(league);
-  ahlDay(league);
+  ahlDay(league, ahl);
   if (day % 30 === 14) affiliateReport(league);
   aiDaily(league);
 }
@@ -300,7 +300,12 @@ export async function advanceDayAsync(league: League, overrides: Map<number, Gam
   const regular = league.phase === 'regular';
   const todays = regular ? gamesOnDay(league, league.day) : playoffGamesForToday(league, true);
   const need = todays.filter((g) => !overrides.has(g.id));
-  const results = need.length ? await simMany(need.map((g) => buildGameInput(league, g.id))) : [];
+  // Tonight's AHL games go to the same worker threads as the NHL slate (they're planned before the
+  // NHL results are booked, exactly as the synchronous path plans them).
+  const ahlGames = regular ? planAhlDay(league) : [];
+  const all = await simMany([...need.map((g) => buildGameInput(league, g.id)), ...ahlGames.map((g) => g.input)]);
+  const results = all.slice(0, need.length);
+  const ahl = { games: ahlGames, results: all.slice(need.length) };
   const byId = new Map(need.map((g, i) => [g.id, results[i]]));
   for (const g of todays) {
     applyGameResult(league, g, overrides.get(g.id) ?? byId.get(g.id)!);
@@ -308,7 +313,7 @@ export async function advanceDayAsync(league: League, overrides: Map<number, Gam
   }
   if (regular) {
     if (todays.length) checkLiveRecords(league);
-    dailyUpdates(league);
+    dailyUpdates(league, ahl);
     league.day++;
     if (league.schedule.every((g) => g.played || g.playoff)) {
       endRegularSeasonHooks(league);
