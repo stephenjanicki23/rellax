@@ -91,11 +91,11 @@ export const AGENT = {
   /** Scale from expected goals to decision utility. */
   shoot: 4.5,
   /** Utility a shot must clear before it beats keeping the puck. */
-  shootBar: 0.36,
+  shootBar: 0.4,
   /** Base log-odds that a pressuring defender wins the puck in a second of contact. */
-  take: -2.5,
+  take: -2.2,
   /** Chance a defender squarely in a shooting lane blocks the shot. */
-  block: 0.27,
+  block: 0.5,
   /** Weight of team-level edges (coaching, system fit, chemistry, momentum) in each second's puck battles. */
   teamEdge: 0.25,
   /** Skater rating spread relative to the possession engine (edges compound when contested every second). */
@@ -104,15 +104,15 @@ export const AGENT = {
   scoreFx: 0.06,
   urgency: 0.02,
   /** Finishing offset on top of the shared shot model (log-odds). */
-  finish: 0.23,
+  finish: -0.15,
   /** How strongly home ice tilts puck battles (multiplies the engine's home advantage). */
-  homeEdge: 1.6,
+  homeEdge: 0.35,
   /** Share of puck wins the scorer would actually record as a takeaway (only clear, deliberate steals). */
   tkCredit: 0.07,
   /** Appetite for finishing checks (scaled by each player's physical style). */
   hit: 0.14,
   /** Half-width of a shooting lane a defender can get a piece of (feet). */
-  blockLane: 4,
+  blockLane: 5,
   /** Scale on pass interceptions. */
   intercept: 0.85,
   /** Skating acceleration (ft/s², per second of change in velocity; 0 = instant). */
@@ -128,6 +128,13 @@ export const AGENT = {
   /** How much a passer values moving the puck to a better scoring spot, and how much he fears interceptions. */
   passGain: 0.25,
   passRisk: 2.5,
+  /** Seconds a carrier will protect the puck before he starts wanting to make a play, and how fast that grows (utility per second). */
+  holdFor: 1.2,
+  /** How far ahead (seconds of the carrier's skating) a pressuring defender aims. */
+  pressLead: 0.35,
+  /** Finishing lift on the power play (an extra man means cleaner looks and more screens; log-odds). */
+  ppFinish: 0.15,
+  holdTire: 0.2,
   /** Implied-touch assist padding (first, second) — far less than the possession engine needed. */
   assistPad: [0.82, 0.66] as [number, number],
 };
@@ -137,9 +144,6 @@ export const AGENT = {
   if (raw) Object.assign(AGENT, JSON.parse(raw));
 }
 
-/** Puck protection loop: radius (ft) and how far round it he gets each decision (radians). */
-const CURL_R = 3.5;
-const CURL_STEP = 0.7;
 
 // Expected-goal value of every square foot of the attacking zone, computed once.
 const SPOT_U = 76;
@@ -251,13 +255,10 @@ interface SP {
   /** Skating velocity (ft/s): nobody changes speed or direction instantly. */
   vx: number;
   vy: number;
-  /** Protecting the puck he curls: the centre of his loop, where on it he is, and which way round. */
-  curlX: number;
-  curlY: number;
-  curlA: number;
-  curlDir: number;
-  /** When he last took a step on that loop. */
-  curlT: number;
+  /** Protecting the puck he works a line (the wall, the blue line, across the ice): which way, when he last stepped, and since when he's held it. */
+  protDir: number;
+  protT: number;
+  holdSince: number;
 }
 
 interface Pen {
@@ -433,11 +434,9 @@ function buildPlayer(inp: GamePlayerInput, team: Side, rng: Rng, playoff: boolea
     d2: 99,
     vx: 0,
     vy: 0,
-    curlX: 0,
-    curlY: 0,
-    curlA: 0,
-    curlDir: 1,
-    curlT: -99,
+    protDir: 1,
+    protT: -99,
+    holdSince: 0,
     e: { skate: 0, hands: 0, decide: 0, defIQ: 0, offIQ: 0, stickD: 0, pass: 0, block: 0, phys: 0 },
     plan: null,
     last: null,
@@ -2126,9 +2125,9 @@ export class GameSim {
               this.blockedBy = o;
             }
           }
-          // Walled off: he doesn't stand there, he curls away to protect it.
+          // Walled off: he doesn't stand there, he cuts across to protect it.
           if (this.blockedBy && spd < 5) {
-            [tx, ty] = this.curl(p, true);
+            [tx, ty] = this.protect(p, true);
             spd = (AGENT.speed + AGENT.speedZ * p.e.skate) * 0.6;
           }
         }
@@ -2377,36 +2376,55 @@ export class GameSim {
     // Clearing gives the puck away: a last resort when he's being run (or killing a penalty).
     if (u < -BLUE_LINE && !settling) consider((pressure < 3.5 ? 0.08 : -0.3) + (pk ? 0.35 : 0) - AGENT.clearCost, 'clear', p.x, p.y);
     // Protect it and wait for something to open.
-    const holdTarget = this.curl(p, false);
-    consider(0.04 + 0.03 * p.e.hands + (u > BLUE_LINE ? 0.05 : u < -BLUE_LINE ? 0.02 : -0.01), 'hold', holdTarget[0], holdTarget[1]);
-    if (bAct === 'hold') this.curl(p, true);
+    const holdTarget = this.protect(p, false);
+    // Nobody holds it forever: the longer he's waited, the more he wants to make a play.
+    const held = p.last === 'hold' ? Math.max(0, this.elapsed - p.holdSince - AGENT.holdFor) : 0;
+    consider(0.04 + 0.03 * p.e.hands + (u > BLUE_LINE ? 0.05 : u < -BLUE_LINE ? 0.02 : -0.01) - held * AGENT.holdTire, 'hold', holdTarget[0], holdTarget[1]);
+    if (bAct === 'hold') {
+      if (p.last !== 'hold') p.holdSince = this.elapsed;
+      this.protect(p, true);
+    }
     return { act: bAct, tx: bx, ty: by, target: bt };
   }
 
   /**
-   * Protecting the puck he keeps his feet moving: a tight curl around where he
-   * started protecting it, not drifting toward or away from anyone. Returns his
-   * next spot on the loop; `keep` stores the step.
+   * Protecting the puck he keeps his feet moving the way players do: walking
+   * the wall, sliding along the blue line at the point, or cutting across the
+   * ice, with a cutback now and then and whenever he runs out of room. Never
+   * toward or away from anyone in particular. Returns his next spot; `keep`
+   * commits the step.
    */
-  private curl(p: SP, keep: boolean): [number, number] {
-    if (this.elapsed - p.curlT > AGENT.tick * 1.5) {
-      // Turning away from the boards side he's nearer.
-      p.curlDir = p.y >= 0 ? 1 : -1;
-      p.curlA = Math.atan2(p.vy, p.vx) - (p.curlDir * Math.PI) / 2;
-      p.curlX = p.x - CURL_R * Math.cos(p.curlA);
-      p.curlY = p.y - CURL_R * Math.sin(p.curlA);
-    }
-    const a = p.curlA + p.curlDir * CURL_STEP;
-    if (keep) {
-      p.curlA = a;
-      p.curlT = this.elapsed;
-    }
-    let x = p.curlX + CURL_R * Math.cos(a);
-    // Curling to protect it, he doesn't wander across the blue line either way.
+  private protect(p: SP, keep: boolean): [number, number] {
     const d = dirOf(p.team);
-    if (this.ozFor !== p.team && x * d > BLUE_LINE - 0.5 && p.x * d <= BLUE_LINE) x = (BLUE_LINE - 0.5) * d;
-    if (this.ozFor === p.team && x * d < BLUE_LINE + 1.5) x = (BLUE_LINE + 1.5) * d;
-    return clampToIce(x, p.curlY + CURL_R * Math.sin(a));
+    const u = p.x * d;
+    // Fresh: start toward the middle of the ice.
+    let dir = this.elapsed - p.protT > AGENT.tick * 1.5 ? (p.y >= 0 ? -1 : 1) : p.protDir;
+    if (keep && this.rng.chance(0.08)) dir = -dir;
+    const corner = Math.abs(p.x) > 80;
+    const wall = !corner && Math.abs(p.y) > 31;
+    const point = !wall && !corner && this.ozFor === p.team && u > BLUE_LINE && u < 64;
+    const STEP = 6;
+    const aim = (k: number): [number, number] => {
+      if (wall) return [p.x + k * d * STEP, p.y]; // along the boards
+      return [p.x, p.y + k * STEP]; // across: behind the net, along the line, or through the middle
+    };
+    let [tx, ty] = aim(dir);
+    // Out of room: cut back.
+    const tu = tx * d;
+    const out = wall ? tu > 84 || (this.ozFor === p.team ? tu < BLUE_LINE + 3 : tu < -84) : Math.abs(ty) > (point ? 22 : corner ? 28 : 30);
+    if (out) {
+      dir = -dir;
+      [tx, ty] = aim(dir);
+    }
+    if (keep) {
+      p.protDir = dir;
+      p.protT = this.elapsed;
+    }
+    // Protecting it, he doesn't wander across the blue line either way.
+    if (this.ozFor !== p.team && tx * d > BLUE_LINE - 0.5 && p.x * d <= BLUE_LINE) tx = (BLUE_LINE - 0.5) * d;
+    if (this.ozFor === p.team && tx * d < BLUE_LINE + 1.5) tx = (BLUE_LINE + 1.5) * d;
+    const c = clampToIce(tx, ty);
+    return [c[0], c[1]];
   }
 
   private structure(p: SP, hasPuck: boolean): [number, number] {
@@ -2497,8 +2515,9 @@ export class GameSim {
     // The net he defends is the one the carrier attacks.
     const ownGx = gx;
     const behind = dist(p.x, p.y, ownGx, 0) > dist(carrier.x, carrier.y, ownGx, 0) + 2;
-    let ptx = carrier.x;
-    let pty = carrier.y;
+    // Gap control: he skates to where the carrier is going, not where he was.
+    let ptx = carrier.x + carrier.vx * AGENT.pressLead;
+    let pty = carrier.y + carrier.vy * AGENT.pressLead;
     if (behind) {
       const gl = dist(carrier.x, carrier.y, ownGx, 0) || 1;
       ptx = carrier.x + ((ownGx - carrier.x) / gl) * 8;
@@ -2915,7 +2934,7 @@ export class GameSim {
     const gSkill = this.goalieSkill(g, B, danger, type, screened);
     const late = this.period >= 3 && this.periodLength - this.clock < 300 && Math.abs(this.score[0] - this.score[1]) <= 1;
     const clutch = late || this.input.playoff ? 0.05 * shooter.clutch : 0;
-    const adj = TUNING.shooterWeight * shooterSkill - TUNING.goalieWeight * gSkill + clutch + TUNING.finishOffset + AGENT.finish + this.ctx(A.idx) * 0.3 - this.ctx(B.idx) * 0.3;
+    const adj = TUNING.shooterWeight * shooterSkill - TUNING.goalieWeight * gSkill + clutch + TUNING.finishOffset + AGENT.finish + (this.isPK(B.idx) ? AGENT.ppFinish : 0) + this.ctx(A.idx) * 0.3 - this.ctx(B.idx) * 0.3;
     if (rng.chance(logistic(logit(xgOnNet) + adj))) {
       if (hd) g.stat.hdga++;
       zsArr[ZONE_COUNT + zone]++;
