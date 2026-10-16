@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { GameEvent, GameSnapshot, TrackFrame } from '../../engine/sim/gameTypes';
 import type { Tactics, Team } from '../../engine/types';
 import { clockLabel, periodLabel } from '../../engine/sim/commentary';
@@ -6,6 +6,18 @@ import { RINK, RinkDirector, attackDir, type IceState, type RinkPlayer, type Sho
 import { RinkMotion, RinkTimeline, type Key, type TimelineItem } from './motion';
 import { teamBar } from '../teamColors';
 import './rink.css';
+
+const Rink3D = lazy(() => import('./Rink3D'));
+
+/** WebGL is there to draw on (the 3D view needs it). */
+const canWebGL = (): boolean => {
+  try {
+    const c = document.createElement('canvas');
+    return !!(c.getContext('webgl2') || c.getContext('webgl'));
+  } catch {
+    return false;
+  }
+};
 import { sfx } from '../audio/sfx';
 import { SoundToggle } from '../audio/SoundToggle';
 
@@ -165,6 +177,26 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
   const [foDot, setFoDot] = useState<{ x: number; y: number } | null>(null);
   const [logoOk, setLogoOk] = useState(true);
   const noise = useMemo(() => iceNoise(), []);
+  // 2D chalkboard or 3D arena (remembered per viewer).
+  const [view, setView] = useState<'2d' | '3d'>(() => {
+    try {
+      const v = localStorage.getItem('hgm.rinkView');
+      if (v === '2d' || v === '3d') return v === '3d' && !canWebGL() ? '2d' : v;
+    } catch {
+      /* fall through */
+    }
+    return canWebGL() ? '3d' : '2d';
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('hgm.rinkView', view);
+    } catch {
+      /* per-viewer convenience only */
+    }
+  }, [view]);
+  const colors3d = useMemo(() => [home.colors, away.colors] as const, [home.colors, away.colors]);
+  const abbr3d = useMemo((): [string, string] => [home.abbr, away.abbr], [home.abbr, away.abbr]);
+  const fail3d = useCallback(() => setView('2d'), []);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -545,6 +577,9 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
           </span>
 
           <SoundToggle />
+          <button className={`rink-toggle ${view === '3d' ? 'on' : ''}`} onClick={() => setView((v) => (v === '3d' ? '2d' : '3d'))} title="Switch between the 3D arena and the 2D rink">
+            {view === '3d' ? '3D' : '2D'}
+          </button>
           <button className={`rink-toggle ${showMap ? 'on' : ''}`} onClick={() => setShowMap((v) => !v)} title="Show every shot this period">
             Shot map
           </button>
@@ -567,7 +602,12 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
         </span>
       </div>
       <div className="rink-stage">
-        <svg className="rink2" viewBox="-4 -4 208 93" role="img" aria-label="Live rink">
+        {view === '3d' && (
+          <Suspense fallback={<div className="rink3d" />}>
+            <Rink3D motion={engine.current.motion} meta={meta} colors={colors3d} abbr={abbr3d} score={snap.score} period={period} light={light} onFail={fail3d} />
+          </Suspense>
+        )}
+        <svg className="rink2" style={view === '3d' ? { display: 'none' } : undefined} viewBox="-4 -4 208 93" role="img" aria-label="Live rink">
           <defs>
             <radialGradient id="ice-g" cx="50%" cy="45%" r="70%">
               <stop offset="0" stopColor="#fbfdff" />

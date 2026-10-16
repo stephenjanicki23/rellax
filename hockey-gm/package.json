@@ -22,8 +22,10 @@
     "rink:check": "tsx scripts/rink-check.ts"
   },
   "dependencies": {
+    "@types/three": "0.185.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "three": "0.185.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
