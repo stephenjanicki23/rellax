@@ -116,6 +116,8 @@ export type GameEventType =
   | 'goalieChange'
   | 'fight'
   | 'clear'
+  /** A coach changes his team's system mid-game (data.adjust says how and why). */
+  | 'adjustment'
   | 'shootout'
   | 'gameEnd';
 
@@ -165,6 +167,8 @@ export interface GameEvent {
     p?: number;
     /** How a pass ended: completed, intercepted, off target, stripped on arrival. */
     outcome?: string;
+    /** Coaching adjustment: what changed and why ('chasing', 'protecting', 'simplify', 'pinned', 'reset'). */
+    adjust?: string;
   };
 }
 

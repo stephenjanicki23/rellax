@@ -293,7 +293,17 @@ interface ST {
   pairToi: number[];
   esTotal: number;
   stats: TeamGameStats;
+  /** The system being played right now (the coach adjusts it during the game). */
   tactics: Tactics;
+  /** The game plan he started with. */
+  base: Tactics;
+  /** The adjustment in force (null: the game plan), and how long a temporary one lasts. */
+  adjust: string | null;
+  adjustUntil: number;
+  /** When this team lost the puck in its own zone (recent). */
+  dzLoss: number[];
+  /** Share of recent play spent pinned in its own zone (smoothed). */
+  pinned: number;
   coachOff: number;
   coachDef: number;
   coachTac: number;
@@ -604,7 +614,12 @@ export class GameSim {
       pairToi: [0, 0, 0],
       esTotal: 0,
       stats: emptyTeamStats(),
-      tactics: inp.tactics,
+      tactics: { ...inp.tactics },
+      base: inp.tactics,
+      adjust: null,
+      adjustUntil: 0,
+      dzLoss: [],
+      pinned: 0,
       coachOff: coachZ(c?.offense) * TUNING.coachWeight,
       coachDef: coachZ(c?.defense) * TUNING.coachWeight,
       coachTac: clamp(1 + coachZ(c?.tactics) * 0.25, 0.6, 1.4),
@@ -1941,6 +1956,12 @@ export class GameSim {
   private setPoss(side: Side, carrier: SP | null): void {
     if (carrier !== this.puck.carrier) this.gotPuckAt = this.elapsed;
     if (side !== this.poss) {
+      // Lost it in our own end: the coach notices.
+      if (this.zone === 'D') {
+        const loser = this.teams[this.poss];
+        loser.dzLoss.push(this.elapsed);
+        if (loser.dzLoss.length > 8) loser.dzLoss.shift();
+      }
       this.poss = side;
       this.resetPossession();
       this.possSince = this.elapsed;
@@ -2239,8 +2260,55 @@ export class GameSim {
       this.puck.dead = true;
     }
     this.updateZone();
+    // Who's pinned in their own end, smoothed over about a minute.
+    const k = AGENT.tick / 60;
+    for (const t of this.teams) t.pinned += ((this.poss !== t.idx && this.zone === 'O' && this.faceoff === null ? 1 : 0) - t.pinned) * k;
+    if (Math.floor(this.elapsed / 15) !== Math.floor((this.elapsed + AGENT.tick) / 15)) for (const t of this.teams) this.coachAdjust(t);
     if (this.input.recordTrack) this.track.push(this.frame());
     this.advance(AGENT.tick);
+  }
+
+  /**
+   * The bench reads the game and changes the system: chase it late when
+   * trailing, lock it down late with a lead, get pucks deep after a run of
+   * giveaways in their own end, collapse in front when pinned. Sharper
+   * tactical coaches react sooner. Changes are to how the team plays (the
+   * same decisions and contests as always), never to the score.
+   */
+  private coachAdjust(t: ST): void {
+    if (this.inShootout || this.finished) return;
+    const i = t.idx;
+    const diff = this.score[i] - this.score[1 - i];
+    const left = this.periodLength - this.clock;
+    const reg3 = this.period === 3;
+    const sharp = t.coachTac; // 0.6..1.4
+    const recentLoss = t.dzLoss.filter((x) => this.elapsed - x < 240).length;
+    let want: string | null = null;
+    if (reg3 && diff < 0 && diff >= -2 && left < 300 + 240 * sharp) want = 'chasing';
+    else if (reg3 && diff > 0 && diff <= 2 && left < 180 + 240 * sharp) want = 'protecting';
+    else if (t.adjust === 'simplify' && this.elapsed < t.adjustUntil) want = 'simplify';
+    else if (t.adjust === 'pinned' && this.elapsed < t.adjustUntil) want = 'pinned';
+    else if (recentLoss >= (sharp > 1.1 ? 5 : 6) && t.base.offense !== 'dumpChase') want = 'simplify';
+    else if (t.pinned > 0.55 - 0.08 * (sharp - 1)) want = 'pinned';
+    if (want === t.adjust) return;
+    const b = t.base;
+    if (want === null) {
+      t.tactics = { ...b };
+      t.adjust = null;
+      this.ev('adjustment', i, undefined, undefined, undefined, { adjust: 'reset' });
+      return;
+    }
+    if (want === 'chasing') t.tactics = { ...b, forecheck: '2-1-2', defense: 'aggressive', offense: b.offense === 'possession' || b.offense === 'cycle' ? 'cycle' : 'rush' };
+    else if (want === 'protecting') t.tactics = { ...b, forecheck: '1-3-1', defense: 'trap', offense: 'possession' };
+    else if (want === 'simplify') {
+      t.tactics = { ...b, offense: 'dumpChase' };
+      t.adjustUntil = this.elapsed + 240;
+    } else {
+      t.tactics = { ...b, defense: 'passive' };
+      t.adjustUntil = this.elapsed + 90;
+    }
+    t.adjust = want;
+    this.ev('adjustment', i, undefined, undefined, undefined, { adjust: want });
   }
 
   // ── decisions ──

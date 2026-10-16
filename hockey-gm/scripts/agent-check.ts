@@ -29,6 +29,11 @@ for (const g of games) {
   decisions += r.decisions ?? 0;
   for (const e of r.events) {
     cnt[e.type] = (cnt[e.type] ?? 0) + 1;
+    if (e.type === 'pass') {
+      if (e.data?.success === false) cnt.passFail = (cnt.passFail ?? 0) + 1;
+      else if (e.data?.zone === 'O') cnt.passOZ = (cnt.passOZ ?? 0) + 1;
+    }
+    if (e.type === 'adjustment') cnt.adjust = (cnt.adjust ?? 0) + 1;
     if ((e.type === 'shot' || e.type === 'missed' || e.type === 'blocked') && e.data?.dist !== undefined && !e.data?.en) {
       dists.push(e.data.dist);
     }
@@ -38,7 +43,7 @@ for (const g of games) {
   takeaways += r.teams[0].tk + r.teams[1].tk;
 }
 const per = (k: string) => ((cnt[k] ?? 0) / games.length).toFixed(1);
-console.log(`per game: faceoffs ${per('faceoff')} · passes(OZ) ${per('pass')} · entries ${per('entry')} · dumps ${per('dumpIn')} · offside ${per('offside')} · icing ${per('icing')} · battles ${per('battle')} · hits ${per('hit')} · penalties ${per('penalty')} · freezes ${per('freeze')}`);
+console.log(`per game: faceoffs ${per('faceoff')} · passes ${per('pass')} (OZ completed ${per('passOZ')}, failed ${per('passFail')}) · coach adjustments ${per('adjust')} · entries ${per('entry')} · dumps ${per('dumpIn')} · offside ${per('offside')} · icing ${per('icing')} · battles ${per('battle')} · hits ${per('hit')} · penalties ${per('penalty')} · freezes ${per('freeze')}`);
 console.log(`giveaways/team ${(giveaways / games.length / 2).toFixed(1)} · takeaways/team ${(takeaways / games.length / 2).toFixed(1)} · decisions/game ${Math.round(decisions / games.length)}`);
 const md = dists.reduce((a, b) => a + b, 0) / Math.max(1, dists.length);
 console.log(`attempt distance: mean ${md.toFixed(1)} ft · <20ft ${((dists.filter((x) => x < 20).length / dists.length) * 100).toFixed(0)}% · 20-36 ${((dists.filter((x) => x >= 20 && x < 36).length / dists.length) * 100).toFixed(0)}% · 36+ ${((dists.filter((x) => x >= 36).length / dists.length) * 100).toFixed(0)}% · OZ time/team ${(oz / games.length / 2 / 60).toFixed(1)} min`);

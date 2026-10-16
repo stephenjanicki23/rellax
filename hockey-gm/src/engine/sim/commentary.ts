@@ -64,6 +64,16 @@ export function describe(e: GameEvent, c: CommentaryContext): CommentaryLine | n
     case 'entry':
       if (d.oddMan) return { ...base, kind: 'big', text: pick([`${n1} leads an odd-man rush for ${tm}!`, `${tm} break out on a 2-on-1, ${n1} carrying!`, `${n1} has numbers going the other way!`], e) };
       return { ...base, kind: 'info', text: pick([`${n1} carries the puck into the offensive zone.`, `${n1} gains the blue line with speed.`, `${n1} skates it in over the line.`], e) };
+    case 'adjustment': {
+      const lines: Record<string, string> = {
+        chasing: `${tm} push for the equalizer: a two-man forecheck and their defence pinching down.`,
+        protecting: `${tm} sit back to protect the lead: a 1-3-1 in the neutral zone and safe puck movement.`,
+        simplify: `${tm} simplify after a run of turnovers in their own end: getting pucks deep instead of forcing plays.`,
+        pinned: `${tm} collapse in front of their net after a long spell hemmed in their own zone.`,
+        reset: `${tm} go back to their usual system.`,
+      };
+      return { ...base, kind: 'info', text: lines[d.adjust ?? 'reset'] ?? lines.reset };
+    }
     case 'dumpIn':
       return { ...base, kind: 'info', text: pick([`${n1} dumps it in deep.`, `${n1} chips it in behind the defence.`, `${n1} rims it around the boards.`], e) };
     case 'battle':
