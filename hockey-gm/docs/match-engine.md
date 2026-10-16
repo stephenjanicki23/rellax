@@ -106,3 +106,26 @@ Ratings move probabilities; they don't guarantee outcomes. Over a season a star 
 - The shot model's base scoring chance by distance, angle and shot type is a hand-tuned expected-goals curve aimed at typical NHL shooting percentages, not a fit to a shot dataset. Shooter and goalie skill sit on top of it.
 - Coaches choose from a fixed set of systems, and in-game adjustments are limited to the four situations above.
 - Regular-season overtime follows the league's rule set; playoff overtime is continuous 5-on-5.
+
+## Latest scenario results
+
+From `scripts/engine-scenarios.ts 150` (150 games per scenario, one core, about 0.28 s per game).
+
+| Scenario | Result |
+|---|---|
+| Even (same club on both benches, neutral ice) | 55% / 45% (within noise of 50/50 at 150 games), 3.4–3.3 goals, 28% to overtime |
+| Contender vs rebuilder (±18 on every rating) | 92% wins, 4.9–1.9 goals, 37–22 shots |
+| Elite goalie vs weak offense | 71% wins, the goalie stops .913 against the twin side's .911, weak side scores 2.4 |
+| Elite offense vs weak goalie | 76% wins, the weak goalie stops .880 |
+| Aggressive forecheck v trap · v dump-and-chase · v cycle | 62% · 57% · 45% |
+| Trap v dump-and-chase · v cycle | 43% · 48% |
+| Dump-and-chase (physical) v cycle | 57% |
+| Rested vs fatigued (energy 70%) | 77% wins, 35–23 shots |
+| Strong PP (A) vs weak PK (B) | A's PP 20% (league ~18%) |
+| Real match-ups | 3-2 13%, 4-3 11%, 5-4 9%, 2-1 8% · shutouts 7% · one-goal games 43% · 4+ goal margins 15% · overtime 21% · shootouts 7% |
+| Goalie quality vs save % | bottom third .897, middle .898, top third .908 |
+| Last 5 minutes of close games | trailing team 3.4 shots vs leader 2.0 · goalie pulls 0.65 per game |
+
+The weakest links right now:
+- **Special teams:** the quality of the power-play and penalty-kill players moves conversion only a little (20% against a ~18% league rate in the strong-PP test).
+- **Goalies:** the gap between top-third and bottom-third goalies (about .011) is narrower than the NHL's spread among starters. Season runs still produce starters between about .870 and .925.
