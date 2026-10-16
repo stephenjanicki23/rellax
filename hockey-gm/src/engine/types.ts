@@ -304,6 +304,8 @@ export interface StatLine {
   hdga: number;
   reb: number;
   gtoi: number;
+  /** Shifts taken (skaters). Lines saved before it was tracked lack it (read with ?? 0). */
+  shifts: number;
 }
 
 export interface CareerSeason {

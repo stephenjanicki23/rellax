@@ -213,6 +213,9 @@ export class RinkTimeline {
 
   add(items: TimelineItem[]): void {
     for (const { e, ice } of items) {
+      // The engine logs every pass; the rink stages the ones that set up play in the attacking zone
+      // (the rest show in the positions themselves).
+      if (e.type === 'pass' && (e.data?.success === false || (e.data?.zone !== undefined && e.data.zone !== 'O'))) continue;
       const gap = GAP[e.type] ?? 0.35;
       // Anchored to game time: events sharing a timestamp are spread out by small gaps,
       // but the schedule catches back up instead of drifting behind the game clock.

@@ -3,7 +3,7 @@ import type { StatLine } from '../types';
 const KEYS: (keyof StatLine)[] = [
   'gp', 'g', 'a1', 'a2', 'pm', 'pim', 'sog', 'att', 'missed', 'blockedAtt', 'hits', 'blocks', 'tk', 'gv', 'fow', 'fol',
   'toi', 'toiES', 'toiPP', 'toiPK', 'ppg', 'ppa', 'shg', 'sha', 'gwg', 'ixg', 'ixa', 'cf', 'ca', 'xgf', 'xga',
-  'gs', 'w', 'l', 'otl', 'sa', 'ga', 'so', 'gxga', 'hdsa', 'hdga', 'reb', 'gtoi',
+  'gs', 'w', 'l', 'otl', 'sa', 'ga', 'so', 'gxga', 'hdsa', 'hdga', 'reb', 'gtoi', 'shifts',
 ];
 
 export function emptyStatLine(): StatLine {
@@ -13,7 +13,8 @@ export function emptyStatLine(): StatLine {
 }
 
 export function addStatLine(into: StatLine, from: StatLine): StatLine {
-  for (const k of KEYS) into[k] += from[k];
+  // Lines saved before a stat existed simply lack it.
+  for (const k of KEYS) into[k] = (into[k] ?? 0) + (from[k] ?? 0);
   return into;
 }
 
@@ -40,6 +41,6 @@ export function fmtToi(seconds: number): string {
 /** Round fractional fields (xG etc.) for compact archival storage. */
 export function compactStatLine(s: StatLine): StatLine {
   const out = { ...s };
-  for (const k of KEYS) if (!Number.isInteger(out[k])) out[k] = Math.round(out[k] * 100) / 100;
+  for (const k of KEYS) if (out[k] !== undefined && !Number.isInteger(out[k])) out[k] = Math.round(out[k] * 100) / 100;
   return out;
 }

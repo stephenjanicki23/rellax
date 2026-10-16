@@ -135,4 +135,34 @@ describe('match engine invariants', () => {
       expect(events.at(-1)!.type).toBe('gameEnd');
     }
   });
+
+  it('every event has an id, and outcomes trace back to the play that caused them', () => {
+    for (const { events } of games) {
+      const byId = new Map(events.map((e) => [e.id!, e]));
+      let last = 0;
+      for (const e of events) {
+        expect(e.id).toBeGreaterThan(last);
+        last = e.id!;
+        if (e.data?.p !== undefined) {
+          expect(e.data.p).toBeGreaterThanOrEqual(0);
+          expect(e.data.p).toBeLessThanOrEqual(1);
+        }
+      }
+      for (const e of events) {
+        if (e.type === 'save' || (e.type === 'goal' && e.period <= 4)) {
+          const shot = byId.get(e.cause!);
+          expect(shot?.type).toBe('shot');
+          // Same shooter: the save's p2 / the goal's p1.
+          expect(shot!.p1).toBe(e.type === 'save' ? e.p2 : e.p1);
+          expect(shot!.data?.p).toBe(e.data?.p);
+        }
+        if (e.type === 'rebound') expect(byId.get(e.cause!)?.type).toBe('save');
+        if (e.cause !== undefined) expect(byId.get(e.cause)!.t).toBeLessThanOrEqual(e.t);
+      }
+      // Passes are logged everywhere with how they ended.
+      const passes = events.filter((e) => e.type === 'pass');
+      expect(passes.length).toBeGreaterThan(100);
+      expect(passes.some((e) => e.data?.success === false)).toBe(true);
+    }
+  });
 });
