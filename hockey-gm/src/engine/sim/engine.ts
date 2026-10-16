@@ -3128,7 +3128,7 @@ export class GameSim {
     const winner = this.rng.chance(logistic(0.8 * (a.phys - b.phys))) ? a : b;
     this.ev('fight', a.team, a.id, b.id, undefined, { penalty: 'Fighting', minutes: 5 });
     for (const p of [a, b]) {
-      p.inBox = true;
+      this.toBox(p);
       p.stat.pim += 5;
       this.teams[p.team].stats.pim += 5;
       this.penalties.push({ team: p.team, player: p, remaining: 300, minutes: 5, coincidental: true });
@@ -3151,12 +3151,31 @@ export class GameSim {
     return even / (1 + 0.08 * (mine + theirs));
   }
 
+  /** Off to the box right away: he leaves the ice with the whistle, before the line change for the faceoff. */
+  private toBox(p: SP): void {
+    p.inBox = true;
+    const t = this.teams[p.team];
+    if (t.onIce.includes(p)) {
+      t.onIce = t.onIce.filter((m) => m !== p);
+      p.onIce = false;
+      // A team never drops below three skaters: a third penalty is stacked and someone replaces him.
+      if (t.onIce.length < 3) {
+        const sub = t.players.find((m) => m.pos !== 'G' && !m.onIce && !m.inBox && !m.out);
+        if (sub) {
+          sub.onIce = true;
+          t.onIce = [...t.onIce, sub];
+        }
+      }
+    }
+    if (this.puck.carrier === p) this.puck.carrier = null;
+  }
+
   private callPenalty(offender: SP, infraction: string): void {
     const t = this.teams[offender.team];
     let minutes = 2;
     if (infraction === 'High-sticking' && this.rng.chance(0.25)) minutes = 4;
     if ((infraction === 'Boarding' || infraction === 'Charging' || infraction === 'Elbowing') && this.rng.chance(0.06)) minutes = 5;
-    offender.inBox = true;
+    this.toBox(offender);
     offender.stat.pim += minutes;
     t.stats.pim += minutes;
     const opp = this.teams[1 - offender.team];
