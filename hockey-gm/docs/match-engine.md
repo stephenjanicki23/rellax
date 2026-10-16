@@ -126,6 +126,6 @@ From `scripts/engine-scenarios.ts 150` (150 games per scenario, one core, about 
 | Goalie quality vs save % | bottom third .897, middle .898, top third .908 |
 | Last 5 minutes of close games | trailing team 3.4 shots vs leader 2.0 · goalie pulls 0.65 per game |
 
-The weakest links right now:
+Weak spots right now:
 - **Special teams:** the quality of the power-play and penalty-kill players moves conversion only a little (20% against a ~18% league rate in the strong-PP test).
-- **Goalies:** the gap between top-third and bottom-third goalies (about .011) is narrower than the NHL's spread among starters. Season runs still produce starters between about .870 and .925.
+- **Goalies:** in this batch each goalie faced only about 120 shots, so the save-% sampling error is about ±.027 and the thirds can't be told apart reliably. Full seasons are the real check: starting goalies there range from about .866 to .931.
