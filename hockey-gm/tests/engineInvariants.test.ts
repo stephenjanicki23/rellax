@@ -166,3 +166,44 @@ describe('match engine invariants', () => {
     }
   });
 });
+
+import { cloneInput, loadGame, saveGame } from '../src/engine/sim/savedGame';
+
+describe('saving and resuming a game in progress', () => {
+  it('resumes from a save (even after a JSON round trip) and plays out exactly the same', () => {
+    for (const i of [0, 3, 7]) {
+      const g = league.schedule[i];
+      const input = buildGameInput(league, g.id, true, 500 + i);
+      // Reference: straight through.
+      const ref = new GameSim(cloneInput(input));
+      const refEvents: GameEvent[] = [];
+      while (!ref.finished) refEvents.push(...ref.step());
+      // Save part-way (mid-period, mid-possession), store as JSON, resume, finish.
+      const live = new GameSim(cloneInput(input));
+      const seen: GameEvent[] = [];
+      const stopAt = 400 + i * 911;
+      while (!live.finished && live.steps < stopAt) seen.push(...live.step());
+      const json = JSON.stringify(saveGame(live));
+      const resumed = loadGame(JSON.parse(json));
+      expect(resumed.steps).toBe(live.steps);
+      expect(resumed.snapshot()).toEqual(live.snapshot());
+      const after: GameEvent[] = [];
+      while (!resumed.finished) after.push(...resumed.step());
+      const a = ref.result();
+      const b = resumed.result();
+      expect([b.homeGoals, b.awayGoals]).toEqual([a.homeGoals, a.awayGoals]);
+      expect(b.players).toEqual(a.players);
+      expect(b.teams).toEqual(a.teams);
+      // The events after the save are the same as the reference's.
+      expect(after).toEqual(refEvents.slice(seen.length));
+    }
+  });
+
+  it('a portable copy of the input plays the identical game', () => {
+    const input = buildGameInput(league, league.schedule[5].id, true, 42);
+    const a = new GameSim(input).simulate();
+    const b = new GameSim(cloneInput(input)).simulate();
+    expect(b.events).toEqual(a.events);
+    expect(b.players).toEqual(a.players);
+  });
+});

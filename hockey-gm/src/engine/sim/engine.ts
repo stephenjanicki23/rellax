@@ -62,7 +62,7 @@ export const TUNING = {
   shooterWeight: 0.24,
   goalieWeight: 0.25,
   /** Stick/hold penalties per second of play (both teams combined). */
-  penaltyRate: 1 / 1150,
+  penaltyRate: 1 / 1000,
   /** Probability a hit draws a penalty. */
   hitPenalty: 0.018,
   hitRate: 0.003,
@@ -110,7 +110,7 @@ export const AGENT = {
   /** Share of puck wins the scorer would actually record as a takeaway (only clear, deliberate steals). */
   tkCredit: 0.07,
   /** Appetite for finishing checks (scaled by each player's physical style). */
-  hit: 0.14,
+  hit: 0.245,
   /** Half-width of a shooting lane a defender can get a piece of (feet). */
   blockLane: 5,
   /** Scale on pass interceptions. */
@@ -132,6 +132,9 @@ export const AGENT = {
   holdFor: 1.2,
   /** How far ahead (seconds of the carrier's skating) a pressuring defender aims. */
   pressLead: 0.35,
+  /** Seconds after finishing a check before a player can throw another, and before the same carrier can be hit again. */
+  hitRecover: 6,
+  hitAgain: 3,
   /** Finishing lift on the power play (an extra man means cleaner looks and more screens; log-odds). */
   ppFinish: 0.15,
   holdTire: 0.2,
@@ -144,6 +147,12 @@ export const AGENT = {
   if (raw) Object.assign(AGENT, JSON.parse(raw));
 }
 
+
+/**
+ * How keen a player is to finish a check, levelling off at about twice average: the most physical
+ * players still only get so many chances to hit someone in a game.
+ */
+const hitLean = (p: { hitProp: number }) => 2 * Math.tanh(p.hitProp / 2);
 
 // Expected-goal value of every square foot of the attacking zone, computed once.
 const SPOT_U = 76;
@@ -259,6 +268,9 @@ interface SP {
   protDir: number;
   protT: number;
   holdSince: number;
+  /** When he last finished a check, and last took one (a player can't hit, or be hit, again straight away). */
+  hitAt: number;
+  hitTakenAt: number;
 }
 
 interface Pen {
@@ -447,6 +459,8 @@ function buildPlayer(inp: GamePlayerInput, team: Side, rng: Rng, playoff: boolea
     protDir: 1,
     protT: -99,
     holdSince: 0,
+    hitAt: -99,
+    hitTakenAt: -99,
     e: { skate: 0, hands: 0, decide: 0, defIQ: 0, offIQ: 0, stickD: 0, pass: 0, block: 0, phys: 0 },
     plan: null,
     last: null,
@@ -645,8 +659,12 @@ export class GameSim {
   }
 
   /** Advance one possession step. Returns events produced during the step. */
+  /** Steps played so far (a saved game is its input plus this count: the engine is deterministic). */
+  steps = 0;
+
   step(): GameEvent[] {
     if (this.finished) return [];
+    this.steps++;
     // Includes anything recorded before the first step (the opening periodStart).
     const before = this.emitted;
     const t0 = this.elapsed;
@@ -2617,9 +2635,10 @@ export class GameSim {
       press -= 0.12;
     }
     consider(press, 'pressure', ptx, pty, carrier);
-    if (dc < 10 && p.hitProp > 0.2) {
-      const phys = D.tactics.defense === 'physical' ? 1.4 : 1;
-      consider(AGENT.hit * p.hitProp * phys + (Math.abs(carrier.y) > 30 ? 0.08 : 0) - 0.06, 'hit', carrier.x, carrier.y, carrier);
+    // Finishing a check takes him out of the play for a moment: no second one straight after.
+    if (dc < 10 && p.hitProp > 0.2 && this.elapsed - p.hitAt > AGENT.hitRecover && this.elapsed - carrier.hitTakenAt > AGENT.hitAgain) {
+      const phys = D.tactics.defense === 'physical' ? 1.25 : 1;
+      consider(AGENT.hit * hitLean(p) * phys + (Math.abs(carrier.y) > 30 ? 0.08 : 0) - 0.06, 'hit', carrier.x, carrier.y, carrier);
     }
     // Mark the dangerous men.
     for (const j of A.onIce) {
@@ -2802,6 +2821,7 @@ export class GameSim {
     if (!who || wd > 5.5) return;
     const plan = who.plan!;
     if (plan.act === 'hit' && plan.target === c) {
+      if (this.elapsed - who.hitAt <= AGENT.hitRecover || this.elapsed - c.hitTakenAt <= AGENT.hitAgain) return;
       const boards = Math.abs(c.y) > 30 || Math.abs(c.x) > 80 ? 0.35 : 0;
       if (this.rng.chance(perTick(logistic(-0.2 + 0.55 * (who.e.phys - 0.5 * c.e.skate) + boards)))) {
         this.hit(who, c);
@@ -2875,7 +2895,7 @@ export class GameSim {
       this.ev('battle', w.team, w.id, loser.id);
       const hitter = this.rng.chance(0.5) ? w : loser;
       const target = hitter === w ? loser : w;
-      if (this.rng.chance(perTick(0.1 * hitter.hitProp))) {
+      if (this.rng.chance(perTick(0.1 * hitLean(hitter)))) {
         this.hit(hitter, target);
         if (this.faceoff !== null) return;
       }
@@ -3235,6 +3255,8 @@ export class GameSim {
 
   private hit(hitter: SP, target: SP): void {
     if (hitter.team === target.team) return;
+    hitter.hitAt = this.elapsed;
+    target.hitTakenAt = this.elapsed;
     hitter.stat.hits++;
     this.teams[hitter.team].stats.hits++;
     target.energy = Math.max(5, target.energy - 1.5 * (1 + hitter.phys * 0.2));
