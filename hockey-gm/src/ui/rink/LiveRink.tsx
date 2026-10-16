@@ -196,6 +196,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
   }, [view]);
   const colors3d = useMemo(() => [home.colors, away.colors] as const, [home.colors, away.colors]);
   const abbr3d = useMemo((): [string, string] => [home.abbr, away.abbr], [home.abbr, away.abbr]);
+  const names3d = useMemo((): [string, string] => [home.name, away.name], [home.name, away.name]);
   const fail3d = useCallback(() => setView('2d'), []);
   const seq = useRef(0);
 
@@ -604,7 +605,7 @@ export function LiveRink({ feed, snap, home, away, players, playoff = false, onS
       <div className="rink-stage">
         {view === '3d' && (
           <Suspense fallback={<div className="rink3d" />}>
-            <Rink3D motion={engine.current.motion} meta={meta} colors={colors3d} abbr={abbr3d} score={snap.score} period={period} light={light} onFail={fail3d} />
+            <Rink3D motion={engine.current.motion} meta={meta} colors={colors3d} abbr={abbr3d} names={names3d} score={snap.score} period={period} light={light} goalTeam={goal && !replaying ? goal.event.team : null} replaying={replaying} onFail={fail3d} />
           </Suspense>
         )}
         <svg className="rink2" style={view === '3d' ? { display: 'none' } : undefined} viewBox="-4 -4 208 93" role="img" aria-label="Live rink">
