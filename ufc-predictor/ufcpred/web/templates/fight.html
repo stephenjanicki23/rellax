@@ -1,0 +1,111 @@
+{% extends "base.html" %}{% from "macros.html" import modetag, na %}
+{% block title %}{{ f.red_name }} vs {{ f.blue_name }}{% endblock %}
+{% block body %}
+<h1><span class="red">{{ f.red_name }}</span> vs <span class="blue">{{ f.blue_name }}</span></h1>
+<div class="sub"><a href="/event/{{ f.event_id }}?mode={{ mode }}">{{ f.event_name }}</a> · {{ f.date }} · {{ f.weight_class or 'Catch/Open weight' }}
+  · {{ f.scheduled_rounds or '?' }} rounds · status {{ f.status }} · {{ modetag(mode) }}</div>
+{% if not pred %}<div class="banner warn">No prediction recorded for this bout in {{ mode }} mode.</div>{% else %}
+{% set p = payload %}
+<div class="banner info small">Version {{ pred.version }} of {{ versions | length }} · recorded {{ pred.created_at }} · decision time {{ pred.as_of }}
+  (features use only fights before {{ pred.data_cutoff }}) · model <b>{{ model.label }}</b> · reason “{{ pred.reason }}”
+  {% if pred.id in official %}· <span class="tag confirmed">locked official prediction</span>{% endif %}
+  {% if pred.is_post_lock %}· <span class="status warn">post-lock version (not graded)</span>{% endif %}
+  · ledger hash <code>{{ pred.content_sha256[:12] }}</code></div>
+
+<div class="grid g2">
+<div class="card">
+  <h2>Winner <span class="tag estimate">estimate</span></h2>
+  <div class="pbl"><span class="red">{{ f.red_name }} {{ p.p_red | pct(1) }}</span><span class="blue">{{ p.p_blue | pct(1) }} {{ f.blue_name }}</span></div>
+  {{ charts.prob_bar(p.p_red, f.red_name, f.blue_name, p.confidence.interval80_p_red) | safe }}
+  <p class="small muted">Bracket: 80% uncertainty interval for {{ f.red_name }} ({{ p.confidence.interval80_p_red[0] | pct }}–{{ p.confidence.interval80_p_red[1] | pct }}), from parameter uncertainty and sub-model disagreement. {{ p.conditional_note }}
+  Draw/no contest: {{ p.p_draw_nc | pct(1) }} (base rate).</p>
+  <h3>Confidence: {{ p.confidence.label }} ({{ p.confidence.score }})</h3>
+  <p class="small muted">{{ p.confidence.note }}</p>
+  <ul class="factors small">{% for r in p.confidence.reasons %}<li>{{ r }}</li>{% else %}<li>adequate data, consistent sub-models</li>{% endfor %}</ul>
+  {% set hc = p.confidence.historical_calibration %}
+  <p class="small">Historical calibration in this band: {% if hc and hc.sufficient %}{{ hc.bin }} — {{ hc.accuracy | pct }} correct vs {{ hc.mean_conf | pct }} stated (n={{ hc.n }}){% elif hc %}{{ hc.n }} graded predictions in {{ hc.bin }}; not enough (need 30){% else %}<span class="tag unavailable">no graded history yet</span>{% endif %}</p>
+</div>
+<div class="card">
+  <h2>Method &amp; round <span class="tag estimate">estimate</span></h2>
+  <table><tr><th>Method</th><th class="num red">{{ f.red_name }}</th><th class="num blue">{{ f.blue_name }}</th></tr>
+  {% for m in ['KO_TKO','SUB','DEC','DQ_OTHER'] %}<tr><td>{{ m | method }}</td><td class="num">{{ p.methods.red[m] | pct(1) }}</td><td class="num">{{ p.methods.blue[m] | pct(1) }}</td></tr>{% endfor %}
+  <tr><th>Total</th><th class="num">{{ p.p_red | pct(1) }}</th><th class="num">{{ p.p_blue | pct(1) }}</th></tr></table>
+  <h3>Finish round (either fighter) vs decision</h3>
+  {% set items = [] %}{% for r in p.rounds %}{% set _ = items.append(('Round ' ~ loop.index, r, '')) %}{% endfor %}{% set _ = items.append(('Goes to decision', p.p_decision, '')) %}
+  {{ charts.hbars(items, '{:.1%}', 1.0) | safe }}
+  <p class="small">Pick: <b>{{ f.red_name if p.predicted_winner_id == f.red_fighter_id else f.blue_name }}</b> by {{ p.predicted_method | method }}{% if p.predicted_round %} in round {{ p.predicted_round }}{% else %} (decision most likely){% endif %}.</p>
+</div>
+</div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h2>Factors favouring <span class="red">{{ f.red_name }}</span></h2>
+  <ul class="factors">{% for x in p.explanation.favoring_red %}<li>{{ x.text }} <span class="muted small">({{ '%+.2f' % x.logit }} log-odds · {{ x.group }}{% if x.imputed %} · <span class="tag unavailable">imputed</span>{% endif %})</span></li>{% else %}<li class="muted">none</li>{% endfor %}</ul></div>
+<div class="card"><h2>Factors favouring <span class="blue">{{ f.blue_name }}</span></h2>
+  <ul class="factors">{% for x in p.explanation.favoring_blue %}<li>{{ x.text }} <span class="muted small">({{ '%+.2f' % x.logit }} log-odds · {{ x.group }}{% if x.imputed %} · <span class="tag unavailable">imputed</span>{% endif %})</span></li>{% else %}<li class="muted">none</li>{% endfor %}</ul></div>
+</div>
+<p class="small muted">{{ p.explanation.basis }}</p>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h2>Statistical comparison (entering the fight)</h2>
+  <table><tr><th>Statistic</th><th class="num red">{{ f.red_name }}</th><th class="num blue">{{ f.blue_name }}</th><th>Edge</th></tr>
+  {% for a in p.explanation.statistical_advantages %}<tr><td>{{ a.stat }}</td><td class="num">{{ a.red or '—' }}</td><td class="num">{{ a.blue or '—' }}</td>
+    <td>{% if a.edge == 'red' %}<span class="red">●</span>{% elif a.edge == 'blue' %}<span class="blue">●</span>{% elif a.edge == 'unknown' %}<span class="tag unavailable">unknown</span>{% else %}even{% endif %}</td></tr>{% endfor %}
+  {% for k, lab in [('n_fights','UFC fights'),('age','Age'),('height','Height (in)'),('stance','Stance'),('days_since_last','Days since last fight'),('streak','Streak'),('ko_loss_rate','KO-loss rate (shrunk)'),('sub_loss_rate','Sub-loss rate (shrunk)'),('late_ratio','Late-round output ratio')] %}
+    <tr><td>{{ lab }}</td><td class="num">{{ na(p.stats.red[k]) if p.stats.red[k] is none or p.stats.red[k] is string else ('%.2f' % p.stats.red[k]).rstrip('0').rstrip('.') }}</td>
+    <td class="num">{{ na(p.stats.blue[k]) if p.stats.blue[k] is none or p.stats.blue[k] is string else ('%.2f' % p.stats.blue[k]).rstrip('0').rstrip('.') }}</td><td></td></tr>{% endfor %}
+  </table>
+  <p class="small muted">Rates are shrunk toward the point-in-time population average using pseudo-observations at the population rate; debut fighters show the prior. Records are UFC-only.</p>
+</div>
+<div class="card"><h2>Style interactions &amp; uncertainty</h2>
+  <h3>Key stylistic interactions (Model C)</h3>
+  <ul class="factors small">{% for x in p.explanation.style_interactions %}<li><span class="{{ 'red' if x.logit > 0 else 'blue' }}">{{ '%+.2f' % x.logit }}</span> {{ x.text }}</li>{% else %}<li class="muted">no material style interaction</li>{% endfor %}</ul>
+  <h3>Uncertainties &amp; missing information</h3>
+  <ul class="factors small">{% for u in p.explanation.uncertainties %}<li>{{ u }}</li>{% endfor %}</ul>
+  <h3>What would most likely make this prediction fail</h3>
+  <ul class="factors small">{% for u in p.explanation.failure_modes %}<li>{{ u }}</li>{% endfor %}</ul>
+</div>
+</div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h2>Sub-models &amp; ensemble</h2>
+  <table><tr><th>Model</th><th class="num">P({{ f.red_name }})</th><th class="num">Learned weight</th></tr>
+  {% for g, pr in p.submodels.items() %}<tr><td>{{ g }}</td><td class="num">{{ pr | pct(1) }}</td><td class="num">{{ '%.3f' % p.ensemble_weights[g].effective }}</td></tr>{% endfor %}
+  <tr><th>Calibrated ensemble</th><th class="num">{{ p.p_red | pct(1) }}</th><th></th></tr></table>
+  <p class="small">Market: {% if p.market %}{{ p.market.p_red | pct(1) }} for {{ f.red_name }} (de-vigged, overround {{ p.market.overround | pct(1) }}, {{ p.market.bookmaker or 'manual' }}, {{ 'used in model' if p.market.used_in_model else 'comparison only' }}){% else %}<span class="tag unavailable">no odds</span>{% endif %}</p>
+  <details><summary>All feature contributions ({{ p.contributions | length }})</summary>
+  <table class="small"><tr><th>Feature</th><th>Model</th><th class="num">Raw diff (red − blue)</th><th class="num">Δ log-odds</th></tr>
+  {% for c in p.contributions | sort(attribute='contribution', reverse=True) %}<tr><td>{{ c.feature }}</td><td>{{ c.group }}</td><td class="num">{{ '—' if c.raw_diff is none else '%.3f' % c.raw_diff }}{% if c.imputed %} <span class="tag unavailable">imputed</span>{% endif %}</td><td class="num">{{ '%+.3f' % c.contribution }}</td></tr>{% endfor %}
+  </table></details>
+</div>
+<div class="card"><h2>Recent fights entering this bout</h2>
+  {% for side, nm in [('red', f.red_name), ('blue', f.blue_name)] %}<h3 class="{{ side }}">{{ nm }}</h3>
+  <table class="small"><tr><th>Date</th><th>Result</th><th>Method</th><th class="num">Opp. Elo</th></tr>
+  {% for r in (p.last5[side] or []) | reverse %}<tr><td><a href="/fight/{{ r.fight_id }}">{{ r.date }}</a></td><td>{{ {1.0:'W',0.0:'L',0.5:'D'}.get(r.result, 'NC') }}</td><td>{{ r.method | method }}</td><td class="num">{{ r.opp_elo }}</td></tr>{% else %}<tr><td colspan="4" class="muted">UFC debut — no prior UFC fights</td></tr>{% endfor %}</table>{% endfor %}
+</div>
+</div>
+{% endif %}
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h2>Official result</h2>
+  {% for r in results %}<p>{% if loop.length > 1 %}Revision {{ r.revision }} ({{ r.reason }}): {% endif %}<span class="tag confirmed">official</span>
+  {% if r.outcome == 'win' %}<b>{{ f.red_name if r.winner_fighter_id == f.red_fighter_id else f.blue_name }}</b> by {{ r.method_detail or (r.method | method) }}{% if r.end_round %}, R{{ r.end_round }} {{ r.end_time_sec | clock }}{% endif %}{% else %}{{ r.outcome | upper }} {{ r.method_detail or '' }}{% endif %}
+  {% if r.details %}<br><span class="small muted">{{ r.details }}</span>{% endif %}{% if r.source_url %} · <a class="small" href="{{ r.source_url }}">source</a>{% endif %}</p>
+  {% else %}<p class="muted">No official result yet.</p>{% endfor %}
+  {% for e in evals %}{% set d = e.details_json | loads %}
+    <h3>Evaluation (result rev {{ d.result_revision }})</h3>
+    {% if e.scored %}<p class="small"><span class="status {{ 'good' if e.correct_winner else 'bad' }}">{{ 'Winner correct' if e.correct_winner else 'Winner wrong' }}</span>
+      · P(actual winner) {{ e.p_actual | pct(1) }} · log loss {{ e.log_loss | f(3) }} · Brier {{ e.brier | f(3) }}
+      · method {{ 'correct' if e.method_correct else 'wrong' }} · round {{ 'correct' if e.round_correct else ('wrong' if e.round_correct is not none else 'n/a') }} · {{ e.calibration_note }}</p>
+      <table class="small"><tr><th>Pre-fight factor</th><th>Verdict</th></tr>{% for s in d.factor_support %}<tr><td>{{ s.text }}</td><td>{{ s.verdict }}{% if s.realised_stat %} ({{ s.realised_stat }} {{ '%+g' % s.realised_edge }}){% endif %}</td></tr>{% endfor %}</table>
+      {% if e.report_json %}{% set rep = e.report_json | loads %}<h3>Failure analysis — {{ e.category | replace('_', ' ') }}</h3>
+      <dl class="kv small">{% for k, v in rep.items() %}<dt>{{ k[3:] | replace('_', ' ') }}</dt><dd>{% if v is string %}{{ v }}{% else %}{{ v | join('; ') }}{% endif %}</dd>{% endfor %}</dl>{% endif %}
+    {% else %}<p class="small muted">Not scored (draw / no contest).</p>{% endif %}
+  {% endfor %}
+</div>
+<div class="card"><h2>Prediction versions (ledger)</h2>
+  <table class="small"><tr><th>v</th><th>Recorded</th><th>Reason</th><th class="num">P(red)</th><th>Status</th></tr>
+  {% for v in versions %}<tr><td><a href="?mode={{ mode }}&version={{ v.version }}">{{ v.version }}</a></td><td>{{ v.created_at }}</td><td>{{ v.reason }}</td><td class="num">{{ v.p_red | pct(1) }}</td>
+  <td>{% if v.id in official %}locked{% elif v.is_post_lock %}post-lock{% else %}superseded/preliminary{% endif %}</td></tr>{% endfor %}</table>
+</div>
+</div>
+{% endblock %}

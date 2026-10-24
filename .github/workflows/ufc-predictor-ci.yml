@@ -1,0 +1,33 @@
+# Tests ufc-predictor/ on every push and pull request that touches it.
+name: UFC Predictor CI
+
+on:
+  push:
+    branches: [master]
+    paths: ['ufc-predictor/**', '.github/workflows/ufc-predictor-ci.yml']
+  pull_request:
+    paths: ['ufc-predictor/**', '.github/workflows/ufc-predictor-ci.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ufc-predictor-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ufc-predictor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ufc-predictor/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q

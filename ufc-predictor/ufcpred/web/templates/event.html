@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% from "macros.html" import fightrow, modetag %}
+{% block title %}{{ card.event.name }}{% endblock %}
+{% block body %}
+{% set ev = card.event %}
+<h1>{{ ev.name }}</h1>
+<div class="sub">{{ ev.date }} · {{ ev.venue or 'venue unavailable' }} · {{ ev.location or 'location unavailable' }} · status <b>{{ ev.status }}</b> · {{ modetag(card.mode) }}
+  · <a href="?mode={{ 'live' if card.mode == 'replay' else 'replay' }}">switch to {{ 'live' if card.mode == 'replay' else 'replay' }}</a>
+  · <a href="/review/{{ ev.id }}?mode={{ card.mode }}">post-event review</a></div>
+{% if card.lock %}
+<div class="banner info">Predictions locked {{ card.lock.locked_at }} (decision time {{ card.lock.as_of }}, reason: {{ card.lock.reason }}). Locked predictions are immutable; later versions are stored separately and never graded in their place.</div>
+{% else %}
+<div class="banner">Not locked. Automatic lock at {{ lock_at }} ({% if ev.start_time_utc %}start time minus lock window{% else %}start time unknown — locks at 00:00 UTC on the event date minus the lock window{% endif %}).</div>
+{% endif %}
+{% set main = card.fights | selectattr('fight.card_segment', 'equalto', 'main') | list %}
+{% if main %}<h2>Main card</h2><div class="grid">{% for item in main %}{{ fightrow(item, card.mode) }}{% endfor %}</div>
+<h2 style="margin-top:16px">Prelims</h2><div class="grid">{% for item in card.fights if item.fight.card_segment != 'main' %}{{ fightrow(item, card.mode) }}{% endfor %}</div>
+{% else %}
+<p class="small muted">Card segments are not recorded by the historical source; bouts are listed in source order.</p>
+<div class="grid">{% for item in card.fights %}{{ fightrow(item, card.mode) }}{% endfor %}</div>
+{% endif %}
+{% endblock %}

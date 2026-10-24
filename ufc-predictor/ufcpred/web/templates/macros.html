@@ -1,0 +1,60 @@
+{% macro na(v, fmt=None) -%}
+{%- if v is none -%}<span class="tag unavailable">unknown</span>{%- elif fmt -%}{{ fmt.format(v) }}{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+
+{% macro modetag(mode) -%}
+{%- if mode == 'replay' -%}<span class="tag replay" title="Historical replay: generated with only data before the event date, then locked and graded">historical replay</span>
+{%- else -%}<span class="tag estimate">live</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro fightrow(item, mode) %}
+{% set f = item.fight %}{% set p = item.payload %}{% set res = item.result %}
+<div class="card">
+  <div class="small muted" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+    <span>{% if f.bout_order == 1 %}<b>Main event</b>{% elif f.bout_order == 2 %}<b>Co-main</b>{% else %}Bout {{ f.bout_order or '—' }}{% endif %}</span>
+    <span>· {{ f.weight_class or 'Catch/Open weight' }}{% if f.is_title %} · title{% endif %}</span>
+    <span>· {{ f.scheduled_rounds or '?' }} rounds</span>
+    <span>· {{ f.card_segment if f.card_segment != 'unknown' else 'segment unknown' }}</span>
+    {% if f.status in ('canceled','replaced') %}<span class="status bad">{{ f.status }}</span>{% endif %}
+    {% if item.versions > 1 %}<span>· {{ item.versions }} versions{% if item.post_lock_versions %} ({{ item.post_lock_versions }} post-lock){% endif %}</span>{% endif %}
+    {% if item.is_official %}<span class="tag confirmed" title="Locked before the event; this is the graded prediction">locked</span>{% elif p %}<span class="tag estimate">preliminary</span>{% endif %}
+  </div>
+  <div class="fight">
+    <div class="side r"><span class="corner-dot r"></span><a class="nm" href="/fighter/{{ f.red_fighter_id }}">{{ f.red_name }}</a>
+      {% if p %}<div class="meta">{{ p.stats.red.wins }}-{{ p.stats.red.losses }} UFC · Elo {{ '%.0f' % p.stats.red.elo }}</div>{% endif %}</div>
+    <div>
+      {% if p %}
+        <div class="pbl"><span class="red">{{ p.p_red | pct }}</span><span class="tag estimate">{{ p.confidence.label }} confidence</span><span class="blue">{{ p.p_blue | pct }}</span></div>
+        {{ charts.prob_bar(p.p_red, f.red_name, f.blue_name, p.confidence.interval80_p_red) | safe }}
+        <div class="small" style="text-align:center">
+          Pick: <b>{{ p.red.name if p.predicted_winner_id == f.red_fighter_id else p.blue.name }}</b>
+          by {{ p.predicted_method | method }}{% if p.predicted_round %}, R{{ p.predicted_round }}{% else %} (decision){% endif %}
+          · P(decision) {{ p.p_decision | pct }}
+        </div>
+      {% else %}<div class="muted small" style="text-align:center">No prediction recorded</div>{% endif %}
+    </div>
+    <div class="side b"><a class="nm" href="/fighter/{{ f.blue_fighter_id }}">{{ f.blue_name }}</a><span class="corner-dot b" style="margin:0 0 0 5px"></span>
+      {% if p %}<div class="meta">{{ p.stats.blue.wins }}-{{ p.stats.blue.losses }} UFC · Elo {{ '%.0f' % p.stats.blue.elo }}</div>{% endif %}</div>
+  </div>
+  {% if p %}
+  <div class="small" style="margin-top:6px">
+    <span class="muted">Top factors:</span>
+    {% for x in (p.explanation.favoring_red[:2] + p.explanation.favoring_blue[:2]) | sort(attribute='logit', reverse=True) %}
+      <span class="{{ 'red' if x.logit > 0 else 'blue' }}" title="{{ x.text }} (Δlog-odds {{ '%+.2f' % x.logit }})">{{ x.feature }}</span>{{ ',' if not loop.last }}
+    {% endfor %}
+    · <a href="/fight/{{ f.id }}?mode={{ mode }}">full analysis →</a>
+  </div>
+  {% endif %}
+  {% if res %}
+  <div class="small" style="margin-top:6px">
+    <span class="tag confirmed">official result</span>
+    {% if res.outcome == 'win' %}<b>{{ f.red_name if res.winner_fighter_id == f.red_fighter_id else f.blue_name }}</b> by {{ res.method | method }}{% if res.end_round %} R{{ res.end_round }} {{ res.end_time_sec | clock }}{% endif %}
+    {% else %}{{ res.outcome | upper }}{% endif %}
+    {% if item.evaluation and item.evaluation.scored %}
+      · <span class="status {{ 'good' if item.evaluation.correct_winner else 'bad' }}">{{ 'winner correct' if item.evaluation.correct_winner else 'winner wrong' }}</span>
+      · method {{ '✓' if item.evaluation.method_correct else '✕' }} · log loss {{ item.evaluation.log_loss | f(3) }}
+    {% elif item.evaluation %}· <span class="muted">not scored (draw/NC)</span>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}

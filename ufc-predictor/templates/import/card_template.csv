@@ -1,0 +1,2 @@
+event_name,event_date,venue,location,source_url,start_time_utc,bout_order,card_segment,red,blue,weight_class,scheduled_rounds,title_fight,short_notice_red,short_notice_blue,weight_miss_red,weight_miss_blue
+UFC Fight Night: Fighter A vs. Fighter B,YYYY-MM-DD,Arena name,"City, Country",https://www.ufc.com/event/...,,1,main,Fighter A,Fighter B,Lightweight,5,false,,,,
