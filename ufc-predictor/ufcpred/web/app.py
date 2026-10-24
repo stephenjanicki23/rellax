@@ -1,7 +1,9 @@
 """FastAPI web application: dashboard and analysis screens (server-rendered)."""
 from __future__ import annotations
 
-import datetime as dt
+import hashlib
+import hmac
+import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -32,6 +34,66 @@ T.filters["loads"] = lambda s: loads(s, {})
 T.filters["clock"] = lambda s: "—" if s is None else f"{s // 60}:{s % 60:02d}"
 T.globals.update(charts=charts, now=lambda: utcnow())
 
+# ------------------------------------------------------------------ access control
+# Reads are public unless UFCPRED_PRIVATE=1. Every write (POST) needs the admin token when
+# UFCPRED_ADMIN_TOKEN is set; on Vercel, writes are refused outright until a token is set.
+ADMIN_COOKIE = "ufcpred_admin"
+HEAVY_ON_VERCEL = {"refresh_history", "tick", "backup"}
+JOBS_HINT = ("runs in GitHub Actions on Vercel deployments: Actions → “UFC Predictor jobs” → Run workflow "
+             "(a serverless request cannot finish it within its time limit)")
+
+
+def _token() -> str | None:
+    return os.environ.get("UFCPRED_ADMIN_TOKEN") or None
+
+
+def _cookie_value(token: str) -> str:
+    return hashlib.sha256(("ufcpred:" + token).encode()).hexdigest()
+
+
+def is_admin(request: Request) -> bool:
+    tok = _token()
+    if tok is None:
+        return not db.on_vercel()
+    return hmac.compare_digest(request.cookies.get(ADMIN_COOKIE, ""), _cookie_value(tok))
+
+
+@app.middleware("http")
+async def access_control(request: Request, call_next):
+    path = request.url.path
+    if path.startswith(("/login", "/logout", "/static")):
+        return await call_next(request)
+    if request.method == "POST" and not is_admin(request):
+        msg = ("Writes are disabled: set UFCPRED_ADMIN_TOKEN in the Vercel project, then log in."
+               if _token() is None else "Log in with the admin token to make changes.")
+        return RedirectResponse(f"/login?msg={msg}", status_code=303)
+    if os.environ.get("UFCPRED_PRIVATE") == "1" and not is_admin(request):
+        return RedirectResponse("/login", status_code=303)
+    return await call_next(request)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, msg: str = ""):
+    return render(request, "login.html", msg=msg, token_configured=_token() is not None)
+
+
+@app.post("/login")
+def login(token: str = Form(...)):
+    tok = _token()
+    if tok is None or not hmac.compare_digest(token, tok):
+        return RedirectResponse("/login?msg=Wrong token", status_code=303)
+    r = RedirectResponse("/settings", status_code=303)
+    r.set_cookie(ADMIN_COOKIE, _cookie_value(tok), httponly=True, secure=db.on_vercel(), samesite="lax",
+                 max_age=30 * 86400)
+    return r
+
+
+@app.get("/logout")
+def logout():
+    r = RedirectResponse("/", status_code=303)
+    r.delete_cookie(ADMIN_COOKIE)
+    return r
+
 
 def get_db():
     conn = db.connect()
@@ -42,7 +104,8 @@ def get_db():
 
 
 def render(request: Request, name: str, **ctx):
-    return templates.TemplateResponse(request, name, {"page": name.split(".")[0], **ctx})
+    return templates.TemplateResponse(request, name, {"page": name.split(".")[0], "admin": is_admin(request),
+                                                      "on_vercel": db.on_vercel(), **ctx})
 
 
 # ------------------------------------------------------------------ dashboard
@@ -117,9 +180,8 @@ def history(request: Request, mode: str | None = None, page: int = 0, conn=Depen
            JOIN fighters fb ON fb.id=p.blue_fighter_id
            LEFT JOIN prediction_evaluations e ON e.prediction_id=p.id
            LEFT JOIN fight_results r ON r.id=e.result_id
-           WHERE p.mode=? AND p.id IN (SELECT value FROM prediction_locks l, json_each(l.prediction_ids_json)
-                                        WHERE l.mode=?)
-           ORDER BY ev.date DESC, p.fight_id LIMIT 100 OFFSET ?""", (mode, mode, page * 100)).fetchall()
+           WHERE p.mode=? AND p.id IN (SELECT m.prediction_id FROM prediction_lock_members m)
+           ORDER BY ev.date DESC, p.fight_id LIMIT 100 OFFSET ?""", (mode, page * 100)).fetchall()
     return render(request, "history.html", rows=rows, mode=mode, page_no=page)
 
 
@@ -169,6 +231,8 @@ def learning(request: Request, conn=Depends(get_db)):
 
 @app.post("/learning/run")
 def learning_run(conn=Depends(get_db), mode: str = Form("live"), force: bool = Form(False)):
+    if db.on_vercel():
+        return RedirectResponse(f"/settings?msg=The learning loop {JOBS_HINT}", status_code=303)
     loop.run_learning(conn, utcnow()[:10], mode, None, force=force)
     return RedirectResponse("/learning", status_code=303)
 
@@ -198,7 +262,7 @@ def fighters(request: Request, q: str = "", conn=Depends(get_db)):
     rows = []
     if q:
         rows = conn.execute("""SELECT f.*, (SELECT COUNT(*) FROM fights x WHERE x.red_fighter_id=f.id OR x.blue_fighter_id=f.id)
-                               AS n FROM fighters f WHERE f.name LIKE ? ORDER BY n DESC LIMIT 100""", (f"%{q}%",)).fetchall()
+                               AS n FROM fighters f WHERE LOWER(f.name) LIKE LOWER(?) ORDER BY n DESC LIMIT 100""", (f"%{q}%",)).fetchall()
     else:
         rows = conn.execute("""SELECT f.*, COUNT(*) AS n, MAX(e.date) AS last FROM fighters f JOIN fights x ON
                                (x.red_fighter_id=f.id OR x.blue_fighter_id=f.id) JOIN events e ON e.id=x.event_id
@@ -261,7 +325,8 @@ def data_quality(request: Request, kind: str | None = None, conn=Depends(get_db)
     stale = conn.execute("""SELECT e.* FROM events e WHERE e.status IN ('scheduled','locked') AND e.date < ?""",
                          (utcnow()[:10],)).fetchall()
     missing = conn.execute("""SELECT
-        SUM(dob IS NULL) dob, SUM(height_in IS NULL) height, SUM(reach_in IS NULL) reach, SUM(stance IS NULL) stance,
+        SUM(CASE WHEN dob IS NULL THEN 1 ELSE 0 END) AS dob, SUM(CASE WHEN height_in IS NULL THEN 1 ELSE 0 END) AS height,
+        SUM(CASE WHEN reach_in IS NULL THEN 1 ELSE 0 END) AS reach, SUM(CASE WHEN stance IS NULL THEN 1 ELSE 0 END) AS stance,
         COUNT(*) n FROM fighters""").fetchone()
     return render(request, "data_quality.html", summary=summary, issues=issues, sources=sources, jobs=jobs,
                   stale=stale, missing=missing, kind=kind, verify=ledger.verify(conn))
@@ -280,7 +345,8 @@ def settings_page(request: Request, msg: str = "", conn=Depends(get_db)):
     values = {k: setting(conn, k) for k in DEFAULT_SETTINGS}
     upcoming = conn.execute("SELECT * FROM events WHERE status IN ('scheduled','locked') ORDER BY date").fetchall()
     return render(request, "settings.html", values=values, defaults=DEFAULT_SETTINGS, env=env_status(), msg=msg,
-                  backups=db.list_backups(), upcoming=upcoming,
+                  backups=[] if db.on_vercel() else db.list_backups(), upcoming=upcoming,
+                  backend=db.backend(conn), token_configured=_token() is not None,
                   audit=conn.execute("SELECT * FROM audit_log ORDER BY id DESC LIMIT 30").fetchall())
 
 
@@ -308,6 +374,8 @@ async def settings_save(request: Request, conn=Depends(get_db)):
 
 @app.post("/actions/{name}")
 def action(name: str, event_id: int | None = Form(None), reason: str = Form(""), conn=Depends(get_db)):
+    if db.on_vercel() and name in HEAVY_ON_VERCEL:
+        return RedirectResponse(f"/settings?msg={name} {JOBS_HINT}", status_code=303)
     try:
         if name == "refresh_history":
             msg = str(lifecycle.refresh_history(conn))

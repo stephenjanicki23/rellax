@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Admin log in</h1>
+{% if msg %}<div class="banner warn">{{ msg }}</div>{% endif %}
+{% if token_configured %}
+<form method="post" action="/login" class="card" style="max-width:420px">
+  <label class="small">Admin token<br><input type="password" name="token" required autofocus style="width:100%"></label>
+  <p><button class="primary">Log in</button></p>
+  <p class="small muted">Reading the dashboards needs no login. Imports, predictions, locks, settings, approvals and rollbacks do.</p>
+</form>
+{% else %}
+<div class="card" style="max-width:560px"><p>No admin token is configured, so every write is disabled on this deployment.</p>
+<p class="small">Set <code>UFCPRED_ADMIN_TOKEN</code> to a long random string in the Vercel project's environment variables, redeploy, then log in here.</p></div>
+{% endif %}
+{% endblock %}

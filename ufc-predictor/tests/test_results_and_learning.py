@@ -107,16 +107,16 @@ def test_training_and_backtesting_are_reproducible(synth):
     assert [r["p_red"] for r in b1["rows"]] == [r["p_red"] for r in b2["rows"]]
 
 
-def test_full_cycle_import_predict_freeze_results_evaluate_learn_predict_next(synth, tmp_path):
+def test_full_cycle_import_predict_freeze_results_evaluate_learn_predict_next(synth, fresh_db):
     """Integration: a historical card is re-imported as an *upcoming* card (results withheld), then the full loop runs."""
     conn, truth = synth
     from ufcpred.features.build import StateCache
     from ufcpred.features.history import HistoryStore
     # 1. hold out the last two events' results: rebuild a database without them
-    path = str(tmp_path / "cycle.sqlite3")
-    c = db.connect(path)
-    for k, v in conn.execute("SELECT key, value_json FROM settings").fetchall():
-        c.execute("INSERT INTO settings VALUES (?,?,?)", (k, v, "t"))
+    settings = [tuple(r) for r in conn.execute("SELECT key, value_json FROM settings").fetchall()]
+    c = fresh_db(conn)
+    for k, v in settings:
+        c.execute("INSERT INTO settings(key, value_json, updated_at) VALUES (?,?,?)", (k, v, "t"))
     from synthetic import make_bundle
     bundle, _ = make_bundle(seed=3)
     held = {e.external_id for e in bundle.events[-2:]}
@@ -134,7 +134,6 @@ def test_full_cycle_import_predict_freeze_results_evaluate_learn_predict_next(sy
     # 3. predictions using only pre-fight data, then freeze
     ids = predict.predict_event(c, ev1["id"], mode="live", as_of=ev1["date"], reason="pre-event")
     assert len(ids) == c.execute("SELECT COUNT(*) FROM fights WHERE event_id=?", (ev1["id"],)).fetchone()[0]
-    snapshot_ev2 = {r["fight_id"]: r["p_red"] for r in c.execute("SELECT * FROM predictions WHERE 0")}
     ledger.lock_event(c, ev1["id"], "live", ev1["date"])
     with pytest.raises(ledger.LedgerError):
         predict.predict_event(c, ev1["id"], mode="live", as_of=ev1["date"], reason="overwrite attempt")

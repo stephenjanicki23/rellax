@@ -9,7 +9,8 @@
 <dt>Upcoming cards</dt><dd><b>{{ values['providers.upcoming'] }}</b>{% if values['providers.upcoming'] == 'manual' %} — import below{% else %} — ufcstats.com (HTTP; respects robots.txt){% endif %}</dd>
 <dt>Odds</dt><dd><b>{{ values['providers.odds'] }}</b> · ODDS_API_KEY {{ 'set' if env.ODDS_API_KEY else 'not set' }}</dd>
 <dt>AI analyst</dt><dd><b>{{ values['analyst.provider'] }}</b> · ANTHROPIC_API_KEY {{ 'set' if env.ANTHROPIC_API_KEY else 'not set' }}</dd>
-<dt>Database</dt><dd><code>{{ env.UFCPRED_DB }}</code></dd></dl>
+<dt>Database</dt><dd><b>{{ backend }}</b> · <code>{{ env.database }}</code>{% if on_vercel and backend == 'sqlite' %} <span class="status bad">ephemeral — set DATABASE_URL (Neon) in the Vercel project</span>{% endif %}</dd>
+<dt>Hosting</dt><dd>{% if on_vercel %}Vercel · refresh, lifecycle tick, learning loop, replay and backups run in the <b>UFC Predictor jobs</b> GitHub Actions workflow · admin token {{ 'set' if token_configured else 'NOT set — writes disabled' }}{% else %}local{% endif %}</dd></dl>
 <h3>Manual imports (validated; a file with any invalid row is rejected whole)</h3>
 {% for kind, help in [('card','Upcoming card — templates/import/card_template.json or .csv'),('results','Official results — results_template.csv'),('odds','Betting odds — odds_template.csv'),('corrections','Verified fighter corrections — corrections_template.csv')] %}
 <form method="post" action="/import/{{ kind }}" enctype="multipart/form-data" style="margin:6px 0"><span class="small">{{ help }}</span><br>
@@ -28,7 +29,7 @@
 <h3>Backups</h3>
 <form class="inline" method="post" action="/actions/backup"><button>Create backup now</button></form>
 <ul class="small">{% for b in backups[:8] %}<li><code>{{ b }}</code></li>{% else %}<li class="muted">No backups yet.</li>{% endfor %}</ul>
-<p class="small muted">Restore: stop the app, then <code>python -m ufcpred restore &lt;file&gt;</code> (verifies integrity first and keeps the current file aside).</p>
+<p class="small muted">{% if backend == 'postgres' %}Postgres: backups are gzipped JSON exports (the jobs workflow keeps them as artifacts); Neon's point-in-time restore is the first line of recovery. Restore an export with <code>python -m ufcpred restore &lt;file&gt;</code> into an empty database.{% else %}Restore: stop the app, then <code>python -m ufcpred restore &lt;file&gt;</code> (verifies integrity first and keeps the current file aside).{% endif %}</p>
 </div>
 </div>
 <form method="post" action="/settings" class="card" style="margin-top:14px"><h2>Thresholds, schedules &amp; providers</h2>

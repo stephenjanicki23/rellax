@@ -19,15 +19,57 @@ FAST_SETTINGS = {
 }
 
 
+# Set UFCPRED_TEST_DATABASE_URL=postgresql://… to run the whole suite against Postgres instead of SQLite.
+PG_URL = os.environ.get("UFCPRED_TEST_DATABASE_URL")
+
+
+def reset_pg():
+    import psycopg
+    with psycopg.connect(PG_URL, autocommit=True) as c:
+        c.execute("DROP SCHEMA public CASCADE")
+        c.execute("CREATE SCHEMA public")
+
+
+def _new_db(tmp_path, name):
+    if PG_URL:
+        reset_pg()
+        return db.connect(PG_URL)
+    return db.connect(str(tmp_path / name))
+
+
+def db_target(conn) -> str:
+    """What db.connect() needs to reopen this database."""
+    return conn.url if db.backend(conn) == "postgres" else conn.execute("PRAGMA database_list").fetchone()[2]
+
+
 @pytest.fixture
 def tmp_db(tmp_path, monkeypatch):
-    path = str(tmp_path / "test.sqlite3")
-    monkeypatch.setenv("UFCPRED_DB", path)
-    conn = db.connect(path)
+    monkeypatch.setenv("UFCPRED_DATA_DIR", str(tmp_path / "data"))
+    if PG_URL:
+        monkeypatch.setenv("DATABASE_URL", PG_URL)
+        monkeypatch.delenv("UFCPRED_DB", raising=False)
+    else:
+        monkeypatch.setenv("UFCPRED_DB", str(tmp_path / "test.sqlite3"))
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+    conn = _new_db(tmp_path, "test.sqlite3")
     for k, v in FAST_SETTINGS.items():
         db.set_setting(conn, k, v, actor="test")
     yield conn
-    conn.close()
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def fresh_db(tmp_path):
+    """Factory for a second, empty database. On Postgres it replaces the test database, so the
+    caller's old connection is closed first."""
+    def make(old_conn=None):
+        if old_conn is not None and PG_URL:
+            old_conn.close()
+        return _new_db(tmp_path, "fresh.sqlite3")
+    return make
 
 
 @pytest.fixture

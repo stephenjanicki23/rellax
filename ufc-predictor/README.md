@@ -21,7 +21,7 @@ out-of-sample test says the change helps.
 | Existing app for this? | No. The repo holds `rellax` (vanilla-JS parallax library, root `package.json`), `fantasy-football/` (Next.js + Prisma) and `hockey-gm/` (Vite + React). |
 | Reusable components | Architectural pattern only (pure domain layer, providers isolated, raw/derived/AI kept separate — see `../ARCHITECTURE.md`). No shared code: those apps are TypeScript; nothing models fights. |
 | Conflict risk | Root `package.json` is the published `rellax` manifest, so the app is a self-contained folder like its siblings. |
-| Stack chosen | **Python 3.11+, numpy, FastAPI + Jinja2 (server-rendered), SQLite.** The core of this project is statistical modelling, which is far more natural and testable in numpy than in TS; SQLite (WAL) is enough at this scale (~9k fights) and needs no server, and the schema is portable. |
+| Stack chosen | **Python 3.11+, numpy, FastAPI + Jinja2 (server-rendered), SQLite locally / Postgres when deployed.** The core of this project is statistical modelling, which is far more natural and testable in numpy than in TS; SQLite (WAL) is enough at this scale (~9k fights) and needs no server, and the schema is portable. |
 | Data sources reachable from here | The UFCStats CSV mirror on GitHub: **yes** (results through 2026-10-17). `ufcstats.com` and `ufc.com`: **no** (DNS blocked in this build environment). No odds feed configured. |
 
 ## 2. Data sources and what is (not) available
@@ -114,11 +114,12 @@ so `P(A beats B) = 1 − P(B beats A)` exactly.
 
 ```bash
 cd ufc-predictor
-pip install -r requirements.txt
+pip install -r requirements-dev.txt         # runtime + test dependencies
 python -m ufcpred refresh                  # download + ingest UFCStats mirror
 python -m ufcpred replay --start 2024-10-01  # historical replay of the full loop (≈20–40 min)
 python -m ufcpred serve                    # http://127.0.0.1:8000
-python -m pytest                           # test suite (synthetic, offline)
+python -m pytest                           # test suite (synthetic, offline; SQLite)
+UFCPRED_TEST_DATABASE_URL=postgresql://… python -m pytest   # same suite on Postgres (wipes that database)
 ```
 
 | Command | What it does |
@@ -130,10 +131,14 @@ python -m pytest                           # test suite (synthetic, offline)
 | `predict EVENT_ID [--reason R --post-lock]` · `lock EVENT_ID` · `evaluate EVENT_ID` | lifecycle steps |
 | `learn [--mode live --force]` · `rollback VERSION_ID` | learning loop / manual rollback |
 | `tick` | every due lifecycle step once (cron: `17 * * * * cd ufc-predictor && python -m ufcpred tick`) |
-| `backup` · `restore FILE` · `verify` · `status` | operations |
+| `backup` · `export FILE` · `restore FILE` · `verify` · `status` · `report` | operations |
 
 ### Configuration
-* `UFCPRED_DB` — database path (default `data/ufcpred.sqlite3`).
+* `DATABASE_URL` (or `POSTGRES_URL` / `UFCPRED_DATABASE_URL`) — a `postgresql://` URL switches the app to
+  Postgres. Without it the app uses SQLite at `UFCPRED_DB` (default `data/ufcpred.sqlite3`).
+* `UFCPRED_ADMIN_TOKEN` — when set, every write (imports, predict, lock, settings, approvals, rollback)
+  needs a log-in with this token; reads stay public unless `UFCPRED_PRIVATE=1`. On Vercel, writes are
+  refused until a token is set.
 * `ANTHROPIC_API_KEY` + Settings `analyst.provider = anthropic` — Claude writes the narrative fields of
   post-event reports (`pip install anthropic`). It can never change a number or decision.
 * `ODDS_API_KEY` + Settings `providers.odds = the_odds_api` — current odds (historical odds via CSV).
@@ -147,20 +152,53 @@ python -m pytest                           # test suite (synthetic, offline)
 3. After the event, `refresh` (mirror) or `import-results` → `tick` grades the locked predictions and
    runs the learning loop. An event is shown as evaluated only after this has actually happened.
 
-## 5. Backups and recovery
-* `python -m ufcpred backup` (or Settings → Create backup) writes a consistent copy with the SQLite
-  backup API to `data/backups/`.
-* `python -m ufcpred restore FILE` runs an integrity check, keeps the current DB aside as
-  `*.pre-restore-<time>`, then swaps the file. Stop the server first.
+## 5. Deploying to Vercel (with Neon Postgres)
+
+Vercel serves the web app as one Python function (`api/index.py`, `vercel.json`). Serverless functions
+can't keep a SQLite file and stop after 60 s, so the data lives in **Neon Postgres** and the long jobs
+(data refresh, replay, backtests, learning) run in the **UFC Predictor jobs** GitHub Actions workflow
+against the same database.
+
+1. **Create the project.** Vercel → Add New → Project → import `stephenjanicki23/rellax`. Set **Root
+   Directory = `ufc-predictor`**, Framework Preset = **Other**; leave build settings empty.
+2. **Add the database.** In the project: Storage → Create/Connect → **Neon** (free tier) → connect it to
+   the project. This injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`. Preview deployments
+   share that database unless you enable Neon's per-preview branching.
+3. **Set environment variables** (Settings → Environment Variables): `UFCPRED_ADMIN_TOKEN` = a long random
+   string (e.g. `python -c "import secrets; print(secrets.token_urlsafe(32))"`). Optional:
+   `UFCPRED_PRIVATE=1`, `ANTHROPIC_API_KEY`, `ODDS_API_KEY`. Then deploy (or redeploy).
+4. **Give the jobs workflow the database.** GitHub → repo Settings → Secrets and variables → Actions →
+   new secret **`UFCPRED_DATABASE_URL`** = Neon's *unpooled* connection string. Optional secrets:
+   `ANTHROPIC_API_KEY`, `ODDS_API_KEY`.
+5. **Load data**, either:
+   * Actions → **UFC Predictor jobs** → Run workflow → `bootstrap` (downloads the history, replays from
+     `replay_start`; about 30–60 min), or
+   * copy an existing local database:
+     `python -m ufcpred export replay.jsonl.gz` then
+     `DATABASE_URL=<neon unpooled url> python -m ufcpred restore replay.jsonl.gz` (target must be empty).
+6. **Operate.** The workflow runs `tick` every 6 hours (refresh → predict → lock → grade → learn) and a
+   weekly `backup`. Import cards and results on the site's Settings screen after logging in at `/login`.
+   Scheduled workflows only run from the default branch, so they start once this is merged.
+
+On Vercel the Settings buttons for refresh, tick, learning and backup point to the workflow instead of
+running in the request.
+
+## 6. Backups and recovery
+* SQLite: `python -m ufcpred backup` (or Settings → Create backup) writes a consistent copy with the
+  SQLite backup API to `data/backups/`. `python -m ufcpred restore FILE` runs an integrity check, keeps
+  the current DB aside as `*.pre-restore-<time>`, then swaps the file. Stop the server first.
+* Postgres: Neon's point-in-time restore is the first line of recovery. `backup` writes a gzipped JSON
+  export of every table (the jobs workflow keeps a weekly one as a 90-day artifact);
+  `restore FILE` loads it into an empty database and resets the id sequences.
 * Migrations are additive only (a migration containing `DROP TABLE` is refused), so code updates
   never reset history. Model versions are never deleted; any non-rejected version can be reactivated.
 
-## 6. Historical replay results
+## 7. Historical replay results
 
 See [`REPLAY_REPORT.md`](REPLAY_REPORT.md) for the replay over real UFC events, with every
 number generated by the pipeline.
 
-## 7. Limitations (honest list)
+## 8. Limitations (honest list)
 * No live upcoming-card feed was reachable from the build environment; `ufcstats_live` is
   fixture-tested only.
 * No odds history, so Model F and the market baseline are inactive until odds are imported.

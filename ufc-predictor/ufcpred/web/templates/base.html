@@ -22,6 +22,7 @@
     <span class="tag estimate">estimate</span> model output
     <span class="tag unavailable">unavailable</span> not in any source
   </span>
+  {% if admin %}{% if on_vercel %}<a class="small" href="/logout">log out</a>{% endif %}{% else %}<a class="small" href="/login">admin log in</a>{% endif %}
   <button onclick="var r=document.documentElement,n=(r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'light':'dark';r.dataset.theme=n;try{localStorage.setItem('theme',n)}catch(e){}" title="Toggle theme">◐</button>
 </header>
 <main>

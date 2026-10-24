@@ -1,11 +1,10 @@
 """Prediction immutability, locking, versioning and rollback."""
-import sqlite3
-
 import pytest
 
 from ufcpred import db, ledger, predict
 from ufcpred.models import registry
 from ufcpred.util import loads
+from conftest import PG_URL, db_target, reset_pg
 
 
 def _first_event_after(conn, d):
@@ -16,9 +15,9 @@ def test_predictions_cannot_be_updated_or_deleted(trained):
     conn, truth, h, cache, vid, cutoff = trained
     ev = _first_event_after(conn, cutoff)
     ids = predict.predict_event(conn, ev["id"], mode="replay", as_of=ev["date"], reason="t", h=h, cache=cache)
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(db.IntegrityError):
         conn.execute("UPDATE predictions SET p_red=0.99 WHERE id=?", (ids[0],))
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(db.IntegrityError):
         conn.execute("DELETE FROM predictions WHERE id=?", (ids[0],))
     conn.rollback()
     assert ledger.verify(conn)["ok"]
@@ -68,7 +67,9 @@ def test_tampering_is_detected(trained):
     ev = _first_event_after(conn, cutoff)
     ids = predict.predict_event(conn, ev["id"], mode="replay", as_of=ev["date"], reason="t", h=h, cache=cache)
     assert ledger.verify(conn)["ok"]
-    conn.execute("DROP TRIGGER trg_predictions_no_update")      # simulate someone bypassing the database guard
+    # simulate someone bypassing the database guard
+    conn.execute("DROP TRIGGER trg_predictions_append_only ON predictions" if PG_URL else
+                 "DROP TRIGGER trg_predictions_no_update")
     conn.execute("UPDATE predictions SET p_red=0.99, p_blue=0.01 WHERE id=?", (ids[0],))
     v = ledger.verify(conn)
     assert not v["ok"] and ids[0] in v["hash_mismatches"]
@@ -98,8 +99,9 @@ def test_versioning_and_rollback(trained):
     assert registry.active_version(conn)["id"] == vid
     dec = conn.execute("SELECT decision FROM promotion_decisions ORDER BY id DESC LIMIT 1").fetchone()[0]
     assert dec == "rollback"
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(db.IntegrityError):
         conn.execute("DELETE FROM promotion_decisions")
+    conn.rollback()
     # corrupted parameters are refused
     conn.execute("UPDATE model_versions SET params_json=replace(params_json, '\"cutoff\"', '\"cutof\"') WHERE id=?", (v2,))
     with pytest.raises(RuntimeError):
@@ -110,7 +112,7 @@ def test_persistence_across_restart(trained, tmp_path):
     conn, truth, h, cache, vid, cutoff = trained
     ev = _first_event_after(conn, cutoff)
     predict.predict_event(conn, ev["id"], mode="replay", as_of=ev["date"], reason="t", h=h, cache=cache)
-    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    path = db_target(conn)
     n = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
     conn.close()
     c2 = db.connect(path)                     # re-running migrations is a no-op and keeps history
@@ -120,6 +122,8 @@ def test_persistence_across_restart(trained, tmp_path):
     bk = db.backup(c2, str(tmp_path / "bk"))
     assert db.verify_backup(bk)["predictions"] == n
     c2.close()
+    if PG_URL:
+        reset_pg()                        # a JSON export restores into an empty database
     db.restore(bk, path)
     c3 = db.connect(path)
     assert c3.execute("SELECT COUNT(*) FROM predictions").fetchone()[0] == n

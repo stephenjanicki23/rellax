@@ -102,8 +102,13 @@ def env_status() -> dict:
     return {
         "ANTHROPIC_API_KEY": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "ODDS_API_KEY": bool(os.environ.get("ODDS_API_KEY")),
-        "UFCPRED_DB": os.environ.get("UFCPRED_DB") or "(default data/ufcpred.sqlite3)",
+        "database": _db_describe(),
     }
+
+
+def _db_describe() -> str:
+    from .db import describe
+    return describe()
 
 
 def setting(conn, key: str):

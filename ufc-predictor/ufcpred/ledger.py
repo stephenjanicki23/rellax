@@ -96,8 +96,11 @@ def lock_event(conn, event_id: int, mode: str, as_of: str, reason: str = "pre-ev
            AND p.version=(SELECT MAX(version) FROM predictions q WHERE q.fight_id=p.fight_id AND q.mode=p.mode)""",
         (event_id, mode)).fetchall()
     ids = [r["id"] for r in rows]
-    conn.execute("INSERT INTO prediction_locks(event_id, mode, locked_at, as_of, reason, prediction_ids_json) "
-                 "VALUES (?,?,?,?,?,?)", (event_id, mode, utcnow(), as_of, reason, dumps(ids)))
+    lock_id = conn.execute("INSERT INTO prediction_locks(event_id, mode, locked_at, as_of, reason, prediction_ids_json) "
+                           "VALUES (?,?,?,?,?,?)", (event_id, mode, utcnow(), as_of, reason, dumps(ids))).lastrowid
+    if ids:
+        conn.executemany("INSERT INTO prediction_lock_members(lock_id, prediction_id) VALUES (?,?)",
+                         [(lock_id, i) for i in ids])
     if mode == "live":
         conn.execute("UPDATE events SET status='locked', updated_at=? WHERE id=? AND status='scheduled'",
                      (utcnow(), event_id))

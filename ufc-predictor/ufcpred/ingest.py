@@ -6,8 +6,6 @@ replacements). Prediction logic never reads provider output directly.
 """
 from __future__ import annotations
 
-import sqlite3
-
 from .db import audit, flag_issue
 from .providers import parse as P
 from .providers.base import Bundle, PFight
@@ -82,7 +80,7 @@ def _validate_stats(st: dict) -> list[str]:
     return problems
 
 
-def ingest_bundle(conn: sqlite3.Connection, bundle: Bundle, *, reconcile_cards: bool = False,
+def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
                   actor: str = "system") -> dict:
     now = utcnow()
     summary = {"provider": bundle.provider, "events_new": 0, "fights_new": 0, "fighters_new": 0,
@@ -90,49 +88,77 @@ def ingest_bundle(conn: sqlite3.Connection, bundle: Bundle, *, reconcile_cards: 
                "replaced": 0, "duplicates_skipped": 0}
     src_id = _record_sources(conn, bundle)
 
-    # Fighters
-    fighter_ids = {r["external_id"]: r["id"] for r in conn.execute("SELECT id, external_id FROM fighters")}
+    origin = "manual" if bundle.provider == "manual" else "provider"
+
+    # Fighters — only new or changed rows are written (re-ingesting a full history is cheap over a network DB)
+    FCOLS = ("name", "nickname", "dob", "height_in", "reach_in", "stance", "listed_weight_lbs")
+    existing = {r["external_id"]: r for r in conn.execute(f"SELECT id, external_id, {', '.join(FCOLS)} FROM fighters")}
+    ins, upd, queued = [], [], set()
     for f in bundle.fighters:
-        if f.external_id in fighter_ids:
-            conn.execute(
-                """UPDATE fighters SET name=?, nickname=?, dob=COALESCE(?, dob), height_in=COALESCE(?, height_in),
-                   reach_in=COALESCE(?, reach_in), stance=COALESCE(?, stance),
-                   listed_weight_lbs=COALESCE(?, listed_weight_lbs), updated_at=? WHERE id=?""",
-                (f.name, f.nickname, f.dob, f.height_in, f.reach_in, f.stance, f.listed_weight_lbs, now,
-                 fighter_ids[f.external_id]))
+        new_vals = (f.name, f.nickname, f.dob, f.height_in, f.reach_in, f.stance, f.listed_weight_lbs)
+        old = existing.get(f.external_id)
+        if old is None:
+            if f.external_id not in queued:
+                ins.append((f.external_id, *new_vals, src_id, origin, now, now))
+                queued.add(f.external_id)
         else:
-            cur = conn.execute(
-                """INSERT INTO fighters(external_id, name, nickname, dob, height_in, reach_in, stance,
-                   listed_weight_lbs, source_id, origin, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (f.external_id, f.name, f.nickname, f.dob, f.height_in, f.reach_in, f.stance, f.listed_weight_lbs,
-                 src_id, "manual" if bundle.provider == "manual" else "provider", now, now))
-            fighter_ids[f.external_id] = cur.lastrowid
-            summary["fighters_new"] += 1
+            merged = tuple(new_vals[i] if (i < 2 or new_vals[i] is not None) else old[c]
+                           for i, c in enumerate(FCOLS))
+            if merged != tuple(old[c] for c in FCOLS):
+                upd.append((*merged, now, old["id"]))
+    if ins:
+        conn.executemany("INSERT INTO fighters(external_id, name, nickname, dob, height_in, reach_in, stance, "
+                         "listed_weight_lbs, source_id, origin, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                         ins)
+        summary["fighters_new"] += len(ins)
+    if upd:
+        conn.executemany("UPDATE fighters SET name=?, nickname=?, dob=?, height_in=?, reach_in=?, stance=?, "
+                         "listed_weight_lbs=?, updated_at=? WHERE id=?", upd)
+    fighter_ids = {r["external_id"]: r["id"] for r in conn.execute("SELECT id, external_id FROM fighters")}
 
     # Events
-    event_ids = {r["external_id"]: r["id"] for r in conn.execute("SELECT id, external_id FROM events")}
+    ECOLS = ("name", "date", "location", "venue", "start_time_utc", "source_url")
+    ev_rows = {r["external_id"]: r for r in conn.execute(f"SELECT id, external_id, {', '.join(ECOLS)} FROM events")}
+    by_date: dict[str, list] = {}
+    for r in ev_rows.values():
+        by_date.setdefault(r["date"], []).append(r)
+    ins, upd = [], []
     for e in bundle.events:
-        if e.external_id in event_ids:
-            conn.execute("UPDATE events SET name=?, date=?, location=COALESCE(?, location), venue=COALESCE(?, venue), "
-                         "start_time_utc=COALESCE(?, start_time_utc), source_url=COALESCE(?, source_url), updated_at=? "
-                         "WHERE id=?", (e.name, e.date, e.location, e.venue, e.start_time_utc, e.source_url, now,
-                                         event_ids[e.external_id]))
+        old = ev_rows.get(e.external_id)
+        if old is None and e.external_id in ev_rows:     # repeated within this import
             continue
-        dup = conn.execute("SELECT id, name FROM events WHERE date=? AND external_id<>?", (e.date, e.external_id)).fetchall()
-        for d in dup:
-            flag_issue(conn, "event", e.external_id, "possible_duplicate_event",
-                       f"'{e.name}' on {e.date} may duplicate existing event #{d['id']} '{d['name']}'", "warning")
-        cur = conn.execute(
-            """INSERT INTO events(external_id, name, date, start_time_utc, venue, location, status, origin, source_id,
-               source_url, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (e.external_id, e.name, e.date, e.start_time_utc, e.venue, e.location, "scheduled",
-             "manual" if bundle.provider == "manual" else "provider", src_id, e.source_url, now, now))
-        event_ids[e.external_id] = cur.lastrowid
-        summary["events_new"] += 1
+        vals = (e.name, e.date, e.location, e.venue, e.start_time_utc, e.source_url)
+        if old is not None:
+            merged = tuple(vals[i] if (i < 2 or vals[i] is not None) else old[c] for i, c in enumerate(ECOLS))
+            if merged != tuple(old[c] for c in ECOLS):
+                upd.append((*merged, now, old["id"]))
+            continue
+        for d in by_date.get(e.date, []):
+            if d["external_id"] != e.external_id:
+                flag_issue(conn, "event", e.external_id, "possible_duplicate_event",
+                           f"'{e.name}' on {e.date} may duplicate existing event #{d['id']} '{d['name']}'", "warning")
+        ins.append((e.external_id, e.name, e.date, e.start_time_utc, e.venue, e.location, "scheduled", origin, src_id,
+                    e.source_url, now, now))
+        by_date.setdefault(e.date, []).append({"id": "(same import)", "name": e.name, "external_id": e.external_id})
+        ev_rows[e.external_id] = None
+    if ins:
+        conn.executemany("INSERT INTO events(external_id, name, date, start_time_utc, venue, location, status, origin, "
+                         "source_id, source_url, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ins)
+        summary["events_new"] += len(ins)
+    if upd:
+        conn.executemany("UPDATE events SET name=?, date=?, location=?, venue=?, start_time_utc=?, source_url=?, "
+                         "updated_at=? WHERE id=?", upd)
+    event_ids = {r["external_id"]: r["id"] for r in conn.execute("SELECT id, external_id FROM events")}
 
     # Fights
-    fight_ids = {r["external_id"]: r["id"] for r in conn.execute("SELECT id, external_id FROM fights")}
-    card_by_event: dict[int, list[int]] = {}
+    FUPD = ("weight_class", "is_title", "scheduled_rounds", "card_segment", "bout_order", "short_notice_red",
+            "short_notice_blue", "weight_miss_red", "weight_miss_blue")
+    fight_rows = {r["external_id"]: r for r in conn.execute(
+        f"SELECT id, external_id, event_id, red_fighter_id, blue_fighter_id, status, {', '.join(FUPD)} FROM fights")}
+    pairs = {(r["event_id"], frozenset((r["red_fighter_id"], r["blue_fighter_id"]))): r["id"]
+             for r in fight_rows.values()}
+    card_by_event: dict[int, list] = {}
+    ins, upd, cancel = [], [], []
 
     def fighter_for(name: str, ext: str | None, wc: str | None, fight_ext: str) -> int:
         if ext and ext in fighter_ids:
@@ -142,11 +168,11 @@ def ingest_bundle(conn: sqlite3.Connection, bundle: Bundle, *, reconcile_cards: 
             flag_issue(conn, "fight", fight_ext, "ambiguous_identity",
                        f"'{name}' matches several fighters; picked #{fid} — verify", "error")
         if fid is None:
-            cur = conn.execute(
-                "INSERT INTO fighters(external_id, name, origin, created_at, updated_at) VALUES (?,?,?,?,?)",
-                (ext or f"manual-fighter:{P.name_key(name)}", name, "manual", now, now))
+            key = ext or f"manual-fighter:{P.name_key(name)}"
+            cur = conn.execute("INSERT INTO fighters(external_id, name, origin, created_at, updated_at) VALUES (?,?,?,?,?)",
+                               (key, name, "manual", now, now))
             fid = cur.lastrowid
-            fighter_ids[ext or f"manual-fighter:{P.name_key(name)}"] = fid
+            fighter_ids[key] = fid
             summary["fighters_new"] += 1
             flag_issue(conn, "fighter", fid, "no_history",
                        f"'{name}' is not in the historical database: no UFC statistics (debut or unmatched name)",
@@ -163,43 +189,51 @@ def ingest_bundle(conn: sqlite3.Connection, bundle: Bundle, *, reconcile_cards: 
         if red == blue:
             flag_issue(conn, "fight", f.external_id, "self_fight", "both corners resolve to one fighter", "error")
             continue
-        if f.external_id in fight_ids:
-            fid = fight_ids[f.external_id]
-            conn.execute(
-                """UPDATE fights SET weight_class=COALESCE(?, weight_class), is_title=?, scheduled_rounds=COALESCE(?,
-                   scheduled_rounds), card_segment=CASE WHEN ?='unknown' THEN card_segment ELSE ? END,
-                   bout_order=COALESCE(?, bout_order), short_notice_red=COALESCE(?, short_notice_red),
-                   short_notice_blue=COALESCE(?, short_notice_blue), weight_miss_red=COALESCE(?, weight_miss_red),
-                   weight_miss_blue=COALESCE(?, weight_miss_blue), updated_at=? WHERE id=?""",
-                (f.weight_class, int(f.is_title), f.scheduled_rounds, f.card_segment, f.card_segment, f.bout_order,
-                 _b(f.short_notice_red), _b(f.short_notice_blue), _b(f.weight_miss_red), _b(f.weight_miss_blue),
-                 now, fid))
-            if f.canceled:
-                conn.execute("UPDATE fights SET status='canceled', updated_at=? WHERE id=? AND status='scheduled'",
-                             (now, fid))
-        else:
-            dup = conn.execute(
-                """SELECT id FROM fights WHERE event_id=? AND ((red_fighter_id=? AND blue_fighter_id=?) OR
-                   (red_fighter_id=? AND blue_fighter_id=?))""", (ev_id, red, blue, blue, red)).fetchone()
-            if dup:
-                flag_issue(conn, "fight", f.external_id, "duplicate_fight",
-                           f"same pairing already stored as fight #{dup['id']}; skipped", "warning")
-                summary["duplicates_skipped"] += 1
-                card_by_event.setdefault(ev_id, []).append(dup["id"])
-                continue
-            cur = conn.execute(
-                """INSERT INTO fights(external_id, event_id, red_fighter_id, blue_fighter_id, weight_class, is_title,
-                   is_women, scheduled_rounds, time_format, card_segment, bout_order, status, short_notice_red,
-                   short_notice_blue, weight_miss_red, weight_miss_blue, origin, source_id, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (f.external_id, ev_id, red, blue, f.weight_class, int(f.is_title), int(f.is_women), f.scheduled_rounds,
-                 f.time_format, f.card_segment, f.bout_order, "canceled" if f.canceled else "scheduled",
-                 _b(f.short_notice_red), _b(f.short_notice_blue), _b(f.weight_miss_red), _b(f.weight_miss_blue),
-                 "manual" if bundle.provider == "manual" else "provider", src_id, now, now))
-            fid = cur.lastrowid
-            fight_ids[f.external_id] = fid
-            summary["fights_new"] += 1
-        card_by_event.setdefault(ev_id, []).append(fid)
+        old = fight_rows.get(f.external_id)
+        if old is not None:
+            vals = (f.weight_class, int(f.is_title), f.scheduled_rounds, f.card_segment, f.bout_order,
+                    _b(f.short_notice_red), _b(f.short_notice_blue), _b(f.weight_miss_red), _b(f.weight_miss_blue))
+            merged = tuple(
+                vals[i] if (c == "is_title" or (c == "card_segment" and vals[i] != "unknown")
+                            or (c not in ("is_title", "card_segment") and vals[i] is not None)) else old[c]
+                for i, c in enumerate(FUPD))
+            if merged != tuple(old[c] for c in FUPD):
+                upd.append((*merged, now, old["id"]))
+            if f.canceled and old["status"] == "scheduled":
+                cancel.append((now, old["id"]))
+            card_by_event.setdefault(ev_id, []).append(old["id"])
+            continue
+        key = (ev_id, frozenset((red, blue)))
+        if key in pairs:
+            dup = pairs[key]
+            flag_issue(conn, "fight", f.external_id, "duplicate_fight",
+                       f"same pairing already stored{'' if dup is None else f' as fight #{dup}'}; skipped", "warning")
+            summary["duplicates_skipped"] += 1
+            if dup is not None:
+                card_by_event.setdefault(ev_id, []).append(dup)
+            continue
+        pairs[key] = None
+        ins.append((f.external_id, ev_id, red, blue, f.weight_class, int(f.is_title), int(f.is_women), f.scheduled_rounds,
+                    f.time_format, f.card_segment, f.bout_order, "canceled" if f.canceled else "scheduled",
+                    _b(f.short_notice_red), _b(f.short_notice_blue), _b(f.weight_miss_red), _b(f.weight_miss_blue),
+                    origin, src_id, now, now))
+        card_by_event.setdefault(ev_id, []).append(f.external_id)
+    if ins:
+        conn.executemany(
+            """INSERT INTO fights(external_id, event_id, red_fighter_id, blue_fighter_id, weight_class, is_title,
+               is_women, scheduled_rounds, time_format, card_segment, bout_order, status, short_notice_red,
+               short_notice_blue, weight_miss_red, weight_miss_blue, origin, source_id, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", ins)
+        summary["fights_new"] += len(ins)
+    if upd:
+        conn.executemany(f"UPDATE fights SET {', '.join(c + '=?' for c in FUPD)}, updated_at=? WHERE id=?", upd)
+    if cancel:
+        conn.executemany("UPDATE fights SET status='canceled', updated_at=? WHERE id=?", cancel)
+    fights = {r["external_id"]: r for r in conn.execute(
+        "SELECT id, external_id, red_fighter_id, blue_fighter_id, scheduled_rounds FROM fights")}
+    fight_ids = {k: r["id"] for k, r in fights.items()}
+    for ev_id in card_by_event:
+        card_by_event[ev_id] = [fight_ids[x] if isinstance(x, str) else x for x in card_by_event[ev_id]]
 
     if reconcile_cards:
         for ev_id, current in card_by_event.items():
@@ -207,30 +241,58 @@ def ingest_bundle(conn: sqlite3.Connection, bundle: Bundle, *, reconcile_cards: 
             summary["canceled"] += summary_c["canceled"]
             summary["replaced"] += summary_c["replaced"]
 
-    # Results
+    # Results — new results in one batch; a changed result becomes a new revision via record_result
+    latest = {r["fight_id"]: r for r in conn.execute(
+        """SELECT r.fight_id, r.outcome, r.winner_fighter_id, r.method, r.end_round, r.end_time_sec FROM fight_results r
+           JOIN (SELECT fight_id, MAX(revision) rv FROM fight_results GROUP BY fight_id) m
+           ON m.fight_id=r.fight_id AND m.rv=r.revision""")}
+    ins, done = [], []
     for r in bundle.results:
-        fid = fight_ids.get(r.fight_external_id)
-        if fid is None:
+        fight = fights.get(r.fight_external_id)
+        if fight is None:
             continue
-        fight = conn.execute("SELECT red_fighter_id, blue_fighter_id, scheduled_rounds FROM fights WHERE id=?",
-                             (fid,)).fetchone()
+        fid = fight["id"]
         winner = fight["red_fighter_id"] if r.winner_corner == "red" else \
             fight["blue_fighter_id"] if r.winner_corner == "blue" else None
+        if r.outcome != "win":
+            winner = None
+        prev = latest.get(fid)
+        if prev is None:
+            sched = fight["scheduled_rounds"]
+            if r.end_round is not None and sched and r.end_round > sched:
+                flag_issue(conn, "fight", fid, "invalid_result", f"end round {r.end_round} > scheduled {sched}", "error")
+                continue
+            total = (r.end_round - 1) * 300 + r.end_time_sec \
+                if (r.end_round is not None and r.end_time_sec is not None and sched) else None
+            ins.append((fid, 1, r.outcome, winner, r.method, r.method_detail, r.end_round, r.end_time_sec, total,
+                        r.referee, r.details, r.reason or "initial official result", origin, src_id, r.source_url, now))
+            done.append((now, fid))
+            continue
+        if (prev["outcome"], prev["winner_fighter_id"], prev["method"], prev["end_round"], prev["end_time_sec"]) == \
+                (r.outcome, winner, r.method, r.end_round, r.end_time_sec):
+            continue
         res = record_result(conn, fid, r.outcome, winner, r.method, r.method_detail, r.end_round, r.end_time_sec,
                             referee=r.referee, details=r.details, source_url=r.source_url, source_id=src_id,
-                            origin="manual" if bundle.provider == "manual" else "provider", reason=r.reason)
-        if res == "new":
-            summary["results_new"] += 1
-        elif res == "revised":
+                            origin=origin, reason=r.reason)
+        if res == "revised":
             summary["results_revised"] += 1
+    if ins:
+        conn.executemany(
+            """INSERT INTO fight_results(fight_id, revision, outcome, winner_fighter_id, method, method_detail, end_round,
+               end_time_sec, total_time_sec, referee, details, reason, origin, source_id, source_url, recorded_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", ins)
+        conn.executemany("UPDATE fights SET status='completed', updated_at=? WHERE id=? "
+                         "AND status IN ('scheduled','completed')", done)
+        summary["results_new"] += len(ins)
 
-    # Stats
+    # Stats — written for fights that have none yet (per-round stats are not revised at source)
+    have = {r[0] for r in conn.execute("SELECT DISTINCT fight_id FROM fight_stats")}
     rows = []
     for s in bundle.stats:
-        fid = fight_ids.get(s.fight_external_id)
-        if fid is None:
+        fight = fights.get(s.fight_external_id)
+        if fight is None or fight["id"] in have:
             continue
-        fight = conn.execute("SELECT red_fighter_id, blue_fighter_id FROM fights WHERE id=?", (fid,)).fetchone()
+        fid = fight["id"]
         fighter = fight["red_fighter_id"] if s.corner == "red" else fight["blue_fighter_id"]
         st = dict(s.stats)
         problems = _validate_stats(st)
@@ -239,8 +301,10 @@ def ingest_bundle(conn: sqlite3.Connection, bundle: Bundle, *, reconcile_cards: 
                        "; ".join(problems) + " — values discarded", "warning")
         rows.append((fid, fighter, s.round, *[st.get(k) for k in STAT_KEYS]))
     if rows:
-        conn.executemany(f"INSERT OR REPLACE INTO fight_stats(fight_id, fighter_id, round, {', '.join(STAT_KEYS)}) "
-                         f"VALUES ({', '.join('?' * (3 + len(STAT_KEYS)))})", rows)
+        conn.executemany(
+            f"INSERT INTO fight_stats(fight_id, fighter_id, round, {', '.join(STAT_KEYS)}) "
+            f"VALUES ({', '.join('?' * (3 + len(STAT_KEYS)))}) ON CONFLICT(fight_id, fighter_id, round) DO UPDATE SET "
+            + ", ".join(f"{k}=excluded.{k}" for k in STAT_KEYS), rows)
         summary["stats_rows"] = len(rows)
 
     for ent, ent_id, kind, msg, sev in bundle.issues:

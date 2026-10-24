@@ -18,8 +18,8 @@ _robots: dict[str, urllib.robotparser.RobotFileParser | None] = {}
 
 
 def cache_dir() -> Path:
-    from ..db import default_db_path
-    p = Path(default_db_path()).parent / "cache"
+    from ..db import data_dir
+    p = data_dir() / "cache"
     p.mkdir(parents=True, exist_ok=True)
     return p
 

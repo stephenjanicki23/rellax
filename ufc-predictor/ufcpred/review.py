@@ -164,8 +164,8 @@ def diagnose(conn, evaluation_id: int, p, payload: dict, res, details: dict) -> 
         "q7_recurring_pattern": "evaluated by the learning loop's segment analysis (Learning Center)",
         "q8_justified_change": "none from this fight alone; changes require out-of-sample evidence across events",
     }
-    conn.execute("INSERT OR IGNORE INTO error_diagnostics(evaluation_id, prediction_id, category, report_json, "
-                 "created_at) VALUES (?,?,?,?,?)", (evaluation_id, p["id"], category, dumps(report), utcnow()))
+    conn.execute("INSERT INTO error_diagnostics(evaluation_id, prediction_id, category, report_json, "
+                 "created_at) VALUES (?,?,?,?,?) ON CONFLICT(evaluation_id) DO NOTHING", (evaluation_id, p["id"], category, dumps(report), utcnow()))
 
 
 def regrade_after_correction(conn, fight_id: int, mode: str) -> dict:

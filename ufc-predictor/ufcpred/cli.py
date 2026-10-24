@@ -43,6 +43,8 @@ def main(argv=None):
     rb.add_argument("--reason", default="manual rollback (CLI)")
     sub.add_parser("tick", help="run every due lifecycle step once (cron-friendly)")
     sub.add_parser("backup")
+    ex = sub.add_parser("export", help="portable gzipped-JSON export of every table (restore with `restore FILE`)")
+    ex.add_argument("file")
     rs = sub.add_parser("restore")
     rs.add_argument("file")
     sub.add_parser("verify", help="verify ledger hash chain")
@@ -119,6 +121,8 @@ def main(argv=None):
         out = rollback(conn, a.version_id, actor="cli", reason=a.reason)
     elif a.cmd == "tick":
         out = lifecycle.tick(conn)
+    elif a.cmd == "export":
+        out = {"export": db.export_json(conn, a.file)}
     elif a.cmd == "backup":
         out = {"backup": db.backup(conn)}
     elif a.cmd == "verify":
