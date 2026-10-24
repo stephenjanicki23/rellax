@@ -39,7 +39,7 @@ h1 { font-size: 22px; margin: 4px 0 4px; } h2 { font-size: 16px; margin: 0 0 10p
 .g2 { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
 .g3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .g4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; overflow-x: auto; }
 .stat .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .stat .l { color: var(--text-secondary); font-size: 12px; }
 .stat .d { color: var(--text-muted); font-size: 12px; }
@@ -96,9 +96,11 @@ input, select, textarea { font: inherit; padding: 5px 8px; border-radius: 6px; b
   background: var(--surface-1); color: var(--text-primary); max-width: 100%; }
 pre { background: var(--surface-2); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; }
 details summary { cursor: pointer; color: var(--text-secondary); }
-.kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 13px; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; font-size: 13px; }
+.kv dd { margin: 0; overflow-wrap: anywhere; } code { overflow-wrap: anywhere; }
 .kv dt { color: var(--text-secondary); }
 @media (max-width: 720px) {
+  header.top { position: static; } .kv { grid-template-columns: 1fr; } .kv dt { margin-top: 4px; }
   .fight { grid-template-columns: 1fr; } .fight .side.b { text-align: left; }
   .hb-row { grid-template-columns: 100px 1fr 50px; }
   .g2, .g3 { grid-template-columns: 1fr; }

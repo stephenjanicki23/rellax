@@ -47,6 +47,9 @@ def main(argv=None):
     rs.add_argument("file")
     sub.add_parser("verify", help="verify ledger hash chain")
     sub.add_parser("status")
+    rpt = sub.add_parser("report", help="write a Markdown performance/learning report from the database")
+    rpt.add_argument("--mode", default="replay")
+    rpt.add_argument("--out")
     sv = sub.add_parser("serve")
     sv.add_argument("--host", default="127.0.0.1")
     sv.add_argument("--port", type=int, default=8000)
@@ -120,6 +123,15 @@ def main(argv=None):
         out = {"backup": db.backup(conn)}
     elif a.cmd == "verify":
         out = ledger.verify(conn)
+    elif a.cmd == "report":
+        from .report import build
+        text = build(conn, a.mode)
+        if a.out:
+            open(a.out, "w", encoding="utf-8").write(text)
+            out = {"written": a.out}
+        else:
+            print(text)
+            return
     elif a.cmd == "status":
         from . import services
         out = services.counts(conn)
