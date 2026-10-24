@@ -43,10 +43,23 @@ def on_vercel() -> bool:
 def database_url() -> str | None:
     """Postgres URL if configured. Vercel's Neon integration injects DATABASE_URL / POSTGRES_URL."""
     for k in ("UFCPRED_DATABASE_URL", "DATABASE_URL", "POSTGRES_URL"):
-        v = os.environ.get(k)
-        if v and v.startswith(("postgres://", "postgresql://")):
+        v = (os.environ.get(k) or "").strip()
+        if v.startswith(("postgres://", "postgresql://")):
             return v
     return None
+
+
+def _check_url(url: str) -> None:
+    """Reject malformed URLs without echoing them: connection strings carry the password."""
+    from urllib.parse import urlsplit
+    try:
+        host = urlsplit(url).hostname or ""
+    except ValueError:
+        host = ""
+    if not host or any(c.isspace() for c in url) or ("." not in host and host != "localhost"):
+        raise RuntimeError("DATABASE_URL is not a complete Postgres connection string. It must look like "
+                           "postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require (copy the whole string from "
+                           "Neon → Connect). The value is not shown here because it contains the password.")
 
 
 def default_db_path() -> str:
@@ -149,7 +162,14 @@ class PgConnection:
     def __init__(self, url: str):
         if psycopg is None:
             raise RuntimeError("DATABASE_URL points at Postgres but psycopg is not installed (pip install 'psycopg[binary]')")
-        self._c = psycopg.connect(url, autocommit=False, row_factory=_row_factory, prepare_threshold=None)
+        if "host=" not in url:          # keyword-style host= URLs (local sockets) are trusted as given
+            _check_url(url)
+        try:
+            self._c = psycopg.connect(url, autocommit=False, row_factory=_row_factory, prepare_threshold=None)
+        except psycopg.OperationalError as e:
+            # psycopg messages can quote parts of the connection string; report only the error class
+            raise RuntimeError(f"could not connect to Postgres ({type(e).__name__}); check DATABASE_URL, the "
+                               "database's status in Neon, and its allowed IPs") from None
         self.url = url
 
     def execute(self, sql, params=()):
