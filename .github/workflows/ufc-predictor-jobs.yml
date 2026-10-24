@@ -41,6 +41,7 @@ jobs:
     steps:
       - name: Check configuration
         id: cfg
+        working-directory: .        # runs before checkout, when ufc-predictor/ does not exist yet
         run: |
           if [ -z "$DATABASE_URL" ]; then
             if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
