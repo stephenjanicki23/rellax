@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Settings</h1>
+{% if msg %}<div class="banner info">{{ msg }}</div>{% endif %}
+<div class="grid g2">
+<div class="card"><h2>Data providers &amp; credentials</h2>
+<dl class="kv small">
+<dt>Historical statistics</dt><dd>UFCStats CSV mirror — <code>{{ values['providers.ufcstats_mirror.base_url'] }}</code></dd>
+<dt>Upcoming cards</dt><dd><b>{{ values['providers.upcoming'] }}</b>{% if values['providers.upcoming'] == 'manual' %} — import below{% else %} — ufcstats.com (HTTP; respects robots.txt){% endif %}</dd>
+<dt>Odds</dt><dd><b>{{ values['providers.odds'] }}</b> · ODDS_API_KEY {{ 'set' if env.ODDS_API_KEY else 'not set' }}</dd>
+<dt>AI analyst</dt><dd><b>{{ values['analyst.provider'] }}</b> · ANTHROPIC_API_KEY {{ 'set' if env.ANTHROPIC_API_KEY else 'not set' }}</dd>
+<dt>Database</dt><dd><b>{{ backend }}</b> · <code>{{ env.database }}</code>{% if on_vercel and backend == 'sqlite' %} <span class="status bad">ephemeral — set DATABASE_URL (Neon) in the Vercel project</span>{% endif %}</dd>
+<dt>Hosting</dt><dd>{% if on_vercel %}Vercel · refresh, lifecycle tick, learning loop, replay and backups run in the <b>UFC Predictor jobs</b> GitHub Actions workflow · admin token {{ 'set' if token_configured else 'NOT set — writes disabled' }}{% else %}local{% endif %}</dd></dl>
+<h3>Manual imports (validated; a file with any invalid row is rejected whole)</h3>
+{% for kind, help in [('card','Upcoming card — templates/import/card_template.json or .csv'),('results','Official results — results_template.csv'),('odds','Betting odds — odds_template.csv'),('corrections','Verified fighter corrections — corrections_template.csv')] %}
+<form method="post" action="/import/{{ kind }}" enctype="multipart/form-data" style="margin:6px 0"><span class="small">{{ help }}</span><br>
+<input type="file" name="file" accept=".json,.csv" required> <button>Import {{ kind }}</button></form>{% endfor %}
+</div>
+<div class="card"><h2>Lifecycle actions</h2>
+<form class="inline" method="post" action="/actions/refresh_history"><button>Refresh historical data</button></form>
+<form class="inline" method="post" action="/actions/refresh_upcoming"><button>Refresh upcoming card</button></form>
+<form class="inline" method="post" action="/actions/tick"><button>Run full lifecycle tick</button></form>
+<h3>Upcoming events</h3>
+{% for e in upcoming %}<div class="small" style="margin:6px 0"><b>{{ e.name }}</b> {{ e.date }} — {{ e.status }}
+<form class="inline" method="post" action="/actions/predict"><input type="hidden" name="event_id" value="{{ e.id }}"><input name="reason" placeholder="reason (required after lock)" size="22"> <button>Predict</button></form>
+<form class="inline" method="post" action="/actions/lock" onsubmit="return confirm('Lock predictions for {{ e.name }}? This is permanent.')"><input type="hidden" name="event_id" value="{{ e.id }}"><button>Lock now</button></form>
+<form class="inline" method="post" action="/actions/evaluate"><input type="hidden" name="event_id" value="{{ e.id }}"><button>Evaluate</button></form></div>
+{% else %}<p class="small muted">No scheduled events.</p>{% endfor %}
+<h3>Backups</h3>
+<form class="inline" method="post" action="/actions/backup"><button>Create backup now</button></form>
+<ul class="small">{% for b in backups[:8] %}<li><code>{{ b }}</code></li>{% else %}<li class="muted">No backups yet.</li>{% endfor %}</ul>
+<p class="small muted">{% if backend == 'postgres' %}Postgres: backups are gzipped JSON exports (the jobs workflow keeps them as artifacts); Neon's point-in-time restore is the first line of recovery. Restore an export with <code>python -m ufcpred restore &lt;file&gt;</code> into an empty database.{% else %}Restore: stop the app, then <code>python -m ufcpred restore &lt;file&gt;</code> (verifies integrity first and keeps the current file aside).{% endif %}</p>
+</div>
+</div>
+<form method="post" action="/settings" class="card" style="margin-top:14px"><h2>Thresholds, schedules &amp; providers</h2>
+<div class="grid g3">{% for k, d in defaults.items() %}<label class="small">{{ k }}<br>
+{% if d is sameas true or d is sameas false %}<input type="checkbox" name="{{ k }}" {{ 'checked' if values[k] }}>
+{% elif k == 'promotion.mode' %}<select name="{{ k }}">{% for o in ['auto','manual'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
+{% elif k == 'providers.upcoming' %}<select name="{{ k }}">{% for o in ['manual','ufcstats_live'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
+{% elif k == 'providers.odds' %}<select name="{{ k }}">{% for o in ['none','manual','the_odds_api'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
+{% elif k == 'analyst.provider' %}<select name="{{ k }}">{% for o in ['deterministic','anthropic'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
+{% else %}<input name="{{ k }}" value="{{ values[k] }}" size="28">{% endif %}
+<span class="muted">(default {{ d }})</span></label>{% endfor %}</div>
+<p><button class="primary">Save settings</button></p>
+<p class="small muted">Scheduling: enable the in-process scheduler above, or run <code>python -m ufcpred tick</code> from cron (recommended), e.g. <code>17 * * * * cd ufc-predictor &amp;&amp; python -m ufcpred tick</code>.</p>
+</form>
+<div class="card scroll" style="margin-top:14px"><h2>Audit log</h2><table class="small"><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr>
+{% for a in audit %}<tr><td>{{ a.ts }}</td><td>{{ a.actor }}</td><td>{{ a.action }}</td><td>{{ a.entity }} {{ a.entity_id or '' }}</td><td>{{ (a.details_json or '')[:160] }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

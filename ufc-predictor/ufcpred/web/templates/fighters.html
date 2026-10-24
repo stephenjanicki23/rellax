@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Fighters</h1>
+<form method="get" style="margin-bottom:12px"><input name="q" value="{{ q }}" placeholder="Search name" autofocus> <button>Search</button></form>
+<div class="card scroll"><table><tr><th>Name</th><th>Stance</th><th class="num">Height</th><th class="num">Reach</th><th>DOB</th><th class="num">Bouts</th><th>Source</th></tr>
+{% for f in rows %}<tr><td><a href="/fighter/{{ f.id }}">{{ f.name }}</a>{% if f.nickname %} <span class="muted small">“{{ f.nickname }}”</span>{% endif %}</td>
+<td>{{ f.stance or '—' }}</td><td class="num">{{ f.height_in or '—' }}</td><td class="num">{{ f.reach_in or '—' }}</td><td>{{ f.dob or '—' }}</td><td class="num">{{ f.n }}</td><td>{{ f.origin }}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No fighters found.</td></tr>{% endfor %}</table></div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Fight cards</h1>
+<div class="card scroll"><table>
+<tr><th>Date</th><th>Event</th><th>Location</th><th class="num">Bouts</th><th>Status</th><th>Locked predictions</th></tr>
+{% for e in events %}<tr><td>{{ e.date }}</td><td><a href="/event/{{ e.id }}">{{ e.name }}</a></td><td>{{ e.location or '—' }}</td>
+<td class="num">{{ e.n_fights }}</td><td>{{ e.status }}</td><td>{{ 'yes' if e.n_locks else '—' }}</td></tr>{% endfor %}
+</table>
+<p><a href="?page={{ page_no + 1 }}">older →</a>{% if page_no %} · <a href="?page={{ page_no - 1 }}">← newer</a>{% endif %}</p></div>
+{% endblock %}

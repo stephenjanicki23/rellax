@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Learning Center</h1>
+<div class="sub">Weaknesses are hypotheses until they pass a false-discovery-controlled test; model changes are adopted only after a paired, chronological out-of-sample comparison. Promotion mode: <b>{{ promotion_mode }}</b>.</div>
+
+<div class="grid g2">
+<div class="card"><h2>Identified weaknesses (latest analysis)</h2>
+<div class="scroll"><table class="small"><tr><th>Hypothesis</th><th class="num">n</th><th class="num">Bias</th><th class="num">95% CI</th><th class="num">q</th><th>Status</th></tr>
+{% for h in hyps %}<tr><td>{{ h.description }}</td><td class="num">{{ h.n }}</td><td class="num">{{ '%+.1f%%' % (h.effect * 100) if h.effect is not none else '—' }}</td>
+<td class="num">{% if h.ci_low is not none %}{{ '%+.1f' % (h.ci_low * 100) }}…{{ '%+.1f' % (h.ci_high * 100) }}{% endif %}</td><td class="num">{{ h.q_value | f(3) }}</td>
+<td><span class="status {{ 'warn' if h.status == 'supported' else 'info' }}">{{ h.status | replace('_', ' ') }}</span></td></tr>
+{% else %}<tr><td colspan="6" class="muted">No analysis yet.</td></tr>{% endfor %}</table></div>
+<p class="small muted">Bias = actual minus predicted win rate for the segment's side (positive = model under-rates them). Supported requires n ≥ the configured minimum and Benjamini–Hochberg q ≤ the configured level.</p>
+</div>
+<div class="card"><h2>Model versions</h2>
+<div class="scroll"><table class="small"><tr><th>Version</th><th>Status</th><th>Cutoff</th><th class="num">n</th><th>Notes</th><th></th></tr>
+{% for v in versions %}<tr><td>{{ v.label }}</td><td>{{ v.status }}</td><td>{{ v.training_cutoff }}</td><td class="num">{{ v.n_train }}</td><td>{{ (v.notes or '')[:70] }}</td>
+<td>{% if v.status in ('retired','candidate') %}<form class="inline" method="post" action="/models/rollback/{{ v.id }}" onsubmit="return confirm('Activate {{ v.label }}?')"><button>{{ 'roll back to' if v.status == 'retired' else 'activate' }}</button></form>{% endif %}</td></tr>{% endfor %}</table></div>
+<form method="post" action="/learning/run" style="margin-top:8px"><select name="mode"><option>live</option><option>replay</option></select>
+<label class="small"><input type="checkbox" name="force" value="true"> force retrain</label> <button>Run learning loop now</button></form>
+</div>
+</div>
+
+<div class="card" style="margin-top:14px"><h2>Experiments (candidate changes)</h2>
+<div class="scroll"><table class="small"><tr><th>As of</th><th>Change</th><th>Motivation</th><th>Result</th><th>Status</th></tr>
+{% for c in cands %}{% set r = c.result_json | loads %}<tr><td>{{ c.as_of }}</td><td>{{ c.description }}</td><td>{{ c.hypothesis_key or 'routine experiment' }}</td>
+<td>{% if r.paired %}Δlog loss {{ '%+.4f' % r.paired.mean_delta }} · P(better) {{ r.paired.p_candidate_better | pct }} · n={{ r.paired.n }} / {{ r.paired.n_events }} events
+<details><summary>criteria</summary>{% for k in r.criteria %}<div><span class="status {{ 'good' if k.passed else 'bad' }}">{{ k.criterion }}</span> <span class="muted">{{ k.value }}</span></div>{% endfor %}</details>{% endif %}</td>
+<td>{{ c.status }}{% if c.status == 'pending_approval' %}<form class="inline" method="post" action="/learning/approve/{{ c.id }}"><button class="primary">approve</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No experiments yet.</td></tr>{% endfor %}</table></div></div>
+
+<div class="card" style="margin-top:14px"><h2>Promotion decisions (append-only)</h2>
+<div class="scroll"><table class="small"><tr><th>When</th><th>Decision</th><th>Incumbent → candidate</th><th>Reason</th><th>By</th></tr>
+{% for d in decisions %}<tr><td>{{ d.decided_at }}</td><td><b>{{ d.decision }}</b></td><td>{{ d.inc_label or '—' }} → {{ d.cand_label or '—' }}</td><td>{{ d.reason }}</td><td>{{ d.decided_by }}</td></tr>{% endfor %}</table></div></div>
+
+<div class="card" style="margin-top:14px"><h2>Learning runs</h2>
+<div class="scroll"><table class="small"><tr><th>#</th><th>Mode</th><th>As of</th><th>New fights</th><th>Decision</th><th>Supported weaknesses</th></tr>
+{% for r in runs %}{% set s = r.summary_json | loads %}<tr><td>{{ r.id }}</td><td>{{ r.mode }}</td><td>{{ r.as_of }}</td><td>{{ s.new_fights_since_training }}</td><td>{{ s.decision }}{% if s.action %} <span class="muted">({{ s.action }})</span>{% endif %}</td><td>{{ (s.hypotheses_supported or []) | join(', ') or '—' }}</td></tr>{% endfor %}</table></div></div>
+
+{% if report %}{% set s = report.structured_json | loads %}
+<div class="card" style="margin-top:14px"><h2>Latest analyst report ({{ report.provider }}) <span class="tag estimate">narrative</span></h2>
+<p class="small muted">{{ s.caveat }} {{ s.analyst_note or '' }}</p>
+{% for fnd in s.findings %}<dl class="kv small" style="margin-bottom:10px">{% for k in ['observed_error','supporting_evidence','proposed_explanation','confidence_in_explanation','proposed_change','historical_support','experiment_required','experiment_result','promotion_decision'] %}<dt>{{ k | replace('_',' ') }}</dt><dd>{% if fnd[k] is string %}{{ fnd[k] }}{% else %}{{ fnd[k] | join('; ') }}{% endif %}</dd>{% endfor %}</dl>
+{% else %}<p class="small">No supported weakness. Routine experiments:</p><ul class="small">{% for x in s.routine_experiments %}<li>{{ x.description }} — {{ x.experiment_result }} → {{ x.promotion_decision }}</li>{% endfor %}</ul>{% endfor %}
+</div>{% endif %}
+{% endblock %}

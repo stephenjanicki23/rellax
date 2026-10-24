@@ -1,0 +1,18 @@
+{
+  "_comment": "Fill from a verified source (ufc.com event page or the promotion's official announcement). source_url is required. scheduled_rounds must be 3 or 5. Leave short_notice/weight_miss empty (null) when undocumented — the engine treats null as unknown, never as 'no'.",
+  "event": {
+    "name": "UFC Fight Night: Fighter A vs. Fighter B",
+    "date": "YYYY-MM-DD",
+    "venue": "Arena name",
+    "location": "City, Region, Country",
+    "start_time_utc": "YYYY-MM-DDTHH:MM:SSZ (optional; earliest bout start)",
+    "source_url": "https://www.ufc.com/event/..."
+  },
+  "fights": [
+    {"bout_order": 1, "card_segment": "main", "red": "Fighter A", "blue": "Fighter B", "weight_class": "Lightweight",
+     "scheduled_rounds": 5, "title_fight": false, "short_notice_red": null, "short_notice_blue": null,
+     "weight_miss_red": null, "weight_miss_blue": null},
+    {"bout_order": 2, "card_segment": "main", "red": "Fighter C", "blue": "Fighter D", "weight_class": "Women's Strawweight",
+     "scheduled_rounds": 3}
+  ]
+}

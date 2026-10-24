@@ -1,0 +1,60 @@
+{% extends "base.html" %}{% from "macros.html" import modetag %}
+{% block body %}
+<h1>Model performance {{ modetag(mode) }}</h1>
+<div class="sub">Graded locked predictions only, each scored against the latest official result revision. <a href="?mode={{ 'live' if mode == 'replay' else 'replay' }}">Show {{ 'live' if mode == 'replay' else 'replay' }}</a></div>
+{% if not perf.n %}<div class="banner warn">No graded predictions in {{ mode }} mode.</div>{% else %}
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card stat"><div class="l">Winner accuracy (n={{ perf.n }})</div><div class="v">{{ perf.accuracy | pct(1) }}</div><div class="d">95% CI {{ perf.accuracy_ci[0] | pct(1) }}–{{ perf.accuracy_ci[1] | pct(1) }}</div></div>
+  <div class="card stat"><div class="l">Log loss</div><div class="v">{{ perf.log_loss | f(4) }}</div><div class="d">95% CI {{ perf.log_loss_ci[0] | f(3) }}–{{ perf.log_loss_ci[1] | f(3) }} (event bootstrap)</div></div>
+  <div class="card stat"><div class="l">Brier score</div><div class="v">{{ perf.brier | f(4) }}</div><div class="d">95% CI {{ perf.brier_ci[0] | f(3) }}–{{ perf.brier_ci[1] | f(3) }}</div></div>
+  <div class="card stat"><div class="l">Expected calibration error</div><div class="v">{{ perf.ece | pct(1) }}</div><div class="d">5 equal bins on predicted-winner probability</div></div>
+</div>
+<div class="grid g2">
+<div class="card"><h2>Calibration</h2>{{ charts.calibration(perf.calibration) | safe }}
+<p class="small muted">Dashed line = perfect calibration. Bars = 95% Wilson intervals. Hover a point for its numbers.</p>
+<table class="small"><tr><th>Stated band</th><th class="num">n</th><th class="num">Mean stated</th><th class="num">Observed</th><th class="num">95% CI</th></tr>
+{% for b in perf.calibration %}<tr><td>{{ b.bin }}</td><td class="num">{{ b.n }}</td><td class="num">{{ b.mean_conf | pct(1) }}</td><td class="num">{{ b.accuracy | pct(1) }}</td><td class="num">{% if b.n %}{{ b.ci_low | pct }}–{{ b.ci_high | pct }}{% endif %}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Rolling accuracy (last 50 fights)</h2>{{ charts.line(perf.series, 'acc50', 'Accuracy', '{:.0%}', 0.5, 'coin flip', lo=0.3, hi=0.9) | safe }}
+<h2 style="margin-top:12px">Rolling log loss (last 50 fights)</h2>{{ charts.line(perf.series, 'll50', 'Log loss', '{:.3f}', 0.6931, 'coin flip 0.693') | safe }}
+<table class="small"><tr><th>Window</th><th class="num">Accuracy</th><th class="num">95% CI</th><th class="num">Log loss</th></tr>
+{% for w in perf.windows %}<tr><td>Last {{ w.n }}</td>{% if w.accuracy is not none %}<td class="num">{{ w.accuracy | pct(1) }}</td><td class="num">{{ w.ci[0] | pct }}–{{ w.ci[1] | pct }}</td><td class="num">{{ w.log_loss | f(3) }}</td>{% else %}<td colspan="3" class="muted">{{ w.note }}</td>{% endif %}</tr>{% endfor %}</table></div>
+</div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h2>Baselines (identical fights)</h2>
+<table><tr><th>Model</th><th class="num">Log loss</th><th class="num">Brier</th><th class="num">Accuracy</th></tr>
+<tr><td><b>This engine</b></td><td class="num"><b>{{ perf.log_loss | f(4) }}</b></td><td class="num">{{ perf.brier | f(4) }}</td><td class="num">{{ perf.accuracy | pct(1) }}</td></tr>
+{% for name, b in perf.baselines.items() %}{% if b %}<tr><td>{{ name }}</td><td class="num">{{ b.log_loss | f(4) }}</td><td class="num">{{ b.brier | f(4) }}</td><td class="num">{{ b.accuracy | pct(1) }}</td></tr>{% endif %}{% endfor %}
+{% if perf.market %}<tr><td>Betting market (n={{ perf.market.n }})</td><td class="num">{{ perf.market.market_log_loss | f(4) }}</td><td></td><td class="num">{{ perf.market.market_accuracy | pct(1) }}</td></tr>
+<tr><td>This engine on the same {{ perf.market.n }}</td><td class="num">{{ perf.market.model_log_loss | f(4) }}</td><td></td><td class="num">{{ perf.market.model_accuracy | pct(1) }}</td></tr>
+{% else %}<tr><td>Betting market</td><td colspan="3"><span class="tag unavailable">unavailable</span> no odds imported/configured</td></tr>{% endif %}</table>
+<h3>Previous deployed model</h3>
+{% if comparison %}<p class="small">Latest paired comparison (same folds, same fights): <i>{{ comparison.description }}</i> → <b>{{ comparison.decision }}</b>.<br>
+Incumbent log loss {{ comparison.incumbent.log_loss | f(4) }} / Brier {{ comparison.incumbent.brier | f(4) }} / ECE {{ comparison.incumbent.ece | pct(1) }};
+candidate {{ comparison.candidate.log_loss | f(4) }} / {{ comparison.candidate.brier | f(4) }} / {{ comparison.candidate.ece | pct(1) }};
+n={{ comparison.paired.n }} over {{ comparison.paired.n_events }} events, P(candidate better)={{ comparison.paired.p_candidate_better | pct }}.</p>{% else %}<p class="muted small">No comparison yet.</p>{% endif %}
+<table class="small"><tr><th>Model version (own graded period)</th><th class="num">n</th><th class="num">Accuracy</th><th class="num">Log loss</th></tr>
+{% for r in perf.by_model %}<tr><td>{{ perf.models.get(r.key, r.key) }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct(1) }}</td><td class="num">{{ r.log_loss | f(3) }}</td></tr>{% endfor %}</table>
+<p class="small muted">Per-version rows cover different fights and are not a like-for-like comparison; the paired backtest above is.</p></div>
+<div class="card"><h2>Method &amp; round</h2>
+<table><tr><th>Method</th><th class="num">Actual</th><th class="num">Predicted</th><th class="num">Recall</th><th class="num">Precision</th><th class="num">Winner + method</th></tr>
+{% for m, v in perf.method.items() %}<tr><td>{{ m | method }}</td><td class="num">{{ v.actual }}</td><td class="num">{{ v.predicted }}</td><td class="num">{{ v.recall | pct }}</td><td class="num">{{ v.precision | pct }}</td><td class="num">{{ v.winner_and_method | pct }}</td></tr>{% endfor %}</table>
+<p class="small">8-way (corner × method) log loss {{ perf.method_mc_log_loss | f(3) }} · Brier {{ perf.method_brier | f(3) }} (uniform guess: 2.079 / 0.875) · round/decision accuracy {{ perf.round_accuracy | pct(1) }}</p>
+<h3>By confidence label</h3>
+<table class="small"><tr><th>Label</th><th class="num">n</th><th class="num">Accuracy</th><th class="num">95% CI</th><th class="num">Log loss</th></tr>
+{% for r in perf.by_confidence %}<tr><td>{{ r.key }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct(1) }}</td><td class="num">{{ r.ci[0] | pct }}–{{ r.ci[1] | pct }}</td><td class="num">{{ r.log_loss | f(3) }}</td></tr>{% endfor %}</table>
+<h3>By stated probability</h3>
+<table class="small"><tr><th>Band</th><th class="num">n</th><th class="num">Accuracy</th><th class="num">95% CI</th></tr>
+{% for r in perf.by_probability %}<tr><td>{{ r.key }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct(1) }}</td><td class="num">{{ r.ci[0] | pct }}–{{ r.ci[1] | pct }}</td></tr>{% endfor %}</table></div>
+</div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h2>By weight class</h2><table class="small"><tr><th>Class</th><th class="num">n</th><th class="num">Accuracy</th><th class="num">95% CI</th><th class="num">Log loss</th></tr>
+{% for r in perf.by_weight_class %}<tr><td>{{ r.key }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct(1) }}</td><td class="num">{{ r.ci[0] | pct }}–{{ r.ci[1] | pct }}</td><td class="num">{{ r.log_loss | f(3) }}</td></tr>{% endfor %}</table>
+<h3>By format</h3><table class="small"><tr><th>Format</th><th class="num">n</th><th class="num">Accuracy</th><th class="num">95% CI</th><th class="num">Log loss</th></tr>
+{% for r in perf.by_format %}<tr><td>{{ r.key }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct(1) }}</td><td class="num">{{ r.ci[0] | pct }}–{{ r.ci[1] | pct }}</td><td class="num">{{ r.log_loss | f(3) }}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>By event</h2><div class="scroll" style="max-height:520px;overflow-y:auto"><table class="small"><tr><th>Event</th><th class="num">n</th><th class="num">Accuracy</th><th class="num">Log loss</th></tr>
+{% for r in perf.by_event %}<tr><td><a href="/review/{{ r.key[2] }}?mode={{ mode }}">{{ r.key[0] }} {{ r.key[1] }}</a></td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct }}</td><td class="num">{{ r.log_loss | f(3) }}</td></tr>{% endfor %}</table></div></div>
+</div>
+{% endif %}
+{% endblock %}

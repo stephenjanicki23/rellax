@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% from "macros.html" import modetag %}
+{% block body %}
+{% set ev = card.event %}
+<h1>Post-event review: {{ ev.name }}</h1>
+<div class="sub">{{ ev.date }} · {{ modetag(card.mode) }} · <a href="/event/{{ ev.id }}?mode={{ card.mode }}">card</a></div>
+{% set graded = card.fights | selectattr('evaluation') | list %}
+{% set scored = graded | selectattr('evaluation.scored') | list %}
+{% if not card.lock %}<div class="banner warn">No locked predictions for this event in {{ card.mode }} mode — nothing to review.</div>
+{% elif not graded %}<div class="banner warn">Results have not been processed for this event yet. It is not evaluated.</div>{% endif %}
+{% if scored %}
+{% set correct = scored | selectattr('evaluation.correct_winner') | list | length %}
+{% set mcorrect = scored | selectattr('evaluation.method_correct') | list | length %}
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card stat"><div class="l">Winner</div><div class="v">{{ correct }}/{{ scored | length }}</div></div>
+  <div class="card stat"><div class="l">Winner + method</div><div class="v">{{ mcorrect }}/{{ scored | length }}</div></div>
+  <div class="card stat"><div class="l">Mean log loss</div><div class="v">{{ (scored | sum(attribute='evaluation.log_loss') / scored | length) | f(3) }}</div><div class="d">coin flip 0.693</div></div>
+  <div class="card stat"><div class="l">Mean Brier</div><div class="v">{{ (scored | sum(attribute='evaluation.brier') / scored | length) | f(3) }}</div><div class="d">coin flip 0.250</div></div>
+</div>
+<p class="small muted">One card is a small sample: a good or bad night here says little about the model. The learning loop only acts on patterns across many events.</p>
+{% endif %}
+<div class="card scroll"><table>
+<tr><th>Bout</th><th>Predicted</th><th>Actual</th><th class="num">P(actual winner)</th><th>Winner</th><th>Method</th><th>Round</th><th class="num">Duration</th><th class="num">Log loss</th><th>Calibration</th><th>Diagnosis</th></tr>
+{% for item in card.fights if item.prediction %}{% set p = item.payload %}{% set e = item.evaluation %}{% set r = item.result %}
+<tr><td><a href="/fight/{{ item.fight.id }}?mode={{ card.mode }}">{{ item.fight.red_name }} vs {{ item.fight.blue_name }}</a></td>
+<td>{{ p.red.name if p.predicted_winner_id == item.fight.red_fighter_id else p.blue.name }} {{ [p.p_red, p.p_blue] | max | pct }} · {{ p.predicted_method | method }}{% if p.predicted_round %} R{{ p.predicted_round }}{% endif %}</td>
+<td>{% if r and r.outcome == 'win' %}{{ item.fight.red_name if r.winner_fighter_id == item.fight.red_fighter_id else item.fight.blue_name }} · {{ r.method | method }}{% if r.end_round %} R{{ r.end_round }}{% endif %}{% elif r %}{{ r.outcome | upper }}{% else %}<span class="muted">{{ item.fight.status }}</span>{% endif %}</td>
+{% if e and e.scored %}{% set d = e.details_json | loads %}
+<td class="num">{{ e.p_actual | pct }}</td><td><span class="status {{ 'good' if e.correct_winner else 'bad' }}"></span></td>
+<td>{{ '✓' if e.method_correct else '✕' }}</td><td>{{ '✓' if e.round_correct else ('✕' if e.round_correct is not none else '—') }}</td>
+<td class="num">{{ d.fight_seconds | clock }}</td><td class="num">{{ e.log_loss | f(3) }}</td><td>{{ e.calibration_note | replace('_', ' ') }}</td>
+<td>{% set dg = diags.get(item.prediction.id) %}{% if dg %}<a href="/fight/{{ item.fight.id }}?mode={{ card.mode }}">{{ dg.category | replace('_', ' ') }}</a>{% endif %}</td>
+{% else %}<td colspan="8" class="muted">{{ 'not scored (draw/NC)' if e else 'not graded' }}</td>{% endif %}</tr>
+{% endfor %}
+</table></div>
+{% for rep in reports %}{% set s = rep.structured_json | loads %}
+<div class="card" style="margin-top:14px"><h2>Analyst report ({{ rep.provider }}) <span class="tag estimate">narrative</span></h2>
+<p class="small muted">{{ s.caveat }} {{ s.analyst_note or '' }}</p>
+{% for fnd in s.findings %}<dl class="kv small" style="margin-bottom:10px">{% for k in ['observed_error','supporting_evidence','proposed_explanation','confidence_in_explanation','proposed_change','historical_support','experiment_required','experiment_result','promotion_decision'] %}<dt>{{ k | replace('_',' ') }}</dt><dd>{% if fnd[k] is string %}{{ fnd[k] }}{% else %}{{ fnd[k] | join('; ') }}{% endif %}</dd>{% endfor %}</dl>
+{% else %}<p class="small">No statistically supported weakness at this point; {{ s.hypotheses_without_enough_data | length }} hypotheses lack enough data.</p>{% endfor %}
+</div>{% endfor %}
+{% endblock %}

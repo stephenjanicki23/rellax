@@ -1,0 +1,97 @@
+import os
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).parent))
+
+from ufcpred import db  # noqa: E402
+from ufcpred.ingest import ingest_bundle  # noqa: E402
+from synthetic import make_bundle  # noqa: E402
+
+FAST_SETTINGS = {
+    "learning.eval_window_fights": 200, "learning.backtest_fold_events": 6, "learning.min_new_fights_for_retrain": 20,
+    "learning.max_candidates": 2, "promotion.min_eval_fights": 100, "promotion.min_eval_events": 8,
+    "promotion.bootstrap_samples": 200, "learning.min_segment_n": 30,
+}
+
+
+# Set UFCPRED_TEST_DATABASE_URL=postgresql://… to run the whole suite against Postgres instead of SQLite.
+PG_URL = os.environ.get("UFCPRED_TEST_DATABASE_URL")
+
+
+def reset_pg():
+    import psycopg
+    with psycopg.connect(PG_URL, autocommit=True) as c:
+        c.execute("DROP SCHEMA public CASCADE")
+        c.execute("CREATE SCHEMA public")
+
+
+def _new_db(tmp_path, name):
+    if PG_URL:
+        reset_pg()
+        return db.connect(PG_URL)
+    return db.connect(str(tmp_path / name))
+
+
+def db_target(conn) -> str:
+    """What db.connect() needs to reopen this database."""
+    return conn.url if db.backend(conn) == "postgres" else conn.execute("PRAGMA database_list").fetchone()[2]
+
+
+@pytest.fixture
+def tmp_db(tmp_path, monkeypatch):
+    monkeypatch.setenv("UFCPRED_DATA_DIR", str(tmp_path / "data"))
+    if PG_URL:
+        monkeypatch.setenv("DATABASE_URL", PG_URL)
+        monkeypatch.delenv("UFCPRED_DB", raising=False)
+    else:
+        monkeypatch.setenv("UFCPRED_DB", str(tmp_path / "test.sqlite3"))
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+    conn = _new_db(tmp_path, "test.sqlite3")
+    for k, v in FAST_SETTINGS.items():
+        db.set_setting(conn, k, v, actor="test")
+    yield conn
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def fresh_db(tmp_path):
+    """Factory for a second, empty database. On Postgres it replaces the test database, so the
+    caller's old connection is closed first."""
+    def make(old_conn=None):
+        if old_conn is not None and PG_URL:
+            old_conn.close()
+        return _new_db(tmp_path, "fresh.sqlite3")
+    return make
+
+
+@pytest.fixture
+def synth(tmp_db):
+    bundle, truth = make_bundle(seed=3)
+    ingest_bundle(tmp_db, bundle)
+    return tmp_db, truth
+
+
+_TRAINED = {}
+
+
+@pytest.fixture
+def trained(synth):
+    """Synthetic DB with an initial model fitted on data before the 80th event."""
+    from ufcpred.config import ModelConfig
+    from ufcpred.features.build import StateCache
+    from ufcpred.features.history import HistoryStore
+    from ufcpred.learning.loop import initial_deployment
+    conn, truth = synth
+    h = HistoryStore.load(conn)
+    cache = StateCache(h)
+    cutoff = truth["dates"][80]
+    vid = initial_deployment(conn, h, cutoff, cache, ModelConfig(train_start="2000-01-01"), select_half_life=False)
+    return conn, truth, h, cache, vid, cutoff

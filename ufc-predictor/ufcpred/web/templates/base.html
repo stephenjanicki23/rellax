@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}UFC Prediction Engine{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+<script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
+</head>
+<body>
+<header class="top">
+  <span class="brand">UFC Prediction Engine</span>
+  <nav>
+    {% set links = [("dashboard","/","Dashboard"),("events","/events","Fight Cards"),("history","/history","Prediction History"),
+      ("reviews","/reviews","Post-Event Review"),("learning","/learning","Learning Center"),("performance","/performance","Model Performance"),
+      ("fighters","/fighters","Fighters"),("data_quality","/data-quality","Data Quality"),("settings","/settings","Settings")] %}
+    {% for key, href, label in links %}<a href="{{ href }}" class="{{ 'on' if page == key or (key=='events' and page=='event') or (key=='reviews' and page=='review') or (key=='fighters' and page=='fighter') else '' }}">{{ label }}</a>{% endfor %}
+  </nav>
+  <span style="flex:1"></span>
+  <span class="legend">
+    <span class="tag confirmed">confirmed</span> official/sourced data
+    <span class="tag estimate">estimate</span> model output
+    <span class="tag unavailable">unavailable</span> not in any source
+  </span>
+  {% if admin %}{% if on_vercel %}<a class="small" href="/logout">log out</a>{% endif %}{% else %}<a class="small" href="/login">admin log in</a>{% endif %}
+  <button onclick="var r=document.documentElement,n=(r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'light':'dark';r.dataset.theme=n;try{localStorage.setItem('theme',n)}catch(e){}" title="Toggle theme">◐</button>
+</header>
+<main>
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

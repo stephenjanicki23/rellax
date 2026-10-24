@@ -1,0 +1,4 @@
+event_date,red,blue,outcome,winner,method,round,time,method_detail,details,source_url,reason
+YYYY-MM-DD,Fighter A,Fighter B,win,Fighter A,KO_TKO,2,3:14,Punches,,https://www.ufc.com/event/...,
+YYYY-MM-DD,Fighter C,Fighter D,win,Fighter D,DEC,3,5:00,Unanimous,,https://www.ufc.com/event/...,
+YYYY-MM-DD,Fighter E,Fighter F,nc,,,1,1:10,,Accidental eye poke,https://www.ufc.com/event/...,
