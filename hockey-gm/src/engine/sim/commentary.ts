@@ -17,6 +17,32 @@ export interface CommentaryLine {
   text: string;
   kind: 'goal' | 'shot' | 'save' | 'penalty' | 'info' | 'hit' | 'injury' | 'big';
   team: 0 | 1;
+  /** Why it went the way it did, from the engine's own numbers (e.g. the chance a shot had of going in). */
+  why?: string;
+}
+
+/** The engine's probabilities behind an event, in words. */
+export function eventWhy(e: GameEvent): string | undefined {
+  const d = e.data ?? {};
+  const p = d.p;
+  if (p === undefined) return undefined;
+  const pc = (x: number) => (x < 0.01 ? '<1%' : `${Math.round(x * 100)}%`);
+  switch (e.type) {
+    case 'goal':
+      return d.en ? 'Into an empty net' : `It had a ${pc(p)} chance of going in`;
+    case 'save':
+      return `It had a ${pc(p)} chance of going in`;
+    case 'shot':
+      return `${pc(p)} chance of going in${d.dist !== undefined ? ` · ${d.dist} ft` : ''}`;
+    case 'blocked':
+      return `${pc(p)} chance of the block`;
+    case 'rebound':
+      return `${pc(p)} chance of a rebound off that save`;
+    case 'pass':
+      return d.success === false ? `The pass had a ${pc(p)} chance of getting through` : undefined;
+    default:
+      return undefined;
+  }
 }
 
 function pick<T>(arr: T[], e: GameEvent): T {
@@ -49,6 +75,13 @@ export function clockLabel(clock: number, periodLength: number): string {
 }
 
 export function describe(e: GameEvent, c: CommentaryContext): CommentaryLine | null {
+  const l = describeLine(e, c);
+  if (!l) return null;
+  const why = eventWhy(e);
+  return why ? { ...l, why } : l;
+}
+
+function describeLine(e: GameEvent, c: CommentaryContext): CommentaryLine | null {
   const n1 = c.name(e.p1);
   const n2 = c.name(e.p2);
   const tm = c.team(e.team);
@@ -64,6 +97,16 @@ export function describe(e: GameEvent, c: CommentaryContext): CommentaryLine | n
     case 'entry':
       if (d.oddMan) return { ...base, kind: 'big', text: pick([`${n1} leads an odd-man rush for ${tm}!`, `${tm} break out on a 2-on-1, ${n1} carrying!`, `${n1} has numbers going the other way!`], e) };
       return { ...base, kind: 'info', text: pick([`${n1} carries the puck into the offensive zone.`, `${n1} gains the blue line with speed.`, `${n1} skates it in over the line.`], e) };
+    case 'adjustment': {
+      const lines: Record<string, string> = {
+        chasing: `${tm} push for the equalizer: a two-man forecheck and their defence pinching down.`,
+        protecting: `${tm} sit back to protect the lead: a 1-3-1 in the neutral zone and safe puck movement.`,
+        simplify: `${tm} simplify after a run of turnovers in their own end: getting pucks deep instead of forcing plays.`,
+        pinned: `${tm} collapse in front of their net after a long spell hemmed in their own zone.`,
+        reset: `${tm} go back to their usual system.`,
+      };
+      return { ...base, kind: 'info', text: lines[d.adjust ?? 'reset'] ?? lines.reset };
+    }
     case 'dumpIn':
       return { ...base, kind: 'info', text: pick([`${n1} dumps it in deep.`, `${n1} chips it in behind the defence.`, `${n1} rims it around the boards.`], e) };
     case 'battle':

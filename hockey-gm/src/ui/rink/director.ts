@@ -26,6 +26,19 @@ export interface RinkPlayer {
   /** Display names (presentation only). */
   first?: string;
   last?: string;
+  /** Wears a visor (presentation only; see visorFor). */
+  visor?: boolean;
+}
+
+/**
+ * Who wears a visor. There's no gear data, so this follows the rule: visors have been mandatory
+ * for players entering the NHL since 2013-14, so anyone 32 or younger wears one; some older,
+ * grandfathered veterans still go without. Deterministic per player.
+ */
+export function visorFor(id: number, age: number | undefined): boolean {
+  if (age === undefined || age <= 32) return true;
+  const h = Math.abs(Math.sin(id * 12.9898) * 43758.5453) % 1;
+  return h > 0.35;
 }
 
 export type ShotKind = 'goal' | 'save' | 'miss' | 'block';

@@ -62,7 +62,7 @@ export const TUNING = {
   shooterWeight: 0.24,
   goalieWeight: 0.25,
   /** Stick/hold penalties per second of play (both teams combined). */
-  penaltyRate: 1 / 1150,
+  penaltyRate: 1 / 1000,
   /** Probability a hit draws a penalty. */
   hitPenalty: 0.018,
   hitRate: 0.003,
@@ -110,7 +110,7 @@ export const AGENT = {
   /** Share of puck wins the scorer would actually record as a takeaway (only clear, deliberate steals). */
   tkCredit: 0.07,
   /** Appetite for finishing checks (scaled by each player's physical style). */
-  hit: 0.14,
+  hit: 0.245,
   /** Half-width of a shooting lane a defender can get a piece of (feet). */
   blockLane: 5,
   /** Scale on pass interceptions. */
@@ -132,6 +132,9 @@ export const AGENT = {
   holdFor: 1.2,
   /** How far ahead (seconds of the carrier's skating) a pressuring defender aims. */
   pressLead: 0.35,
+  /** Seconds after finishing a check before a player can throw another, and before the same carrier can be hit again. */
+  hitRecover: 6,
+  hitAgain: 3,
   /** Finishing lift on the power play (an extra man means cleaner looks and more screens; log-odds). */
   ppFinish: 0.15,
   holdTire: 0.2,
@@ -144,6 +147,12 @@ export const AGENT = {
   if (raw) Object.assign(AGENT, JSON.parse(raw));
 }
 
+
+/**
+ * How keen a player is to finish a check, levelling off at about twice average: the most physical
+ * players still only get so many chances to hit someone in a game.
+ */
+const hitLean = (p: { hitProp: number }) => 2 * Math.tanh(p.hitProp / 2);
 
 // Expected-goal value of every square foot of the attacking zone, computed once.
 const SPOT_U = 76;
@@ -259,6 +268,9 @@ interface SP {
   protDir: number;
   protT: number;
   holdSince: number;
+  /** When he last finished a check, and last took one (a player can't hit, or be hit, again straight away). */
+  hitAt: number;
+  hitTakenAt: number;
 }
 
 interface Pen {
@@ -293,7 +305,17 @@ interface ST {
   pairToi: number[];
   esTotal: number;
   stats: TeamGameStats;
+  /** The system being played right now (the coach adjusts it during the game). */
   tactics: Tactics;
+  /** The game plan he started with. */
+  base: Tactics;
+  /** The adjustment in force (null: the game plan), and how long a temporary one lasts. */
+  adjust: string | null;
+  adjustUntil: number;
+  /** When this team lost the puck in its own zone (recent). */
+  dzLoss: number[];
+  /** Share of recent play spent pinned in its own zone (smoothed). */
+  pinned: number;
   coachOff: number;
   coachDef: number;
   coachTac: number;
@@ -437,6 +459,8 @@ function buildPlayer(inp: GamePlayerInput, team: Side, rng: Rng, playoff: boolea
     protDir: 1,
     protT: -99,
     holdSince: 0,
+    hitAt: -99,
+    hitTakenAt: -99,
     e: { skate: 0, hands: 0, decide: 0, defIQ: 0, offIQ: 0, stickD: 0, pass: 0, block: 0, phys: 0 },
     plan: null,
     last: null,
@@ -604,7 +628,12 @@ export class GameSim {
       pairToi: [0, 0, 0],
       esTotal: 0,
       stats: emptyTeamStats(),
-      tactics: inp.tactics,
+      tactics: { ...inp.tactics },
+      base: inp.tactics,
+      adjust: null,
+      adjustUntil: 0,
+      dzLoss: [],
+      pinned: 0,
       coachOff: coachZ(c?.offense) * TUNING.coachWeight,
       coachDef: coachZ(c?.defense) * TUNING.coachWeight,
       coachTac: clamp(1 + coachZ(c?.tactics) * 0.25, 0.6, 1.4),
@@ -630,8 +659,12 @@ export class GameSim {
   }
 
   /** Advance one possession step. Returns events produced during the step. */
+  /** Steps played so far (a saved game is its input plus this count: the engine is deterministic). */
+  steps = 0;
+
   step(): GameEvent[] {
     if (this.finished) return [];
+    this.steps++;
     // Includes anything recorded before the first step (the opening periodStart).
     const before = this.emitted;
     const t0 = this.elapsed;
@@ -701,9 +734,32 @@ export class GameSim {
 
   // ───────────────────────────── helpers ─────────────────────────────
 
-  private ev(type: GameEventType, team: Side, p1?: number, p2?: number, p3?: number, data?: GameEvent['data']): void {
-    if (!this.input.recordEvents) return;
-    this.events.push({ t: this.elapsed, period: this.period, clock: this.clock, type, team, p1, p2, p3, data });
+  /**
+   * Record an event. Each gets an id; `causeNext` (set just before) links it to
+   * the event that led to it (a save to its shot, a takeaway to the pass it
+   * picked off), so any play can be traced back.
+   */
+  private ev(type: GameEventType, team: Side, p1?: number, p2?: number, p3?: number, data?: GameEvent['data']): number {
+    const cause = this.causeNext;
+    this.causeNext = undefined;
+    if (!this.input.recordEvents) return 0;
+    const id = ++this.evSeq;
+    this.events.push({ id, cause, t: this.elapsed, period: this.period, clock: this.clock, type, team, p1, p2, p3, data });
+    return id;
+  }
+  private evSeq = 0;
+  private causeNext: number | undefined;
+  /** The latest pass (for linking the shot or turnover it led to), shot and save. */
+  private lastPassEv = { id: 0, team: 0 as Side, t: -99 };
+  private lastShotEv = 0;
+  private lastSaveEv = 0;
+  private lastReboundEv = 0;
+  /** The chance the goal just scored had of going in (recorded on the goal). */
+  private goalP: number | undefined;
+  /** What set up a shot by team A right now: the pass just before it, or the rebound. */
+  private setupFor(A: Side, rebound: boolean): number | undefined {
+    if (rebound && this.lastReboundEv) return this.lastReboundEv;
+    return this.lastPassEv.team === A && this.elapsed - this.lastPassEv.t < 4 && this.lastPassEv.id ? this.lastPassEv.id : undefined;
   }
 
   private pickW(list: SP[], w: (p: SP) => number): SP {
@@ -999,6 +1055,7 @@ export class GameSim {
       p.onIce = true;
       // New skaters come over the boards from the bench.
       if (!prev.has(p)) {
+        p.stat.shifts++;
         p.x = (t.idx === 0 ? -12 : 12) + this.rng.float(-4, 4);
         p.y = -40;
         p.vx = p.vy = 0;
@@ -1917,6 +1974,12 @@ export class GameSim {
   private setPoss(side: Side, carrier: SP | null): void {
     if (carrier !== this.puck.carrier) this.gotPuckAt = this.elapsed;
     if (side !== this.poss) {
+      // Lost it in our own end: the coach notices.
+      if (this.zone === 'D') {
+        const loser = this.teams[this.poss];
+        loser.dzLoss.push(this.elapsed);
+        if (loser.dzLoss.length > 8) loser.dzLoss.shift();
+      }
       this.poss = side;
       this.resetPossession();
       this.possSince = this.elapsed;
@@ -2215,8 +2278,55 @@ export class GameSim {
       this.puck.dead = true;
     }
     this.updateZone();
+    // Who's pinned in their own end, smoothed over about a minute.
+    const k = AGENT.tick / 60;
+    for (const t of this.teams) t.pinned += ((this.poss !== t.idx && this.zone === 'O' && this.faceoff === null ? 1 : 0) - t.pinned) * k;
+    if (Math.floor(this.elapsed / 15) !== Math.floor((this.elapsed + AGENT.tick) / 15)) for (const t of this.teams) this.coachAdjust(t);
     if (this.input.recordTrack) this.track.push(this.frame());
     this.advance(AGENT.tick);
+  }
+
+  /**
+   * The bench reads the game and changes the system: chase it late when
+   * trailing, lock it down late with a lead, get pucks deep after a run of
+   * giveaways in their own end, collapse in front when pinned. Sharper
+   * tactical coaches react sooner. Changes are to how the team plays (the
+   * same decisions and contests as always), never to the score.
+   */
+  private coachAdjust(t: ST): void {
+    if (this.inShootout || this.finished) return;
+    const i = t.idx;
+    const diff = this.score[i] - this.score[1 - i];
+    const left = this.periodLength - this.clock;
+    const reg3 = this.period === 3;
+    const sharp = t.coachTac; // 0.6..1.4
+    const recentLoss = t.dzLoss.filter((x) => this.elapsed - x < 240).length;
+    let want: string | null = null;
+    if (reg3 && diff < 0 && diff >= -2 && left < 300 + 240 * sharp) want = 'chasing';
+    else if (reg3 && diff > 0 && diff <= 2 && left < 180 + 240 * sharp) want = 'protecting';
+    else if (t.adjust === 'simplify' && this.elapsed < t.adjustUntil) want = 'simplify';
+    else if (t.adjust === 'pinned' && this.elapsed < t.adjustUntil) want = 'pinned';
+    else if (recentLoss >= (sharp > 1.1 ? 5 : 6) && t.base.offense !== 'dumpChase') want = 'simplify';
+    else if (t.pinned > 0.55 - 0.08 * (sharp - 1)) want = 'pinned';
+    if (want === t.adjust) return;
+    const b = t.base;
+    if (want === null) {
+      t.tactics = { ...b };
+      t.adjust = null;
+      this.ev('adjustment', i, undefined, undefined, undefined, { adjust: 'reset' });
+      return;
+    }
+    if (want === 'chasing') t.tactics = { ...b, forecheck: '2-1-2', defense: 'aggressive', offense: b.offense === 'possession' || b.offense === 'cycle' ? 'cycle' : 'rush' };
+    else if (want === 'protecting') t.tactics = { ...b, forecheck: '1-3-1', defense: 'trap', offense: 'possession' };
+    else if (want === 'simplify') {
+      t.tactics = { ...b, offense: 'dumpChase' };
+      t.adjustUntil = this.elapsed + 240;
+    } else {
+      t.tactics = { ...b, defense: 'passive' };
+      t.adjustUntil = this.elapsed + 90;
+    }
+    t.adjust = want;
+    this.ev('adjustment', i, undefined, undefined, undefined, { adjust: want });
   }
 
   // ── decisions ──
@@ -2525,9 +2635,10 @@ export class GameSim {
       press -= 0.12;
     }
     consider(press, 'pressure', ptx, pty, carrier);
-    if (dc < 10 && p.hitProp > 0.2) {
-      const phys = D.tactics.defense === 'physical' ? 1.4 : 1;
-      consider(AGENT.hit * p.hitProp * phys + (Math.abs(carrier.y) > 30 ? 0.08 : 0) - 0.06, 'hit', carrier.x, carrier.y, carrier);
+    // Finishing a check takes him out of the play for a moment: no second one straight after.
+    if (dc < 10 && p.hitProp > 0.2 && this.elapsed - p.hitAt > AGENT.hitRecover && this.elapsed - carrier.hitTakenAt > AGENT.hitAgain) {
+      const phys = D.tactics.defense === 'physical' ? 1.25 : 1;
+      consider(AGENT.hit * hitLean(p) * phys + (Math.abs(carrier.y) > 30 ? 0.08 : 0) - 0.06, 'hit', carrier.x, carrier.y, carrier);
     }
     // Mark the dangerous men.
     for (const j of A.onIce) {
@@ -2569,6 +2680,15 @@ export class GameSim {
 
   private agentPass(A: ST, B: ST, p: SP, m: SP): void {
     const d = dirOf(A.idx);
+    const mu = m.x * d;
+    const zoneTo: 'O' | 'N' | 'D' = mu > BLUE_LINE ? 'O' : mu < -BLUE_LINE ? 'D' : 'N';
+    // The chance it gets through, built up as each risk is rolled (for the record, not the roll).
+    let pThrough = 1;
+    const passEv = (success: boolean, outcome: string, extra?: GameEvent['data']) => {
+      const id = this.ev('pass', A.idx, p.id, m.id, undefined, { success, outcome, zone: zoneTo, p: Math.round(pThrough * 1000) / 1000, ...extra });
+      this.lastPassEv = { id, team: A.idx, t: this.elapsed };
+      return id;
+    };
     // Defenders along the lane may pick it off.
     const lanes = B.onIce
       .map((o) => ({ o, dl: distToSegment(o.x, o.y, p.x, p.y, m.x, m.y), t: along(o.x, o.y, p.x, p.y, m.x, m.y) }))
@@ -2576,7 +2696,9 @@ export class GameSim {
       .sort((a, b) => a.t - b.t);
     for (const { o, dl } of lanes) {
       const pInt = clamp(Math.exp(-dl / 2.6) * (0.42 + 0.1 * o.e.defIQ + 0.06 * o.e.stickD) * AGENT.intercept - 0.05 * p.e.pass, 0, 0.9);
+      pThrough *= 1 - pInt;
       if (this.rng.chance(pInt)) {
+        this.causeNext = passEv(false, 'intercepted');
         const roll = this.rng.next();
         if (roll < 0.22) {
           p.stat.gv++;
@@ -2595,7 +2717,9 @@ export class GameSim {
     }
     const len = dist(p.x, p.y, m.x, m.y);
     const pBad = clamp(0.02 + len / 700 - 0.02 * p.e.pass - 0.015 * m.recv, 0.004, 0.25);
+    pThrough *= 1 - pBad;
     if (this.rng.chance(pBad)) {
+      passEv(false, 'off target');
       this.loosePuck(m.x + this.rng.float(-8, 8), m.y + this.rng.float(-8, 8));
       return;
     }
@@ -2609,7 +2733,10 @@ export class GameSim {
         marker = o;
       }
     }
-    if (marker && md < 5 && this.rng.chance(logistic(-0.5 - md * 0.25 + TUNING.contest * 2 * (0.5 * marker.e.stickD + 0.5 * marker.e.defIQ - 0.5 * m.recv - 0.5 * m.e.hands)))) {
+    const pStrip = marker && md < 5 ? logistic(-0.5 - md * 0.25 + TUNING.contest * 2 * (0.5 * marker.e.stickD + 0.5 * marker.e.defIQ - 0.5 * m.recv - 0.5 * m.e.hands)) : 0;
+    pThrough *= 1 - pStrip;
+    if (marker && md < 5 && this.rng.chance(pStrip)) {
+      this.causeNext = passEv(false, 'stripped on arrival');
       if (this.rng.chance(0.35)) {
         if (this.rng.chance(AGENT.tkCredit)) {
           marker.stat.tk++;
@@ -2627,7 +2754,7 @@ export class GameSim {
     if (cross) this.crossSlotAt = this.elapsed;
     this.lastReceiver = m;
     this.acquired = 'pass';
-    if (m.x * d > BLUE_LINE) this.ev('pass', A.idx, p.id, m.id, undefined, { big: cross });
+    passEv(true, 'completed', cross ? { big: true } : undefined);
     this.setPoss(A.idx, m);
   }
 
@@ -2694,6 +2821,7 @@ export class GameSim {
     if (!who || wd > 5.5) return;
     const plan = who.plan!;
     if (plan.act === 'hit' && plan.target === c) {
+      if (this.elapsed - who.hitAt <= AGENT.hitRecover || this.elapsed - c.hitTakenAt <= AGENT.hitAgain) return;
       const boards = Math.abs(c.y) > 30 || Math.abs(c.x) > 80 ? 0.35 : 0;
       if (this.rng.chance(perTick(logistic(-0.2 + 0.55 * (who.e.phys - 0.5 * c.e.skate) + boards)))) {
         this.hit(who, c);
@@ -2767,7 +2895,7 @@ export class GameSim {
       this.ev('battle', w.team, w.id, loser.id);
       const hitter = this.rng.chance(0.5) ? w : loser;
       const target = hitter === w ? loser : w;
-      if (this.rng.chance(perTick(0.1 * hitter.hitProp))) {
+      if (this.rng.chance(perTick(0.1 * hitLean(hitter)))) {
         this.hit(hitter, target);
         if (this.faceoff !== null) return;
       }
@@ -2839,7 +2967,10 @@ export class GameSim {
     A.stats.attempts++;
     for (const p of A.onIce) p.stat.cf++;
     for (const p of B.onIce) p.stat.ca++;
+    // The play that set this shot up (for tracing it back).
+    const setup = this.setupFor(A.idx, type === 'rebound');
     this.reboundAt = -99;
+    this.lastReboundEv = 0;
     // Blocks: anyone squarely in the lane.
     const lane = B.onIce
       .map((o) => ({ o, dl: distToSegment(o.x, o.y, shooter.x, shooter.y, gx, 0), t: along(o.x, o.y, shooter.x, shooter.y, gx, 0) }))
@@ -2854,7 +2985,8 @@ export class GameSim {
         B.stats.blocks++;
         shooter.stat.blockedAtt++;
         A.stats.blockedAtt++;
-        this.ev('blocked', B.idx, o.id, shooter.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle) });
+        this.causeNext = setup;
+        this.ev('blocked', B.idx, o.id, shooter.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle), p: Math.round(clamp(pb, 0, 0.8) * 1000) / 1000 });
         if (rng.chance(TUNING.injuryBlock * o.injuryRisk * (type === 'slap' ? 1.5 : 1))) this.injure(o, 'block');
         this.loosePuck(o.x + rng.float(-7, 7), o.y + rng.float(-7, 7));
         return;
@@ -2870,12 +3002,14 @@ export class GameSim {
         closer = o;
       }
     }
-    if (closer && close < 6 && type !== 'tip' && rng.chance(0.3 * (1 - close / 6) * (1 + 0.15 * closer.e.block))) {
+    const pClose = closer && close < 6 && type !== 'tip' ? 0.3 * (1 - close / 6) * (1 + 0.15 * closer.e.block) : 0;
+    if (closer && close < 6 && type !== 'tip' && rng.chance(pClose)) {
       closer.stat.blocks++;
       B.stats.blocks++;
       shooter.stat.blockedAtt++;
       A.stats.blockedAtt++;
-      this.ev('blocked', B.idx, closer.id, shooter.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle) });
+      this.causeNext = setup;
+      this.ev('blocked', B.idx, closer.id, shooter.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle), p: Math.round(pClose * 1000) / 1000 });
       this.loosePuck(closer.x + rng.float(-7, 7), closer.y + rng.float(-7, 7));
       return;
     }
@@ -2895,7 +3029,8 @@ export class GameSim {
     if (rng.chance(logistic(lMiss))) {
       shooter.stat.missed++;
       A.stats.missed++;
-      this.ev('missed', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger, en: B.goalie === null || undefined });
+      this.causeNext = setup;
+      this.ev('missed', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger, en: B.goalie === null || undefined, p: Math.round(logistic(lMiss) * 1000) / 1000 });
       if (B.goalie === null && shooter.x * d < 0 && !this.isPK(A.idx)) {
         this.ev('icing', A.idx, shooter.id);
         this.faceoff = A.idx;
@@ -2921,28 +3056,38 @@ export class GameSim {
     if (hd) A.stats.hdShots++;
     const g = B.goalie;
     if (!g) {
-      this.ev('shot', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger, en: true });
+      this.causeNext = setup;
+      this.lastShotEv = this.ev('shot', A.idx, shooter.id, undefined, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger, en: true, p: 1 });
       zsArr[ZONE_COUNT + zone]++;
+      this.goalP = 1;
+      this.causeNext = this.lastShotEv;
       this.scoreGoal(A, B, shooter, xg, type, true);
       return;
     }
     g.stat.sa++;
     g.stat.gxga += xgOnNet;
     if (hd) g.stat.hdsa++;
-    this.ev('shot', A.idx, shooter.id, g.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger });
     const shooterSkill = this.shooterSkill(shooter, type);
     const gSkill = this.goalieSkill(g, B, danger, type, screened);
     const late = this.period >= 3 && this.periodLength - this.clock < 300 && Math.abs(this.score[0] - this.score[1]) <= 1;
     const clutch = late || this.input.playoff ? 0.05 * shooter.clutch : 0;
     const adj = TUNING.shooterWeight * shooterSkill - TUNING.goalieWeight * gSkill + clutch + TUNING.finishOffset + AGENT.finish + (this.isPK(B.idx) ? AGENT.ppFinish : 0) + this.ctx(A.idx) * 0.3 - this.ctx(B.idx) * 0.3;
-    if (rng.chance(logistic(logit(xgOnNet) + adj))) {
+    // This shooter on this goalie from here: the chance it goes in.
+    const pGoal = logistic(logit(xgOnNet) + adj);
+    const pRec = Math.round(pGoal * 1000) / 1000;
+    this.causeNext = setup;
+    this.lastShotEv = this.ev('shot', A.idx, shooter.id, g.id, undefined, { dist: Math.round(dist0), angle: Math.round(angle), shotType: type, xg, danger, p: pRec });
+    if (rng.chance(pGoal)) {
       if (hd) g.stat.hdga++;
       zsArr[ZONE_COUNT + zone]++;
+      this.goalP = pRec;
+      this.causeNext = this.lastShotEv;
       this.scoreGoal(A, B, shooter, xg, type, false);
       return;
     }
     const big = xgOnNet > 0.2;
-    this.ev('save', B.idx, g.id, shooter.id, undefined, { big, xg: xgOnNet });
+    this.causeNext = this.lastShotEv;
+    this.lastSaveEv = this.ev('save', B.idx, g.id, shooter.id, undefined, { big, xg: xgOnNet, p: pRec });
     if (big) this.bumpMomentum(B.idx, 0.06);
     this.addChain(shooter);
     let pReb = 0.08 - 0.03 * (g.gReb + g.form) + (type === 'slap' ? 0.03 : 0) + (type === 'tip' ? 0.02 : 0) + (screened ? 0.02 : 0);
@@ -2950,13 +3095,15 @@ export class GameSim {
     pReb = clamp(pReb, 0.02, 0.2);
     if (type !== 'rebound' && rng.chance(pReb)) {
       g.stat.reb++;
-      this.ev('rebound', A.idx, shooter.id);
+      this.causeNext = this.lastSaveEv;
+      this.lastReboundEv = this.ev('rebound', A.idx, shooter.id, undefined, undefined, { p: Math.round(pReb * 1000) / 1000 });
       this.reboundAt = this.elapsed + AGENT.tick;
       this.loosePuck(gx - d * rng.float(5, 11), rng.float(-9, 9));
       return;
     }
     const pFreeze = clamp(0.5 + 0.08 * g.gReb + (danger === 'low' ? -0.08 : 0.06), 0.25, 0.75);
     if (rng.chance(pFreeze)) {
+      this.causeNext = this.lastSaveEv;
       this.ev('freeze', B.idx, g.id);
       this.faceoff = B.idx;
       return;
@@ -3032,7 +3179,9 @@ export class GameSim {
       xg,
       shotType: String(type),
       en: emptyNet,
+      p: this.goalP,
     });
+    this.goalP = undefined;
     if (strength === 'PP') {
       const minors = this.penalties.filter((p) => p.team === B.idx && !p.coincidental && p.minutes < 5).sort((a, b) => a.remaining - b.remaining);
       const pen = minors[0];
@@ -3106,6 +3255,8 @@ export class GameSim {
 
   private hit(hitter: SP, target: SP): void {
     if (hitter.team === target.team) return;
+    hitter.hitAt = this.elapsed;
+    target.hitTakenAt = this.elapsed;
     hitter.stat.hits++;
     this.teams[hitter.team].stats.hits++;
     target.energy = Math.max(5, target.energy - 1.5 * (1 + hitter.phys * 0.2));
@@ -3128,7 +3279,7 @@ export class GameSim {
     const winner = this.rng.chance(logistic(0.8 * (a.phys - b.phys))) ? a : b;
     this.ev('fight', a.team, a.id, b.id, undefined, { penalty: 'Fighting', minutes: 5 });
     for (const p of [a, b]) {
-      p.inBox = true;
+      this.toBox(p);
       p.stat.pim += 5;
       this.teams[p.team].stats.pim += 5;
       this.penalties.push({ team: p.team, player: p, remaining: 300, minutes: 5, coincidental: true });
@@ -3151,12 +3302,31 @@ export class GameSim {
     return even / (1 + 0.08 * (mine + theirs));
   }
 
+  /** Off to the box right away: he leaves the ice with the whistle, before the line change for the faceoff. */
+  private toBox(p: SP): void {
+    p.inBox = true;
+    const t = this.teams[p.team];
+    if (t.onIce.includes(p)) {
+      t.onIce = t.onIce.filter((m) => m !== p);
+      p.onIce = false;
+      // A team never drops below three skaters: a third penalty is stacked and someone replaces him.
+      if (t.onIce.length < 3) {
+        const sub = t.players.find((m) => m.pos !== 'G' && !m.onIce && !m.inBox && !m.out);
+        if (sub) {
+          sub.onIce = true;
+          t.onIce = [...t.onIce, sub];
+        }
+      }
+    }
+    if (this.puck.carrier === p) this.puck.carrier = null;
+  }
+
   private callPenalty(offender: SP, infraction: string): void {
     const t = this.teams[offender.team];
     let minutes = 2;
     if (infraction === 'High-sticking' && this.rng.chance(0.25)) minutes = 4;
     if ((infraction === 'Boarding' || infraction === 'Charging' || infraction === 'Elbowing') && this.rng.chance(0.06)) minutes = 5;
-    offender.inBox = true;
+    this.toBox(offender);
     offender.stat.pim += minutes;
     t.stats.pim += minutes;
     const opp = this.teams[1 - offender.team];

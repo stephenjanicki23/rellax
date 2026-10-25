@@ -304,6 +304,8 @@ export interface StatLine {
   hdga: number;
   reb: number;
   gtoi: number;
+  /** Shifts taken (skaters). Lines saved before it was tracked lack it (read with ?? 0). */
+  shifts: number;
 }
 
 export interface CareerSeason {
@@ -1133,6 +1135,11 @@ export interface OwnerState {
 }
 
 export interface League {
+  /**
+   * The user's game left part-way through, to resume where they were watching:
+   * the saved engine game (its input + steps) and the game time on screen.
+   */
+  liveGame?: { gameId: number; saved: import('./sim/savedGame').SavedGame; t: number };
   version: number;
   name: string;
   seed: string;

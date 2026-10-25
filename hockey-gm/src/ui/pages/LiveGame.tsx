@@ -4,7 +4,8 @@ import { navigate } from '../router';
 
 import { GameSim, simulateGame } from '../../engine/sim/engine';
 import { simMany } from '../sim/pool';
-import { buildGameInput } from '../../engine/league/gameInput';
+import { buildGameInput, hydrateInput } from '../../engine/league/gameInput';
+import { saveGame } from '../../engine/sim/savedGame';
 import { prepareUserGame } from '../../engine/league/season';
 import { describe, periodLabel } from '../../engine/sim/commentary';
 import type { GameEvent, GameInput, GameResult, GameSnapshot } from '../../engine/sim/gameTypes';
@@ -19,7 +20,7 @@ import { GamePanels } from '../live/GamePanels';
 import { Ticker, type TickerGame } from '../live/Ticker';
 import { Intermission } from '../live/Intermission';
 import '../live/live.css';
-import { whistleHold, type RinkPlayer } from '../rink/director';
+import { visorFor, whistleHold, type RinkPlayer } from '../rink/director';
 import type { RinkFeed } from '../rink/LiveRink';
 
 
@@ -42,7 +43,9 @@ export function LiveGame() {
     setReady(true);
   }, []);
   // Build the game input once; LiveView keeps the simulation in a ref.
-  const input = useMemo(() => (game && game.id >= 0 ? buildGameInput(league, game.id, true) : null), [game]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A game left part-way resumes from its saved input (so it plays out exactly as it was going to).
+  const resume = game && league.liveGame?.gameId === game.id ? league.liveGame : undefined;
+  const input = useMemo(() => (game && game.id >= 0 ? (resume ? hydrateInput(resume.saved.input) : buildGameInput(league, game.id, true)) : null), [game]); // eslint-disable-line react-hooks/exhaustive-deps
   // Tonight's other games: simulated once now, revealed by the ticker in step with this game,
   // and recorded with exactly these results when the day is played.
   const [ticker, setTicker] = useState<TickerGame[]>([]);
@@ -94,11 +97,20 @@ export function LiveGame() {
       records={[rec(home.id), rec(away.id)]}
       finishLabel="Record result & continue →"
       ticker={ticker}
+      resumeAt={resume?.t}
+      onCheckpoint={(sim, t) =>
+        mutate((l) => {
+          l.liveGame = { gameId: game.id, saved: saveGame(sim), t };
+        })
+      }
       seasonTotals={(id) => {
         const st = league.seasonStats[id]?.[game.playoff ? 'po' : 'reg'];
         return { g: st?.g ?? 0, a: (st?.a1 ?? 0) + (st?.a2 ?? 0) };
       }}
       onFinish={async (result) => {
+        mutate((l) => {
+          delete l.liveGame;
+        });
         await runSim('day', new Map([[game.id, result], ...allOthers().map((t): [number, GameResult] => [t.id, t.result])]));
         toast('Result recorded. The rest of the league played tonight too.', 'good');
         navigate(`game/${game.id}`);
@@ -122,10 +134,14 @@ export interface LiveViewProps {
   ticker?: TickerGame[];
   /** Season goals/assists before this game, for the goal card (franchise only). */
   seasonTotals?: (playerId: number) => { g: number; a: number };
+  /** Resume a game left part-way: the game time the viewer had reached. */
+  resumeAt?: number;
+  /** Save the game in progress (franchise only), with the game time on screen. */
+  onCheckpoint?: (sim: GameSim, t: number) => void;
 }
 
 /** Live game presentation. Works for franchise games and standalone exhibitions. */
-export function LiveView({ input, home, away, playoff, info, records, finishLabel, onFinish, extraActions, ticker, seasonTotals }: LiveViewProps) {
+export function LiveView({ input, home, away, playoff, info, records, finishLabel, onFinish, extraActions, ticker, seasonTotals, resumeAt, onCheckpoint }: LiveViewProps) {
   const simRef = useRef<GameSim | null>(null);
   if (!simRef.current) simRef.current = new GameSim(input);
   const sim = simRef.current;
@@ -162,7 +178,8 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     for (const e of evs) {
       const l = describe(e, ctx);
       if (l) out.push({ ...l, uid: ++uid.current });
-      if (e.type === 'periodEnd' && !feed.done && !skipRef.current) {
+      // Catching back up to where a resumed game was left: no intermission reports for periods already watched.
+      if (e.type === 'periodEnd' && !feed.done && !skipRef.current && e.t > catchUpTo.current) {
         // Score as the period ends (from the goals shown so far).
         const goals = feed.items.filter((x) => x.e.type === 'goal' && x.e.t <= e.t);
         const tied = goals.filter((x) => x.e.team === 0).length === goals.filter((x) => x.e.team === 1).length;
@@ -218,7 +235,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   // Shared with the rink without re-rendering: events (tagged with who was on the ice) and the presentation clock.
   const feed = useRef<RinkFeed>({ items: [], tracks: [], pres: 0, presAt: 0, rate: 0, done: false }).current;
   const rinkPlayers = useMemo<RinkPlayer[]>(
-    () => ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null, first: p.first, last: p.last }))),
+    () => ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null, first: p.first, last: p.last, visor: visorFor(p.id, p.age) }))),
     [input],
   );
 
@@ -298,6 +315,42 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speed, finished]);
+
+  // Resuming: replay the engine to where the viewer was (the same deterministic game) and pick up from there.
+  const catchUpTo = useRef(resumeAt ?? -1);
+  useEffect(() => {
+    if (!resumeAt || resumeAt <= 0) return;
+    const pb = playRef.current!;
+    advanceTo(resumeAt);
+    // The whistles already played out don't hold the clock again.
+    pb.pres = resumeAt + pb.hold;
+    pb.hold = 0;
+    feed.pres = pb.pres;
+    feed.presAt = performance.now();
+    toast(`Picked up where you left off: ${periodLabel(pb.cur.snap.period, playoff)}${pb.cur.snap.period <= 3 ? ' period' : ''}.`, 'good');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Keep a save of the game in progress: whenever play stops, at intermissions and on leaving the page.
+  const cpRef = useRef(onCheckpoint);
+  cpRef.current = onCheckpoint;
+  const checkpoint = () => {
+    const pb = playRef.current;
+    if (!cpRef.current || !pb || sim.finished || pb.t <= 0) return;
+    cpRef.current(sim, pb.t);
+  };
+  useEffect(() => {
+    if (speed === 'pause') checkpoint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speed, report]);
+  useEffect(() => {
+    const onHide = () => checkpoint();
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      checkpoint();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const instant = () => {
     feed.done = true;

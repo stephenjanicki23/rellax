@@ -216,3 +216,4 @@
 @media (max-width: 640px) {
   .im-grid { grid-template-columns: 1fr; }
 }
+.lf-why { display: block; margin-top: 2px; font-size: 11px; color: var(--muted, #8a94a3); letter-spacing: 0.02em; }

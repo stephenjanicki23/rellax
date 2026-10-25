@@ -116,10 +116,16 @@ export type GameEventType =
   | 'goalieChange'
   | 'fight'
   | 'clear'
+  /** A coach changes his team's system mid-game (data.adjust says how and why). */
+  | 'adjustment'
   | 'shootout'
   | 'gameEnd';
 
 export interface GameEvent {
+  /** Sequence number within the game (1, 2, 3...). */
+  id?: number;
+  /** The event that led to this one: a save's shot, a goal's shot, a turnover's pass, a shot's set-up pass or rebound. */
+  cause?: number;
   /** Absolute game seconds elapsed. */
   t: number;
   period: number;
@@ -153,6 +159,16 @@ export interface GameEvent {
     big?: boolean;
     en?: boolean;
     round?: number;
+    /**
+     * The probability behind the outcome, from the engine's own numbers at that moment:
+     * shot / save / goal: chance the shot went in; pass: chance it got through;
+     * blocked: chance of the block; missed: chance of missing the net; rebound: chance of a rebound.
+     */
+    p?: number;
+    /** How a pass ended: completed, intercepted, off target, stripped on arrival. */
+    outcome?: string;
+    /** Coaching adjustment: what changed and why ('chasing', 'protecting', 'simplify', 'pinned', 'reset'). */
+    adjust?: string;
   };
 }
 
