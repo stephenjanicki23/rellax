@@ -21,6 +21,8 @@ interface Rink3DProps {
   /** [primary, secondary] colours, home then away. */
   colors: readonly [readonly [string, string], readonly [string, string]];
   abbr: [string, string];
+  /** Home team's logo URL, painted at centre ice when the browser can load it. */
+  logo?: string;
   /** Team names (e.g. "Bruins"), for the dasher boards. */
   names: [string, string];
   score: [number, number];
@@ -70,8 +72,12 @@ function band(a: number, b: number, h: number, y0: number, mat: THREE.Material):
   return m;
 }
 
-/** The ice: white sheet with the real markings, painted once on a canvas. */
-function iceTexture(homeAbbr: string, homeColor: string): THREE.CanvasTexture {
+/**
+ * The ice: white sheet with the real markings, painted once on a canvas. The home team's logo
+ * (when it could be loaded) is painted at centre ice under the lines, as in a real rink;
+ * otherwise a crest with the team's abbreviation.
+ */
+function iceTexture(homeAbbr: string, homeColor: string, logo?: HTMLImageElement): THREE.CanvasTexture {
   const PX = 10;
   const c = document.createElement('canvas');
   c.width = W * PX;
@@ -95,6 +101,29 @@ function iceTexture(homeAbbr: string, homeColor: string): THREE.CanvasTexture {
   }
   const RED = '#c8102e';
   const BLUE = '#1f4fa8';
+  // Centre-ice logo (painted under the lines).
+  g.save();
+  if (logo) {
+    const iw = logo.naturalWidth || 300;
+    const ih = logo.naturalHeight || 300;
+    const size = 24;
+    const k = size / Math.max(iw, ih);
+    g.globalAlpha = 0.95;
+    g.drawImage(logo, RINK.cx - (iw * k) / 2, RINK.cy - (ih * k) / 2, iw * k, ih * k);
+  } else {
+    g.globalAlpha = 0.85;
+    g.fillStyle = homeColor;
+    g.beginPath();
+    g.arc(RINK.cx, RINK.cy, 9, 0, Math.PI * 2);
+    g.fill();
+    g.globalAlpha = 1;
+    g.fillStyle = '#fff';
+    g.font = '800 6px "Barlow Condensed", system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(homeAbbr, RINK.cx, RINK.cy + 0.3);
+  }
+  g.restore();
   // Centre line, blue lines, goal lines.
   g.fillStyle = RED;
   g.fillRect(RINK.cx - 0.5, 0, 1, H);
@@ -104,25 +133,12 @@ function iceTexture(homeAbbr: string, homeColor: string): THREE.CanvasTexture {
   g.fillStyle = RED;
   g.fillRect(RINK.goalL - 0.08, 0, 0.17, H);
   g.fillRect(RINK.goalR - 0.08, 0, 0.17, H);
-  // Centre circle and logo.
+  // Centre circle.
   g.strokeStyle = BLUE;
   g.lineWidth = 0.17;
   g.beginPath();
   g.arc(RINK.cx, RINK.cy, 15, 0, Math.PI * 2);
   g.stroke();
-  g.save();
-  g.globalAlpha = 0.85;
-  g.fillStyle = homeColor;
-  g.beginPath();
-  g.arc(RINK.cx, RINK.cy, 9, 0, Math.PI * 2);
-  g.fill();
-  g.globalAlpha = 1;
-  g.fillStyle = '#fff';
-  g.font = '800 6px "Barlow Condensed", system-ui, sans-serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(homeAbbr, RINK.cx, RINK.cy + 0.3);
-  g.restore();
   // Faceoff circles and dots.
   g.strokeStyle = RED;
   g.fillStyle = RED;
@@ -212,6 +228,16 @@ const ringBand = (r: number, h: number, mat: THREE.Material, x: number, y: numbe
   m.position.set(x, y, 0);
   return m;
 };
+
+/**
+ * A natural skin tone, picked per player from the full range of real skin tones (by id only:
+ * nothing about the player is used to choose it).
+ */
+const SKIN_TONES = ['#f7dcc8', '#f1c9ad', '#e8b896', '#dba37f', '#c98d66', '#b07450', '#94603f', '#7a4b31', '#5f3a26', '#47291b'];
+function skinTone(id: number): string {
+  const h = Math.abs(Math.sin((id + 7) * 78.233) * 43758.5453) % 1;
+  return SKIN_TONES[Math.floor(h * SKIN_TONES.length)];
+}
 
 /** Number on a transparent panel, for the back and chest of the jersey. */
 function numberDecal(num: number | null, ink: string, outline: string): THREE.CanvasTexture {
@@ -305,22 +331,54 @@ function buildSkater(p: RinkPlayer | undefined, team: 0 | 1, goalie: boolean, co
   chest.position.set(torsoR * 0.84, hipY + 1.6, 0.35);
   chest.rotation.y = Math.PI / 2;
   body.add(chest);
-  // Neck and helmet (goalies: a painted mask with a cage).
-  body.add(limb(0.24, 0.15, mat('#c99a7a', 0.8), 0, hipY + 2.45, 0));
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.6, 20, 14), goalie ? pad : helmetMat);
-  head.scale.set(1.08, 1, 0.95);
-  head.position.set(0, hipY + 2.95, 0);
-  head.castShadow = true;
-  body.add(head);
+  // Neck and head: a face in his own skin tone inside the helmet (goalies: a painted mask with a cage).
+  const skin = new THREE.MeshStandardMaterial({ color: skinTone(p?.id ?? 0), roughness: 0.75 });
+  body.add(limb(0.24, 0.15, skin, 0, hipY + 2.45, 0));
+  const headY = hipY + 2.95;
   if (goalie) {
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.6, 20, 14), pad);
+    head.scale.set(1.08, 1, 0.95);
+    head.position.set(0, headY, 0);
+    head.castShadow = true;
+    body.add(head);
     const paint = new THREE.Mesh(new THREE.SphereGeometry(0.61, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.35), tm);
     paint.scale.copy(head.scale);
     paint.position.copy(head.position);
     body.add(paint);
     for (let i = -2; i <= 2; i++) body.add(box(0.05, 0.6, 0.05, black, 0.6, hipY + 2.85, i * 0.13));
   } else {
-    body.add(box(0.12, 0.26, 0.85, new THREE.MeshStandardMaterial({ color: '#1a2230', roughness: 0.05, metalness: 0.7, transparent: true, opacity: 0.75 }), 0.6, hipY + 2.92, 0));
-    body.add(box(0.5, 0.22, 1.12, helmetMat, -0.05, hipY + 2.62, 0));
+    // Face (facing +x), with eyes so you can tell which way he's looking.
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14), skin);
+    face.scale.set(1, 1.08, 0.9);
+    face.position.set(0.06, headY - 0.06, 0);
+    face.castShadow = true;
+    body.add(face);
+    const eyeMat = new THREE.MeshStandardMaterial({ color: '#1a1410', roughness: 0.4 });
+    for (const z of [-0.16, 0.16]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), eyeMat);
+      eye.position.set(0.52, headY + 0.02, z);
+      body.add(eye);
+    }
+    // Helmet shell: covers the top, sides and back, open at the face.
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.62, 22, 14, Math.PI + 0.95, Math.PI * 2 - 1.9, 0, Math.PI * 0.62), helmetMat);
+    shell.scale.set(1.08, 1, 0.98);
+    shell.position.set(0, headY + 0.02, 0);
+    shell.castShadow = true;
+    body.add(shell);
+    // Brim over the forehead, and ear guards.
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.16, 20, 1, true, Math.PI / 2 - 0.95, 1.9), helmetMat);
+    brim.position.set(0, headY + 0.24, 0);
+    body.add(brim);
+    for (const z of [-0.55, 0.55]) body.add(box(0.32, 0.36, 0.1, helmetMat, -0.02, headY - 0.08, z));
+    if (p?.visor !== false) {
+      // Visor: a clear, lightly tinted shield across the eyes.
+      const visor = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.66, 0.68, 0.32, 24, 1, true, Math.PI / 2 - 0.9, 1.8),
+        new THREE.MeshPhysicalMaterial({ color: '#cfe2f3', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.38, clearcoat: 1, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      visor.position.set(0, headY + 0.01, 0);
+      body.add(visor);
+    }
   }
   // Arms pivot at the shoulders so they can swing and rise.
   const shoulderY = hipY + 2.0;
@@ -577,7 +635,7 @@ function scoreboardTexture(abbr: [string, string], score: [number, number], colo
   return t;
 }
 
-export default function Rink3D({ motion, meta, colors, abbr, names, score, period, light, goalTeam, replaying, onFail }: Rink3DProps) {
+export default function Rink3D({ motion, meta, colors, abbr, logo, names, score, period, light, goalTeam, replaying, onFail }: Rink3DProps) {
   const host = useRef<HTMLDivElement | null>(null);
   const [cam, setCam] = useState<Cam3D>(() => {
     try {
@@ -654,6 +712,26 @@ export default function Rink3D({ motion, meta, colors, abbr, names, score, perio
     ice.rotation.x = -Math.PI / 2;
     ice.receiveShadow = true;
     scene.add(ice);
+    // Repaint with the home logo once it loads; a cross-origin image that taints the canvas keeps the crest.
+    let logoImg: HTMLImageElement | null = null;
+    if (logo) {
+      logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      logoImg.onload = () => {
+        if (!logoImg) return;
+        try {
+          const t = iceTexture(abbr[0], colors[0][0], logoImg);
+          (t.image as HTMLCanvasElement).getContext('2d')!.getImageData(0, 0, 1, 1);
+          const m = ice.material as THREE.MeshPhysicalMaterial;
+          m.map?.dispose();
+          m.map = t;
+          m.needsUpdate = true;
+        } catch {
+          /* keep the crest */
+        }
+      };
+      logoImg.src = logo;
+    }
     // Concourse floor beyond the boards.
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(600, 400), new THREE.MeshStandardMaterial({ color: '#10141c', roughness: 1 }));
     floor.rotation.x = -Math.PI / 2;
@@ -971,6 +1049,8 @@ export default function Rink3D({ motion, meta, colors, abbr, names, score, perio
     };
     raf = requestAnimationFrame(frame);
     return () => {
+      if (logoImg) logoImg.onload = null;
+      logoImg = null;
       cancelAnimationFrame(raf);
       ro.disconnect();
       scene.traverse((o) => {
@@ -988,7 +1068,7 @@ export default function Rink3D({ motion, meta, colors, abbr, names, score, perio
       el.removeChild(renderer.domElement);
     };
     // The scene is built once per game; live values come through `live`.
-  }, [motion, meta, colors, abbr, names, onFail]);
+  }, [motion, meta, colors, abbr, logo, names, onFail]);
 
   return (
     <div className="rink3d" ref={host}>

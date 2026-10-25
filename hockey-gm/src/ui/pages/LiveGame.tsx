@@ -20,7 +20,7 @@ import { GamePanels } from '../live/GamePanels';
 import { Ticker, type TickerGame } from '../live/Ticker';
 import { Intermission } from '../live/Intermission';
 import '../live/live.css';
-import { whistleHold, type RinkPlayer } from '../rink/director';
+import { visorFor, whistleHold, type RinkPlayer } from '../rink/director';
 import type { RinkFeed } from '../rink/LiveRink';
 
 
@@ -235,7 +235,7 @@ export function LiveView({ input, home, away, playoff, info, records, finishLabe
   // Shared with the rink without re-rendering: events (tagged with who was on the ice) and the presentation clock.
   const feed = useRef<RinkFeed>({ items: [], tracks: [], pres: 0, presAt: 0, rate: 0, done: false }).current;
   const rinkPlayers = useMemo<RinkPlayer[]>(
-    () => ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null, first: p.first, last: p.last }))),
+    () => ([input.home, input.away] as const).flatMap((t, team) => t.players.map((p) => ({ id: p.id, team: team as 0 | 1, pos: p.pos, number: p.number ?? null, first: p.first, last: p.last, visor: visorFor(p.id, p.age) }))),
     [input],
   );
 
