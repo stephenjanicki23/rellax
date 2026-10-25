@@ -46,6 +46,11 @@ const GAP: Partial<Record<GameEventType, number>> = {
   ppEnd: 0.05,
   periodStart: 0.1,
 };
+/** With live engine positions: how far ahead of its game time a release is drawn, so the flight ends on time. */
+const LEAD: Partial<Record<GameEventType, number>> = {
+  pass: 0.2,
+  shot: 0.22,
+};
 const WAYPOINT_EVERY = 1.1;
 /** Engine positions blended either side of each one when smoothing paths (2 = half a second each way). */
 const SMOOTH_HALF = 2;
@@ -222,7 +227,14 @@ export class RinkTimeline {
       // During a stoppage, line changes and other housekeeping happen right after the whistle,
       // leaving the rest of the pause for everyone to line up for the faceoff.
       const housekeeping = this.stopped && e.type !== 'faceoff' && e.type !== 'periodStart' && whistleHold(e.type) === 0;
-      let s = housekeeping ? this.lastS + Math.max(gap, 0.4) : Math.max(this.lastS + gap, e.t + this.holdSum);
+      // With the engine's positions arriving four times a second, events land on the game clock itself:
+      // a release (pass, shot) a beat early so the puck's flight ends when the engine says it did, and
+      // nothing pushes the schedule later (that drift is what made play crawl and then rush to catch up).
+      let s = housekeeping
+        ? this.lastS + Math.max(gap, 0.4)
+        : this.live && e.type !== 'faceoff'
+          ? Math.max(this.lastS + 0.03, e.t + this.holdSum - (LEAD[e.type] ?? 0))
+          : Math.max(this.lastS + gap, e.t + this.holdSum);
       // The puck never drops before the whistle's full pause has played out (even if the whistle itself landed late).
       if (e.type === 'faceoff' && this.whistleEnd > s) s = this.whistleEnd;
       const live = this.live;
@@ -231,8 +243,15 @@ export class RinkTimeline {
         this.director.puck = { ...live.puck };
         this.director.carrier = live.carrier;
       }
-      const frames = this.director.apply(e, ice);
+      let frames = this.director.apply(e, ice);
       if (live) {
+        // Staged follow-ups (a dump-in rimming round the boards) are already in the engine's positions;
+        // staging them again would hold the clock back.
+        const now = frames.filter((f) => !(f.at !== undefined && f.at > 0));
+        if (now.length && now.length < frames.length) {
+          now[now.length - 1] = { ...now[now.length - 1], event: frames[frames.length - 1].event };
+          frames = now;
+        }
         for (const f of frames) {
           // Penalized players head for the box: drop them from the last known positions.
           if (f.toBox?.length) {
