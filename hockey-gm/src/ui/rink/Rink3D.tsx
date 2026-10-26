@@ -828,7 +828,52 @@ export default function Rink3D({ motion, meta, colors, abbr, logo, names, score,
     };
 
     const skaters = new Map<number, Skater>();
+    /** Built players not on the ice right now, kept for their next shift. */
+    const benched = new Map<number, Skater>();
     const tags = new Map<number, THREE.Sprite>();
+    const makeSkater = (id: number, fallbackTeam: 0 | 1, goalie: boolean): Skater => {
+      const m = meta.get(id);
+      const team = (m?.team ?? fallbackTeam) as 0 | 1;
+      // Home in their colours, visitors in white with their colour as trim (as on TV).
+      return buildSkater(m, team, goalie, team === 0 ? colors[0] : ['#f4f4f2', colors[1][0]]);
+    };
+    const makeTag = (id: number): THREE.Sprite => {
+      const m = meta.get(id);
+      const tag = nameTag(m, colors[(m?.team ?? 0) as 0 | 1][0]);
+      tag.visible = false;
+      tags.set(id, tag);
+      return tag;
+    };
+    // Build everyone dressed and compile every shader before play starts: building a player or
+    // compiling a new material the first time it shows up stalls the frame mid-play.
+    {
+      const warm: THREE.Object3D[] = [];
+      for (const [id, m] of meta) {
+        const s = makeSkater(id, m.team, m.pos === 'G');
+        benched.set(id, s);
+        warm.push(s.root, makeTag(id));
+      }
+      for (const o of warm) scene.add(o);
+      // compile() covers hidden objects too (the goal light, the trail); one real frame with everyone
+      // in view catches the variants that only show up at draw time (shadows, sprites).
+      renderer.compile(scene, camera);
+      for (const t of tags.values()) {
+        t.visible = true;
+        t.position.set(0, 11.5, 0);
+      }
+      camera.position.set(0, 60, 90);
+      camera.lookAt(0, 0, 0);
+      renderer.render(scene, camera);
+      for (const t of tags.values()) t.visible = false;
+      scene.traverse((o) => {
+        const mat = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        for (const x of Array.isArray(mat) ? mat : mat ? [mat] : []) {
+          const map = (x as THREE.MeshStandardMaterial).map;
+          if (map) renderer.initTexture(map);
+        }
+      });
+      for (const s of benched.values()) scene.remove(s.root);
+    }
     const gold = new THREE.Color('#f2c94c');
     const teamCol = [new THREE.Color(colors[0][0]), new THREE.Color(colors[1][0])];
     const camPos = new THREE.Vector3(0, 60, 90);
@@ -864,6 +909,7 @@ export default function Rink3D({ motion, meta, colors, abbr, logo, names, score,
         if (!motion.bodies.has(id)) {
           scene.remove(s.root);
           skaters.delete(id);
+          benched.set(id, s);
         }
       const pm = motion.puck.mode;
       const carrier = pm.kind === 'carried' ? pm.carrier : null;
@@ -871,10 +917,9 @@ export default function Rink3D({ motion, meta, colors, abbr, logo, names, score,
       for (const [id, b] of motion.bodies) {
         let s = skaters.get(id);
         if (!s) {
-          const m = meta.get(id);
-          const team = (m?.team ?? b.team) as 0 | 1;
-          // Home in their colours, visitors in white with their colour as trim (as on TV).
-          s = buildSkater(m, team, b.goalie, team === 0 ? colors[0] : ['#f4f4f2', colors[1][0]]);
+          s = benched.get(id);
+          if (s && s.goalie === b.goalie) benched.delete(id);
+          else s = makeSkater(id, b.team, b.goalie);
           skaters.set(id, s);
           scene.add(s.root);
         }
@@ -928,9 +973,7 @@ export default function Rink3D({ motion, meta, colors, abbr, logo, names, score,
       if (carrier !== null && skaters.has(carrier)) {
         let tag = tags.get(carrier);
         if (!tag) {
-          const m = meta.get(carrier);
-          tag = nameTag(m, colors[(m?.team ?? 0) as 0 | 1][0]);
-          tags.set(carrier, tag);
+          tag = makeTag(carrier);
           scene.add(tag);
         }
         const r = skaters.get(carrier)!.root.position;
@@ -1053,6 +1096,7 @@ export default function Rink3D({ motion, meta, colors, abbr, logo, names, score,
       logoImg = null;
       cancelAnimationFrame(raf);
       ro.disconnect();
+      for (const b of benched.values()) scene.add(b.root);
       scene.traverse((o) => {
         const m = o as THREE.Mesh;
         m.geometry?.dispose?.();
