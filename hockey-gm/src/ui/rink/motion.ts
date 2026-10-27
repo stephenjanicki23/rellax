@@ -266,6 +266,10 @@ export class RinkTimeline {
           if (f.motion === 'pass' && e.p2 !== undefined && live.players[e.p2]) {
             f.puck = { ...live.players[e.p2] };
             f.carrier = e.p2;
+          } else if (e.type === 'freeze' && this.keys.length) {
+            // Covered where the save left it (the latest engine positions are from before the shot).
+            f.puck = { ...this.keys[this.keys.length - 1].puck };
+            f.carrier = null;
           } else if (f.motion !== 'shot') {
             f.puck = { ...live.puck };
             f.carrier = live.carrier;
@@ -422,7 +426,7 @@ export class RinkMotion {
     // Start a pass/shot flight so it lands exactly on its keyframe.
     if ((target.motion === 'pass' || target.motion === 'shot') && this.flightFor !== this.k) {
       const len = dist(this.puck.pos, target.puck);
-      const flyTime = Math.min(0.9, Math.max(0.1, len / (target.motion === 'shot' ? SHOT_SPEED : passSpeed(len))));
+      const flyTime = Math.min(0.9, Math.max(target.motion === 'shot' ? 0.16 : 0.1, len / (target.motion === 'shot' ? SHOT_SPEED : passSpeed(len))));
       if (target.s - this.P <= flyTime) {
         // Never faster than the pass/shot speed: a late start lands just after the keyframe.
         this.puck.mode = { kind: 'flying', from: { ...this.puck.pos }, to: onIce(target.puck), t0: this.P, t1: Math.max(target.s, this.P + flyTime), shot: target.motion === 'shot' };
@@ -452,15 +456,17 @@ export class RinkMotion {
     for (const id of this.boxBound) if (key.players[id] && !key.toBox?.includes(id)) this.boxBound.delete(id);
     this.pendingCarrier = null;
     const carrier = key.carrier;
+    // A flight still in the air finishes first: one aimed at this keyframe, or a shot or pass that the
+    // next engine positions would otherwise cut off mid-air (they come every quarter second).
+    const fl = this.puck.mode;
+    if (fl.kind === 'flying' && this.P < fl.t1 - 1e-6 && (this.flightFor === idx || key.motion !== 'still' || dist(key.puck, fl.to) < 4)) {
+      this.pendingCarrier = carrier !== null && this.bodies.has(carrier) ? carrier : null;
+      return;
+    }
     if (key.motion === 'still') {
       this.puck.pos = { ...key.puck };
       this.puck.vel = { x: 0, y: 0 };
       this.puck.mode = carrier !== null ? { kind: 'carried', carrier } : { kind: 'loose' };
-      return;
-    }
-    // A flight aimed at this keyframe that is still in the air finishes first.
-    if (this.puck.mode.kind === 'flying' && this.flightFor === idx && this.P < this.puck.mode.t1 - 1e-6) {
-      this.pendingCarrier = carrier !== null && this.bodies.has(carrier) ? carrier : null;
       return;
     }
     if (this.puck.mode.kind === 'flying' && this.flightFor === idx) this.puck.pos = { ...this.puck.mode.to };

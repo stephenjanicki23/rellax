@@ -1779,6 +1779,7 @@ export class GameSim {
     }
     const pFreeze = clamp(0.5 + 0.08 * g.gReb + (danger === 'low' ? -0.08 : 0.06), 0.25, 0.75);
     if (rng.chance(pFreeze)) {
+      this.coverPuck(g);
       this.ev('freeze', B.idx, g.id);
       this.faceoff = B.idx;
       return;
@@ -1992,6 +1993,12 @@ export class GameSim {
       this.puck.x = carrier.x;
       this.puck.y = carrier.y;
     }
+  }
+
+  /** The goalie smothers it: the puck is under him until the faceoff (not back where it was shot from). */
+  private coverPuck(g: SP): void {
+    [this.puck.x, this.puck.y] = clampToIce(g.x, g.y);
+    this.puck.carrier = null;
   }
 
   private loosePuck(x: number, y: number): void {
@@ -2868,6 +2875,7 @@ export class GameSim {
         const near = this.nearestDist(this.puck.x, this.puck.y, opp);
         if (near > 2.5) {
           if (this.rng.chance(0.6)) {
+            this.coverPuck(g);
             this.ev('freeze', t.idx, g.id);
             this.faceoff = t.idx;
             return;
@@ -3104,6 +3112,7 @@ export class GameSim {
     const pFreeze = clamp(0.5 + 0.08 * g.gReb + (danger === 'low' ? -0.08 : 0.06), 0.25, 0.75);
     if (rng.chance(pFreeze)) {
       this.causeNext = this.lastSaveEv;
+      this.coverPuck(g);
       this.ev('freeze', B.idx, g.id);
       this.faceoff = B.idx;
       return;

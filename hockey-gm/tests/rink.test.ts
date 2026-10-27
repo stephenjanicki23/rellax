@@ -100,6 +100,10 @@ describe('continuous rink motion', () => {
   let movingSamples = 0;
   const lastVel = new Map<number, { x: number; y: number }>();
   let frameCount = 0;
+  // Saves and goals: is the puck at the net a moment later (not back on someone's stick)?
+  const shotEnds: { to: { x: number; y: number }; due: number }[] = [];
+  let shotsChecked = 0;
+  let shotsAtNet = 0;
   const outside = (p: { x: number; y: number }) => {
     const cx = p.x < CORNER_R ? CORNER_R : p.x > RINK.w - CORNER_R ? RINK.w - CORNER_R : null;
     const cy = p.y < CORNER_R ? CORNER_R : p.y > RINK.h - CORNER_R ? RINK.h - CORNER_R : null;
@@ -109,6 +113,7 @@ describe('continuous rink motion', () => {
     let reset = false;
     const p0 = { ...motion.puck.pos };
     motion.step(dt, (k) => {
+      if (k.event?.type === 'save' || k.event?.type === 'goal') shotEnds.push({ to: { ...k.puck }, due: k.s + 0.35 });
       if (k.goalLight !== null && k.period <= 3) goalPucks.push(k.puck.x);
       if (k.motion === 'still') reset = true;
       if (k.event?.type === 'penalty' && k.event.p1 !== undefined) sentOff.add(k.event.p1);
@@ -128,6 +133,11 @@ describe('continuous rink motion', () => {
         whistleAt = null;
       }
     });
+    while (shotEnds.length && motion.P >= shotEnds[0].due) {
+      const se = shotEnds.shift()!;
+      shotsChecked++;
+      if (Math.hypot(motion.puck.pos.x - se.to.x, motion.puck.pos.y - se.to.y) < 8) shotsAtNet++;
+    }
     // Setting up for a faceoff, players glide into place faster than game speed.
     const settingUp = !!motion.next?.faceoff || motion.P - lastDrop < 1.5;
     for (const b of motion.bodies.values()) {
@@ -246,6 +256,10 @@ describe('continuous rink motion', () => {
   });
   it('gives players room: markers rarely stack on top of each other', () => {
     expect(crowdedFrames / frameCount).toBeLessThan(0.25);
+  });
+  it('sends shots off the stick to the net: the puck is at the goalie or in the net after a save or goal', () => {
+    expect(shotsChecked).toBeGreaterThan(30);
+    expect(shotsAtNet / shotsChecked).toBeGreaterThan(0.9);
   });
   it('keeps the puck moving during live play', () => {
     expect(longStill).toBeLessThan(15); // over a full game
