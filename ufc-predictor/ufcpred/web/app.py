@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import db, ledger, lifecycle, predict, review, services
+from .. import betting, db, ledger, lifecycle, predict, review, services
 from ..config import DEFAULT_SETTINGS, env_status, setting
 from ..features.build import StateCache
 from ..features.history import HistoryStore, fighter_state
@@ -31,6 +31,7 @@ T.filters["pct"] = lambda v, d=0: "—" if v is None else f"{v * 100:.{d}f}%"
 T.filters["f"] = lambda v, d=3: "—" if v is None else f"{v:.{d}f}"
 T.filters["method"] = lambda m: services.METHOD_LABEL.get(m, m or "—")
 T.filters["loads"] = lambda s: loads(s, {})
+T.filters["money"] = betting.money
 T.filters["clock"] = lambda s: "—" if s is None else f"{s // 60}:{s % 60:02d}"
 T.globals.update(charts=charts, now=lambda: utcnow())
 plain.install(T)
@@ -251,11 +252,73 @@ def rollback(version_id: int, reason: str = Form("manual rollback from Learning 
 
 
 @app.get("/edge", response_class=HTMLResponse)
-def edge(request: Request, event: int | None = None, conn=Depends(get_db)):
-    ev = conn.execute("SELECT * FROM events WHERE id=?", (event,)).fetchone() if event else services.edge_event(conn)
-    data = services.betting_edge(conn, ev["id"]) if ev else None
-    return render(request, "edge.html", data=data, record=services.betting_track_record(conn),
-                  edge_min=services.EDGE_MIN)
+def edge(request: Request, conn=Depends(get_db)):
+    rows = betting.bets(conn)
+    ev = services.edge_event(conn)
+    min_n = int(setting(conn, "betting.min_sample"))
+    return render(request, "edge.html", rows=rows, s=betting.summary(rows),
+                  tiers=[betting.tier_stats(rows, t) for t in ("High", "Medium")], events=betting.event_stats(rows),
+                  curve=betting.cumulative(rows), fb=betting.feedback(rows, min_n), next_ev=ev,
+                  record=services.betting_track_record(conn), edge_min=services.EDGE_MIN,
+                  stakes={t: setting(conn, f"betting.stake_{t.lower()}") for t in ("High", "Medium", "Low")})
+
+
+@app.get("/edge/event/{event_id}", response_class=HTMLResponse)
+def edge_event(request: Request, event_id: int, conn=Depends(get_db)):
+    ev = conn.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+    if ev is None:
+        raise HTTPException(404, "no such event")
+    rows = [r for r in betting.bets(conn) if r["event_id"] == event_id]
+    stats = betting.event_stats(rows)
+    rows.sort(key=lambda r: (r["bout_order"] or 999, r["id"]))      # main event first
+    return render(request, "edge_event.html", ev=ev, rows=rows, st=stats[0] if stats else None,
+                  data=services.betting_edge(conn, event_id), edge_min=services.EDGE_MIN)
+
+
+def _ledger_query(request: Request) -> dict:
+    keys = ("tier", "event", "date_from", "date_to", "status", "fighter", "odds_min", "odds_max", "sort", "dir")
+    return {k: request.query_params.get(k, "") for k in keys}
+
+
+@app.get("/edge/bets", response_class=HTMLResponse)
+def edge_bets(request: Request, conn=Depends(get_db)):
+    q = _ledger_query(request)
+    all_rows = betting.bets(conn)
+    rows = betting.filter_rows(all_rows, q)
+    events = sorted({(r["event_id"], r["event_date"], r["event_name"]) for r in all_rows}, key=lambda e: e[1] or "",
+                    reverse=True)
+    return render(request, "edge_bets.html", rows=rows, q=q, s=betting.summary(rows), events=events,
+                  qs=request.url.query)
+
+
+@app.get("/edge/bets.csv")
+def edge_bets_csv(request: Request, conn=Depends(get_db)):
+    from fastapi.responses import Response
+    rows = betting.filter_rows(betting.bets(conn), _ledger_query(request))
+    return Response(betting.to_csv(rows), media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=ufc-bet-ledger.csv"})
+
+
+@app.get("/edge/bet/{bet_id}", response_class=HTMLResponse)
+def edge_bet(request: Request, bet_id: int, msg: str = "", conn=Depends(get_db)):
+    row = next((r for r in betting.bets(conn) if r["id"] == bet_id), None)
+    if row is None:
+        raise HTTPException(404, "no such bet")
+    hist = [h | {"changes": betting.describe(h)} for h in betting.history(conn, bet_id)]
+    return render(request, "edge_bet.html", b=row, hist=hist,
+                  why=loads(row["rationale_json"], {}), msg=msg)
+
+
+@app.post("/edge/bet/{bet_id}/correct")
+def edge_bet_correct(bet_id: int, reason: str = Form(""), odds_american: str = Form(""), status: str = Form(""),
+                     stake: str = Form(""), conn=Depends(get_db)):
+    try:
+        betting.correct(conn, bet_id, reason=reason, actor="admin", odds_american=odds_american or None,
+                        status=status or None, stake_dollars=stake or None)
+        msg = "correction saved"
+    except betting.CorrectionError as e:
+        msg = f"refused: {e}"
+    return RedirectResponse(f"/edge/bet/{bet_id}?msg={msg[:300]}", status_code=303)
 
 
 @app.get("/performance", response_class=HTMLResponse)
@@ -405,11 +468,26 @@ def action(name: str, event_id: int | None = Form(None), reason: str = Form(""),
             msg = str(ledger.lock_event(conn, event_id, "live", utcnow()[:10], "manual lock"))
         elif name == "evaluate" and event_id:
             msg = str(review.evaluate_event(conn, event_id, "live"))
+        elif name == "sync_bets":
+            msg = "bets: " + str(betting.sync(conn, actor="admin"))
         else:
             raise HTTPException(400, "unknown action")
+        if name in ("predict", "lock", "evaluate", "refresh_odds", "refresh_upcoming"):
+            msg += _sync_note(conn)
     except (ledger.LedgerError, RuntimeError, ValueError) as e:
         msg = f"refused: {e}"
+    if name == "sync_bets":
+        return RedirectResponse("/edge", status_code=303)
     return RedirectResponse(f"/settings?msg={msg[:300]}", status_code=303)
+
+
+def _sync_note(conn) -> str:
+    """Keep the simulated-bet ledger current after anything that changes picks, odds or results."""
+    try:
+        out = betting.sync(conn)
+        return f" · bets {out}" if out else ""
+    except Exception as e:  # tracking must never block the prediction workflow
+        return f" · bet tracking failed: {type(e).__name__}"
 
 
 @app.post("/import/{kind}")
@@ -427,7 +505,7 @@ async def import_file(kind: str, file: UploadFile = File(...), conn=Depends(get_
             out = ingest_corrections(conn, manual.parse_corrections(text, fmt))
         else:
             raise HTTPException(400, "unknown import kind")
-        msg = f"{kind} imported: {out}"
+        msg = f"{kind} imported: {out}" + (_sync_note(conn) if kind in ("card", "results", "odds") else "")
     except manual.ValidationError as e:
         msg = f"{kind} rejected — " + "; ".join(e.errors[:8])
     return RedirectResponse(f"/settings?msg={msg[:500]}", status_code=303)

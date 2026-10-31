@@ -152,6 +152,40 @@ UFCPRED_TEST_DATABASE_URL=postgresql://… python -m pytest   # same suite on Po
 3. After the event, `refresh` (mirror) or `import-results` → `tick` grades the locked predictions and
    runs the learning loop. An event is shown as evaluated only after this has actually happened.
 
+### Betting Edge: simulated bet tracker
+Tracking only — `ufcpred/betting.py` reads predictions, odds and results and is never read by the engine
+or the learning loop.
+
+**Recording bets**
+- Every live pick is recorded once per fight in `sim_bets`, enforced by a `UNIQUE(fight_id, strategy)`
+  constraint. The stake depends on the engine's own confidence label:
+  - High confidence (score ≥ 0.8): `betting.stake_high`, default $100.
+  - Medium confidence (score ≥ 0.5): `betting.stake_medium`, default $50.
+  - Low confidence: tracked with no stake.
+- Changing a stake setting affects only bets recorded afterwards.
+- Before the card locks, a bet follows the newest prediction, and each change is logged. At the card lock
+  (which happens before the first fight), the selection and stake are frozen to the official prediction.
+
+**Odds**
+- Odds come from imported or feed odds captured before the fight's first result. Once set, they are
+  frozen at the lock. Odds are never invented.
+- A decided bet with no odds shows as "needs odds" and stays out of P/L until an admin enters them.
+
+**Settlement and corrections**
+- Win: + profit. Loss: − stake. Draw: push ($0). No contest: void ($0). Canceled or replaced bout: void.
+- A bet that was never locked before its fight is voided and not graded.
+- If the official result is revised, the bet is re-settled once, with a log entry.
+- Admin corrections (odds, stake, status) require a reason. They are written to the append-only
+  `sim_bet_events` table, and a corrected settlement is pinned until reset to "auto".
+
+**Updates and pages**
+- The tracker updates on every `tick` and after predict, lock, odds and result actions.
+- Pages:
+  - `/edge` — dashboard;
+  - `/edge/event/<id>` — one card's bets;
+  - `/edge/bets` — filterable ledger, with `.csv` export;
+  - `/edge/bet/<id>` — one bet, its history and the correction form.
+
 ## 5. Deploying to Vercel (with Neon Postgres)
 
 Vercel serves the web app as one Python function (`api/index.py`, `vercel.json`). Serverless functions

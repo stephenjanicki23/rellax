@@ -91,6 +91,10 @@ DEFAULT_SETTINGS: dict = {
     "providers.upcoming": "manual",              # manual | ufcstats_live
     "providers.odds": "none",                    # none | manual | the_odds_api
     "providers.odds.bookmakers": "williamhill_us",  # The Odds API bookmaker keys, comma-separated; empty = all US books
+    "betting.stake_high": 100,                   # simulated stake (dollars) per High-confidence pick
+    "betting.stake_medium": 50,                  # per Medium-confidence pick
+    "betting.stake_low": 0,                      # Low-confidence picks are tracked, not bet
+    "betting.min_sample": 30,                    # settled bets before a segment is treated as evidence
     "providers.ufcstats_mirror.base_url": "https://raw.githubusercontent.com/Greco1899/scrape_ufc_stats/main",
     "providers.min_request_interval_s": 2.0,
     "analyst.provider": "deterministic",         # deterministic | anthropic

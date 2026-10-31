@@ -25,7 +25,7 @@ TABLES = ["data_sources", "fighters", "fighter_corrections", "events", "fights",
           "fighter_snapshots", "odds", "training_runs", "model_versions", "backtest_runs", "backtest_predictions",
           "predictions", "prediction_locks", "prediction_lock_members", "prediction_evaluations", "error_diagnostics",
           "learning_runs", "weakness_hypotheses", "candidate_changes", "promotion_decisions", "evaluation_metrics",
-          "analyst_reports", "data_quality_issues", "audit_log", "settings", "job_runs"]
+          "analyst_reports", "data_quality_issues", "audit_log", "settings", "job_runs", "sim_bets", "sim_bet_events"]
 NO_ID_TABLES = {"fight_stats", "backtest_predictions", "settings", "schema_migrations", "prediction_lock_members"}
 
 try:  # optional: only needed for Postgres

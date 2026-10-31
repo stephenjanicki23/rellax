@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Bet ledger{% endblock %}
+{% macro pl(c) -%}<span class="{{ 'gain' if c and c > 0 else 'loss' if c and c < 0 else '' }}">{{ c | money }}</span>{%- endmacro %}
+{% macro sortlink(key, label) -%}
+{%- set dir = 'asc' if q.sort == key and q.dir == 'desc' else 'desc' -%}
+<a href="?{% for k, v in q.items() if k not in ('sort', 'dir') and v %}{{ k }}={{ v | urlencode }}&{% endfor %}sort={{ key }}&dir={{ dir }}">{{ label }}{% if q.sort == key or (key == 'date' and not q.sort) %} {{ '↑' if q.dir == 'asc' else '↓' }}{% endif %}</a>
+{%- endmacro %}
+{% block body %}
+<div class="small"><a href="/edge">← Betting Edge</a></div>
+<h1>Bet ledger</h1>
+<div class="sub">Every simulated bet, with the odds, stake and result recorded for it. Low-confidence picks are hidden unless you
+  filter for them (they carry no stake).</div>
+
+<form class="card filters" method="get" style="margin-bottom:14px">
+  <label>Confidence<select name="tier"><option value="">High + Medium</option>{% for t in ['High','Medium','Low'] %}<option {{ 'selected' if q.tier == t }}>{{ t }}</option>{% endfor %}</select></label>
+  <label>Card<select name="event"><option value="">All cards</option>{% for e in events %}<option value="{{ e[0] }}" {{ 'selected' if q.event == e[0] | string }}>{{ e[1] }} {{ e[2] }}</option>{% endfor %}</select></label>
+  <label>From<input type="date" name="date_from" value="{{ q.date_from }}"></label>
+  <label>To<input type="date" name="date_to" value="{{ q.date_to }}"></label>
+  <label>Result<select name="status"><option value="">Any</option>{% for v, l in [('win','Win'),('loss','Loss'),('push','Push'),('void','Void'),('pending','Open'),('needs_odds','Needs odds')] %}<option value="{{ v }}" {{ 'selected' if q.status == v }}>{{ l }}</option>{% endfor %}</select></label>
+  <label>Fighter<input name="fighter" value="{{ q.fighter }}" placeholder="name contains…"></label>
+  <label>Odds from<input name="odds_min" value="{{ q.odds_min }}" placeholder="e.g. -300"></label>
+  <label>Odds to<input name="odds_max" value="{{ q.odds_max }}" placeholder="e.g. +200"></label>
+  <input type="hidden" name="sort" value="{{ q.sort }}"><input type="hidden" name="dir" value="{{ q.dir }}">
+  <div style="display:flex;gap:8px"><button class="primary">Filter</button><a class="btn" href="/edge/bets">Reset</a></div>
+</form>
+
+<div class="small" style="margin-bottom:8px">{{ rows | length }} bet{{ 's' if rows | length != 1 }} ·
+  net {{ pl(s.net) }} · ROI {{ '—' if s.roi is none else '%+.1f%%' % (s.roi * 100) }} · {{ s.pending }} open
+  · <a href="/edge/bets.csv{{ '?' ~ qs if qs }}">Export these to CSV</a></div>
+
+<div class="card scroll">
+<table class="small ledger">
+  <tr><th>{{ sortlink('date', 'Date') }}</th><th>Card</th><th>Pick</th><th>Opponent</th><th>{{ sortlink('confidence', 'Confidence') }}</th>
+    <th class="num">Engine chance</th><th class="num">{{ sortlink('odds', 'Odds') }}</th><th class="num">{{ sortlink('stake', 'Stake') }}</th>
+    <th>Result</th><th class="num">{{ sortlink('pl', 'Net P/L') }}</th><th></th></tr>
+  {% for r in rows %}<tr><td>{{ r.event_date }}</td><td><a href="/edge/event/{{ r.event_id }}">{{ r.event_name }}</a></td>
+    <td><b>{{ r.pick_name }}</b></td><td>{{ r.opponent_name }}</td>
+    <td><span class="pill {{ r.tier }}">{{ r.tier }}</span> <span class="muted">{{ r.confidence_score }}</span></td>
+    <td class="num">{{ '—' if r.p_pick is none else '%.0f%%' % (r.p_pick * 100) }}</td>
+    <td class="num">{{ '—' if r.odds_american is none else '%+d' % r.odds_american }}</td>
+    <td class="num">{{ 'no bet' if r.tier == 'Low' else (r.stake_cents | money(false)) }}</td>
+    <td>{% include "_bet_status.html" %}</td>
+    <td class="num">{{ pl(r.net_cents) if r.net_cents is not none else '' }}</td>
+    <td><a href="/edge/bet/{{ r.id }}">details</a></td></tr>
+  {% else %}<tr><td colspan="11" class="muted">No bets match these filters.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

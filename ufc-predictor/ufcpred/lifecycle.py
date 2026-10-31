@@ -10,7 +10,7 @@ import datetime as dt
 import threading
 import time
 
-from . import ledger, predict, review
+from . import betting, ledger, predict, review
 from .config import setting
 from .db import audit, flag_issue
 from .ingest import ingest_bundle
@@ -190,6 +190,10 @@ def tick(conn) -> dict:
     report["locks"] = lock_due(conn)
     report["predictions"] = predict_upcoming(conn)
     report["results"] = process_results(conn)
+    try:   # simulated-bet tracking reads picks/odds/results; it never feeds the engine and never blocks the tick
+        report["bets"] = betting.sync(conn)
+    except Exception as e:
+        report["bets"] = {"error": f"{type(e).__name__}: {e}"}
     _finish(conn, jid, "ok", str({k: (v if k != "results" else len(v)) for k, v in report.items()}))
     return report
 

@@ -108,3 +108,48 @@ def hbars(items: list[tuple[str, float, str]], fmt: str = "{:.0%}", maxv: float 
                     f'</span><span class="hb-track"><span class="hb-bar {cls}" style="width:{v / maxv * 100:.1f}%">'
                     f'</span></span><span class="hb-val">{_esc(fmt.format(v))}</span></div>')
     return '<div class="hbars">' + "".join(rows) + "</div>"
+
+
+def _usd(v: float) -> str:
+    return ("−" if v < -0.5 else "") + f"${abs(v):,.0f}"
+
+
+def multi_line(series: list[dict], lines: list[tuple[str, str, str]], label: str, fmt=_usd,
+               width: int = 760, height: int = 260) -> str:
+    """Several lines over the same x axis (e.g. cumulative P/L by tier). `lines` = [(key, legend, css class)]."""
+    fmt = fmt.format if isinstance(fmt, str) else fmt
+    if len(series) < 2:
+        return '<p class="muted">The chart appears once at least two bets have settled.</p>'
+    vals = [s[k] for s in series for k, _, _ in lines] + [0]
+    lo, hi = min(vals), max(vals)
+    if hi - lo < 1e-9:
+        hi = lo + 1
+    span = hi - lo
+    lo, hi = lo - span * 0.06, hi + span * 0.06
+    pad_l, pad_b, pad_t, pad_r = 64, 26, 12, 12
+    W, H = width - pad_l - pad_r, height - pad_t - pad_b
+    n = len(series)
+    x = lambda i: pad_l + i / (n - 1) * W
+    y = lambda v: pad_t + (1 - (v - lo) / (hi - lo)) * H
+    out = [f'<svg class="chart linechart" viewBox="0 0 {width} {height}" role="img" aria-label="{_esc(label)}">']
+    for k in range(5):
+        v = lo + (hi - lo) * k / 4
+        out.append(f'<line class="grid" x1="{pad_l}" x2="{pad_l + W}" y1="{y(v):.1f}" y2="{y(v):.1f}"/>'
+                   f'<text class="tick" x="{pad_l - 6}" y="{y(v) + 4:.1f}" text-anchor="end">{_esc(fmt(v))}</text>')
+    out.append(f'<line class="ref" x1="{pad_l}" x2="{pad_l + W}" y1="{y(0):.1f}" y2="{y(0):.1f}"/>'
+               f'<text class="tick" x="{pad_l + W}" y="{y(0) - 4:.1f}" text-anchor="end">break-even</text>')
+    for key, _, cls in lines:
+        pts = " ".join(f"{x(i):.1f},{y(s[key]):.1f}" for i, s in enumerate(series))
+        out.append(f'<polyline class="line {cls}" points="{pts}"/>')
+    step = max(1, n // 80)
+    for i in range(0, n, step):
+        s = series[i]
+        tip = f"Bet #{s['i']} · {s['date']} · {s.get('label', '')}\n" + "\n".join(
+            f"{legend}: {fmt(s[key])}" for key, legend, _ in lines)
+        out.append(f'<g class="mark"><title>{_esc(tip)}</title><rect class="hit" x="{x(i) - W / n * step / 2:.1f}" '
+                   f'y="{pad_t}" width="{max(W / n * step, 2):.1f}" height="{H}"/></g>')
+    out.append(f'<text class="tick" x="{pad_l}" y="{height - 6}">{_esc(series[0]["date"])}</text>'
+               f'<text class="tick" x="{pad_l + W}" y="{height - 6}" text-anchor="end">{_esc(series[-1]["date"])}</text>')
+    out.append("</svg>")
+    legend = "".join(f'<span class="legend-item"><i class="sw {cls}"></i>{_esc(lg)}</span>' for _, lg, cls in lines)
+    return "".join(out) + f'<div class="chart-legend small">{legend}</div>'
