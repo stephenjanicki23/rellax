@@ -76,6 +76,10 @@ def generate(incumbent: ModelConfig, hypotheses: list[dict], max_candidates: int
             return out[:max_candidates]
 
     # Routine experiments: re-validate the decay rate and ensemble structure even when no weakness is supported.
+    if not incumbent.strike_location:
+        add(Candidate("feature_group", "Routine experiment: add body and leg strike features (volume landed, "
+                      "landed minus absorbed, leg kicks vs. opponent's leg-kick defence)",
+                      incumbent.with_changes(strike_location=True)))
     for hl in HALF_LIVES:
         if hl != incumbent.half_life_days:
             add(Candidate("decay", f"Routine re-validation of the form half-life ({incumbent.half_life_days:.0f} → "

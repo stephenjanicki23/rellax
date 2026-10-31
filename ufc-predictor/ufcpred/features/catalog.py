@@ -152,6 +152,15 @@ FEATURES: list[Feat] = [
          "top control vs. opponent's time spent controlled", ("ctrl_share", "opp_ctrl_share")),
     Feat("power_vs_chin", "C_style_v2", _prod(_A("kd15"), _B("kd_abs15")),
          "knockdown power vs. opponent's knockdowns absorbed", ("kd15", "kd_abs15")),
+    # strike location (enabled only by a validated candidate: ModelConfig.strike_location)
+    Feat("body_pm", "A_strikeloc", _A("body_pm"), "body strikes landed per minute", ("body_pm",)),
+    Feat("leg_pm", "A_strikeloc", _A("leg_pm"), "leg kicks landed per minute", ("leg_pm",)),
+    Feat("body_diff", "A_strikeloc", _A("body_diff_pm"), "body strikes landed minus absorbed per minute",
+         ("body_pm", "body_abs_pm")),
+    Feat("leg_diff", "A_strikeloc", _A("leg_diff_pm"), "leg kicks landed minus absorbed per minute",
+         ("leg_pm", "leg_abs_pm")),
+    Feat("legs_vs_leg_defense", "C_strikeloc", _prod(_A("leg_pm"), _B("leg_abs_pm")),
+         "leg-kick volume vs. opponent's leg kicks absorbed", ("leg_pm", "leg_abs_pm")),
     # ---------------- Model D: durability and finish risk
     Feat("ko_loss_rate", "D_durability", _A("ko_loss_rate"), "KO-loss rate", ("ko_loss_rate",), "{:.0%}"),
     Feat("sub_loss_rate", "D_durability", _A("sub_loss_rate"), "submission-loss rate", ("sub_loss_rate",), "{:.0%}"),
@@ -176,10 +185,13 @@ FEATURES: list[Feat] = [
 BY_NAME = {f.name: f for f in FEATURES}
 
 
-def features_for(group: str, style_v2: bool = False) -> list[Feat]:
+def features_for(group: str, style_v2: bool = False, strike_location: bool = False) -> list[Feat]:
     out = [f for f in FEATURES if f.group == group]
     if group == "C_style" and style_v2:
         out += [f for f in FEATURES if f.group == "C_style_v2"]
+    if strike_location and group in ("A_baseline", "C_style"):
+        extra = "A_strikeloc" if group == "A_baseline" else "C_strikeloc"
+        out += [f for f in FEATURES if f.group == extra]
     return out
 
 

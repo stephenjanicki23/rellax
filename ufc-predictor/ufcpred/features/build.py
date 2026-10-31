@@ -91,7 +91,7 @@ def build_rows(cache: StateCache, metas: list[dict], cfg: ModelConfig, cutoff_fn
     groups = groups_for(cfg)
     cols = {g: [] for g in groups}
     for g in groups:
-        ds.names[g] = [f.name for f in features_for(g, cfg.style_v2)]
+        ds.names[g] = [f.name for f in features_for(g, cfg.style_v2, cfg.strike_location)]
     ys, methods, rounds = [], [], []
     for m in metas:
         cutoff = cutoff_fn(m) if cutoff_fn else None
@@ -101,7 +101,7 @@ def build_rows(cache: StateCache, metas: list[dict], cfg: ModelConfig, cutoff_fn
         ds.dates.append(m["date"])
         ds.pairs.append((a, b, ctx))
         for g in groups:
-            cols[g].append([np.nan if (v := value(f, a, b, ctx)) is None else v for f in features_for(g, cfg.style_v2)])
+            cols[g].append([np.nan if (v := value(f, a, b, ctx)) is None else v for f in features_for(g, cfg.style_v2, cfg.strike_location)])
         if labels is not None:
             lab = labels.get(m["id"], {})
             ys.append(lab.get("red_won", np.nan))

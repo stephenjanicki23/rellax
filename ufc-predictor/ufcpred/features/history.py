@@ -318,6 +318,13 @@ def fighter_state(h: HistoryStore, fighter_id: int, at_date: str, cutoff: str | 
     st["kd15"] = 15 * per_min(tot["kd"], pop["kd_pm"])
     st["kd_abs15"] = 15 * per_min(opp["kd"], pop["kd_pm"])
     st["head_abs_pm"] = per_min(opp["head_l"], pop["slpm"] * 0.6)
+    # strike location (body / legs): per-minute volume landed and absorbed, shrunk like the other rates
+    st["body_pm"] = per_min(tot["body_l"], pop["slpm"] * 0.2)
+    st["leg_pm"] = per_min(tot["leg_l"], pop["slpm"] * 0.15)
+    st["body_abs_pm"] = per_min(opp["body_l"], pop["slpm"] * 0.2)
+    st["leg_abs_pm"] = per_min(opp["leg_l"], pop["slpm"] * 0.15)
+    st["body_diff_pm"] = st["body_pm"] - st["body_abs_pm"]
+    st["leg_diff_pm"] = st["leg_pm"] - st["leg_abs_pm"]
     st["ctrl_share"] = (tot["ctrl_sec"] + pop["ctrl_share"] * pm * 60) / (secs + pm * 60)
     st["opp_ctrl_share"] = (opp["ctrl_sec"] + pop["ctrl_share"] * pm * 60) / (secs + pm * 60)
     sig_total = tot["sig_l"]
