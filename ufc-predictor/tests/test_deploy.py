@@ -72,3 +72,11 @@ def test_export_import_round_trip(synth, tmp_path, fresh_db):
         raise AssertionError("import into a non-empty database must be refused")
     except RuntimeError:
         pass
+
+
+def test_bad_database_url_never_echoes_the_secret():
+    import pytest
+    for bad in ("postgresql://owner@npg_SECRETPART\n\n", "postgresql://owner:SECRETPART@", "postgresql://o:SECRETPART@host"):
+        with pytest.raises(RuntimeError) as e:
+            db.PgConnection(bad)
+        assert "SECRETPART" not in str(e.value) and e.value.__cause__ is None

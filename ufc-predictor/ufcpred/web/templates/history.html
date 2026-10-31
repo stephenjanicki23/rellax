@@ -1,20 +1,19 @@
 {% extends "base.html" %}{% from "macros.html" import modetag %}
 {% block body %}
-<h1>Prediction history {{ modetag(mode) }}</h1>
-<div class="sub">Locked pre-event predictions against official results. <a href="?mode={{ 'live' if mode == 'replay' else 'replay' }}">Show {{ 'live' if mode == 'replay' else 'replay' }}</a></div>
+<h1>Past picks {{ modetag(mode) }}</h1>
+<div class="sub">Every locked pick next to what actually happened. <a href="?mode={{ 'live' if mode == 'replay' else 'replay' }}">Show {{ 'live' if mode == 'replay' else 'replay' }}</a></div>
 <div class="card scroll"><table>
-<tr><th>Date</th><th>Bout</th><th class="num">P(red)</th><th>Pick</th><th>Official result</th><th>Winner</th><th>Method</th><th>Round</th><th class="num">Log loss</th><th>Conf.</th></tr>
+<tr><th>Date</th><th>Fight</th><th>Pick</th><th>Result</th><th>Winner right?</th><th>Method right?</th><th>Round right?</th><th>{{ term('confidence', 'Confidence') }}</th></tr>
 {% for r in rows %}
 <tr><td>{{ r.date }}</td>
 <td><a href="/fight/{{ r.fight_id }}?mode={{ mode }}"><span class="red">{{ r.red_name }}</span> vs <span class="blue">{{ r.blue_name }}</span></a><div class="small muted">{{ r.event_name }}</div></td>
-<td class="num">{{ r.p_red | pct }}</td>
-<td>{{ r.red_name if r.predicted_winner_id == r.red_fighter_id else r.blue_name }} · {{ r.predicted_method | method }}{% if r.predicted_round %} R{{ r.predicted_round }}{% endif %}</td>
-<td>{% if r.outcome == 'win' %}{{ r.red_name if r.winner_fighter_id == r.red_fighter_id else r.blue_name }} · {{ r.actual_method | method }}{% if r.end_round %} R{{ r.end_round }}{% endif %}{% elif r.outcome %}{{ r.outcome | upper }}{% else %}<span class="muted">pending</span>{% endif %}</td>
-<td>{% if r.scored %}<span class="status {{ 'good' if r.correct_winner else 'bad' }}"></span>{% elif r.outcome %}<span class="muted">n/a</span>{% endif %}</td>
+<td>{{ r.red_name if r.predicted_winner_id == r.red_fighter_id else r.blue_name }} ({{ [r.p_red, 1 - r.p_red] | max | pct }}) · {{ r.predicted_method | method }}{% if r.predicted_round %} R{{ r.predicted_round }}{% endif %}</td>
+<td>{% if r.outcome == 'win' %}{{ r.red_name if r.winner_fighter_id == r.red_fighter_id else r.blue_name }} · {{ r.actual_method | method }}{% if r.end_round %} R{{ r.end_round }}{% endif %}{% elif r.outcome %}{{ {'draw':'Draw','nc':'No contest'}.get(r.outcome, r.outcome) }}{% else %}<span class="muted">not fought yet</span>{% endif %}</td>
+<td>{% if r.scored %}<span class="status {{ 'good' if r.correct_winner else 'bad' }}">{{ 'right' if r.correct_winner else 'wrong' }}</span>{% elif r.outcome %}<span class="muted">n/a</span>{% endif %}</td>
 <td>{% if r.scored %}{{ '✓' if r.method_correct else '✕' }}{% endif %}</td>
 <td>{% if r.scored and r.round_correct is not none %}{{ '✓' if r.round_correct else '✕' }}{% endif %}</td>
-<td class="num">{{ r.log_loss | f(3) }}</td><td>{{ r.confidence }}</td></tr>
-{% else %}<tr><td colspan="10" class="muted">No locked predictions yet.</td></tr>{% endfor %}
+<td>{{ r.confidence }}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">No locked predictions yet.</td></tr>{% endfor %}
 </table>
 <p><a href="?mode={{ mode }}&page={{ page_no + 1 }}">older →</a>{% if page_no %} · <a href="?mode={{ mode }}&page={{ page_no - 1 }}">← newer</a>{% endif %}</p></div>
 {% endblock %}

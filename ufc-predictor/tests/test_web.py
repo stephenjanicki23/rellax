@@ -18,7 +18,7 @@ def test_all_screens_render(synth, monkeypatch):
                 "/data-quality", "/settings", "/api/ledger/verify", f"/api/event/{ev}"]:
         r = c.get(url)
         assert r.status_code == 200, (url, r.text[-800:])
-    assert "No verified upcoming event" in c.get("/").text          # nothing is invented
+    assert "No upcoming event yet" in c.get("/").text          # nothing is invented
     card = {"event": {"name": "Web Import Night", "date": "2099-01-01", "source_url": "https://example.org"},
             "fights": [{"red": "Synthetic Fighter 1", "blue": "Synthetic Fighter 2", "weight_class": "Lightweight",
                         "scheduled_rounds": 3}]}

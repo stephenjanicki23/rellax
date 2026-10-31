@@ -3,77 +3,74 @@
 {% if next %}
   {% set ev = next %}
   <h1>{{ ev.name }}</h1>
-  <div class="sub">
-    <span class="tag confirmed" title="source: {{ ev.source_url or ev.origin }}">{{ ev.origin }} card</span>
-    {{ ev.date }} · {{ ev.venue or 'venue unavailable' }} · {{ ev.location or 'location unavailable' }} · status <b>{{ ev.status }}</b>
-    {% if ev.source_url %}· <a href="{{ ev.source_url }}">source</a>{% endif %}
-  </div>
+  <div class="sub">{{ ev.date }}{% if ev.venue %} · {{ ev.venue }}{% endif %}{% if ev.location %} · {{ ev.location }}{% endif %}
+    {% if ev.source_url %}· <a href="{{ ev.source_url }}">official card</a>{% endif %}</div>
 {% else %}
-  <h1>No verified upcoming event</h1>
+  <h1>No upcoming event yet</h1>
   <div class="banner warn">
-    No upcoming UFC card is in the database, and none has been invented.
-    {% if upcoming_provider == 'manual' %}The upcoming-card provider is set to <b>manual</b>: import the card from a verified
-    source with <code>templates/import/card_template.json</code> on the <a href="/settings">Settings</a> screen, or enable the
-    <code>ufcstats_live</code> provider there if this host can reach ufcstats.com.{% else %}Provider
-    <b>{{ upcoming_provider }}</b> returned no events — see <a href="/data-quality">Data Quality</a> for source failures.{% endif %}
+    The next UFC card hasn't been added yet, so there's nothing to predict right now.
+    {% if admin %}Add it from the <a href="/settings">Settings</a> page (import the card file).{% else %}Check back soon.{% endif %}
+    Meanwhile, here's how the engine did on the most recent event.
   </div>
 {% endif %}
 
+{% set correct = (perf.accuracy * perf.n) | round | int if perf.n else 0 %}
 <div class="grid g4" style="margin-bottom:14px">
-  <div class="card stat"><div class="l">Fights analysed {{ modetag(mode) }}</div><div class="v">{{ counts['predictions_' + mode] }}</div>
-    <div class="d">{{ counts.predictions_live }} live · {{ counts.predictions_replay }} replay predictions</div></div>
-  <div class="card stat"><div class="l">Completed (graded) predictions</div><div class="v">{{ perf.n }}</div>
-    <div class="d">draws/NC excluded</div></div>
-  <div class="card stat"><div class="l">Winner accuracy</div><div class="v">{{ perf.accuracy | pct(1) if perf.n else '—' }}</div>
-    <div class="d">{% if perf.n %}95% CI {{ perf.accuracy_ci[0] | pct }}–{{ perf.accuracy_ci[1] | pct }}{% else %}no graded fights{% endif %}</div></div>
-  <div class="card stat"><div class="l">Calibration (ECE)</div><div class="v">{{ perf.ece | pct(1) if perf.n else '—' }}</div>
-    <div class="d">mean |stated − observed|, 5 bins</div></div>
-  <div class="card stat"><div class="l">Log loss / Brier</div><div class="v">{{ perf.log_loss | f(3) if perf.n else '—' }}</div>
-    <div class="d">{% if perf.n %}Brier {{ perf.brier | f(3) }} · coin flip 0.693 / 0.250{% endif %}</div></div>
+  <div class="card stat"><div class="l">Picks correct {{ modetag(mode) }}</div><div class="v">{{ perf.accuracy | pct if perf.n else '—' }}</div>
+    <div class="d">{% if perf.n %}{{ correct }} of {{ perf.n }} fights — about {{ (perf.accuracy * 10) | round | int }} in every 10{% else %}no finished fights yet{% endif %}</div></div>
+  <div class="card stat"><div class="l">Fights checked</div><div class="v">{{ perf.n }}</div>
+    <div class="d">finished fights the engine predicted beforehand</div></div>
+  <div class="card stat"><div class="l">{{ tip('Picking at random', 'Flipping a coin for every fight would get about half right. This is the bar the engine has to beat.') }}</div><div class="v">50%</div>
+    <div class="d">what a coin flip would score</div></div>
+  <div class="card stat"><div class="l">{{ term('honest', 'Are the percentages honest?') }}</div><div class="v">{{ ('Yes' if perf.ece < 0.05 else 'Mostly' if perf.ece < 0.1 else 'Not yet') if perf.n else '—' }}</div>
+    <div class="d">{% if perf.n %}off by {{ perf.ece | pct(1) }} on average{% endif %}</div></div>
 </div>
 
 {% if perf.n %}
 <div class="grid g2" style="margin-bottom:14px">
-  <div class="card"><h2>Recent form of the model {{ modetag(mode) }}</h2>
-    <table><tr><th>Window</th><th class="num">Accuracy</th><th class="num">95% CI</th><th class="num">Log loss</th></tr>
-    {% for w in perf.windows %}<tr><td>Last {{ w.n }}</td>
-      {% if w.accuracy is not none %}<td class="num">{{ w.accuracy | pct(1) }}</td><td class="num">{{ w.ci[0] | pct }}–{{ w.ci[1] | pct }}</td><td class="num">{{ w.log_loss | f(3) }}</td>
-      {% else %}<td colspan="3" class="muted">{{ w.note }}</td>{% endif %}</tr>{% endfor %}
+  <div class="card"><h2>Recent results {{ modetag(mode) }}</h2>
+    <table><tr><th>Most recent</th><th class="num">Picks right</th></tr>
+    {% for w in perf.windows %}<tr><td>Last {{ w.n }} fights</td>
+      {% if w.accuracy is not none %}<td class="num">{{ (w.accuracy * w.n) | round | int }} of {{ w.n }} ({{ w.accuracy | pct }})</td>
+      {% else %}<td class="muted">{{ w.note }}</td>{% endif %}</tr>{% endfor %}
     </table>
-    <p class="small muted">Small windows have wide intervals; a better last-10 does not show the model improved.</p>
+    <p class="small muted">Short streaks swing a lot by luck — judge the engine on the long run.</p>
   </div>
-  <div class="card"><h2>Against simple baselines (same {{ perf.n }} fights)</h2>
-    <table><tr><th>Model</th><th class="num">Log loss</th><th class="num">Brier</th><th class="num">Accuracy</th></tr>
-      <tr><td><b>This engine</b></td><td class="num"><b>{{ perf.log_loss | f(3) }}</b></td><td class="num">{{ perf.brier | f(3) }}</td><td class="num">{{ perf.accuracy | pct(1) }}</td></tr>
-      {% for name, b in perf.baselines.items() %}{% if b %}<tr><td>{{ name }}</td><td class="num">{{ b.log_loss | f(3) }}</td><td class="num">{{ b.brier | f(3) }}</td><td class="num">{{ b.accuracy | pct(1) }}</td></tr>{% endif %}{% endfor %}
-      <tr><td>Betting market</td><td colspan="3" class="muted">{% if perf.market %}{{ perf.market.market_log_loss | f(3) }} on {{ perf.market.n }} fights with odds{% else %}<span class="tag unavailable">unavailable</span> no odds provider configured{% endif %}</td></tr>
+  <div class="card"><h2>Compared with simple strategies</h2>
+    <p class="small muted" style="margin-top:-4px">Each strategy picked the same {{ perf.n }} fights.</p>
+    <table><tr><th>Strategy</th><th class="num">Picks right</th></tr>
+      <tr><td><b>This engine</b></td><td class="num"><b>{{ perf.accuracy | pct }}</b></td></tr>
+      {% for name, b in perf.baselines.items() %}{% if b %}<tr><td>{{ BASELINE_NAMES.get(name, name) }}</td><td class="num">{{ b.accuracy | pct }}</td></tr>{% endif %}{% endfor %}
+      {% if perf.market %}<tr><td>Betting favourite</td><td class="num">{{ perf.market.market_accuracy | pct }}</td></tr>{% endif %}
     </table>
-    {% if comparison %}<p class="small">Last candidate test: <i>{{ comparison.description }}</i> — {{ comparison.decision }}
-      (incumbent {{ comparison.incumbent.log_loss | f(4) }} vs candidate {{ comparison.candidate.log_loss | f(4) }}, paired n={{ comparison.paired.n }}).</p>{% endif %}
   </div>
 </div>
 {% endif %}
-
-<div class="card" style="margin-bottom:14px"><h2>Model</h2>
-{% if model.active %}
-  {% set mp = model.params %}
-  <dl class="kv">
-    <dt>Active version</dt><dd><b>{{ model.active.label }}</b> (activated {{ model.active.activated_at }})</dd>
-    <dt>Training data</dt><dd>{{ mp.diagnostics.n_train }} decisive UFC fights from {{ mp.diagnostics.train_first }} to {{ mp.diagnostics.train_last }} (cutoff {{ mp.cutoff }}, exclusive)</dd>
-    <dt>Data source</dt><dd>{% if counts.last_history_source %}UFCStats mirror, retrieved {{ counts.last_history_source.retrieved_at }} ({{ counts.last_history_source.status }}){% else %}—{% endif %}</dd>
-    <dt>Ensemble weights (learned)</dt><dd>{% for g, w in model.weights.items() %}{{ g }} {{ '%.2f' % w.effective }}{{ ' · ' if not loop.last }}{% endfor %}</dd>
-    <dt>Calibration</dt><dd>{{ mp.calibration.method }}{% if mp.calibration.temperature %} (T={{ mp.calibration.temperature }}){% endif %}</dd>
-    <dt>Last decision</dt><dd>{% if model.last_decision %}{{ model.last_decision.decision }} — {{ model.last_decision.reason[:220] }} ({{ model.last_decision.decided_at }}){% endif %}</dd>
-  </dl>
-{% else %}<p class="muted">No model trained yet. Run <code>python -m ufcpred replay</code> or <code>python -m ufcpred train</code>.</p>{% endif %}
-</div>
 
 {% if card %}
-  <h2>Fight card ({{ card.fights | length }} bouts)</h2>
+  <h2>Fight card ({{ card.fights | length }} fights)</h2>
   <div class="grid">{% for item in card.fights %}{{ fightrow(item, 'live') }}{% endfor %}</div>
 {% elif replay_card %}
-  <h2>Most recent replayed card: <a href="/event/{{ replay_card.event.id }}?mode=replay">{{ replay_card.event.name }}</a> ({{ replay_card.event.date }}) {{ modetag('replay') }}</h2>
-  <p class="small muted">Shown because there is no verified upcoming card. These predictions were generated with only the data available before the event date, locked, then graded against the official results.</p>
+  <h2>Most recent past event: <a href="/event/{{ replay_card.event.id }}?mode=replay">{{ replay_card.event.name }}</a> ({{ replay_card.event.date }}) {{ modetag('replay') }}</h2>
+  <p class="small muted">Shown because no upcoming card has been added yet. These picks were made using only information from before fight night, then checked against what actually happened.</p>
   <div class="grid">{% for item in replay_card.fights %}{{ fightrow(item, 'replay') }}{% endfor %}</div>
 {% endif %}
+
+{% if model.active %}{% set mp = model.params %}
+<details class="tech"><summary>Technical details (for the statistically curious)</summary>
+  <dl class="kv small">
+    <dt>Active model</dt><dd><b>{{ model.active.label }}</b> (activated {{ model.active.activated_at }})</dd>
+    <dt>Training data</dt><dd>{{ mp.diagnostics.n_train }} decisive UFC fights from {{ mp.diagnostics.train_first }} to {{ mp.diagnostics.train_last }} (cutoff {{ mp.cutoff }}, exclusive)</dd>
+    <dt>Data source</dt><dd>{% if counts.last_history_source %}UFCStats mirror, retrieved {{ counts.last_history_source.retrieved_at }} ({{ counts.last_history_source.status }}){% else %}—{% endif %}</dd>
+    <dt>Predictions stored</dt><dd>{{ counts.predictions_live }} live · {{ counts.predictions_replay }} replay</dd>
+    {% if perf.n %}<dt>Accuracy 95% CI</dt><dd>{{ perf.accuracy_ci[0] | pct }}–{{ perf.accuracy_ci[1] | pct }}</dd>
+    <dt>Log loss / Brier</dt><dd>{{ perf.log_loss | f(3) }} / {{ perf.brier | f(3) }} (coin flip 0.693 / 0.250){% for name, b in perf.baselines.items() %}{% if b %}; {{ name }} {{ b.log_loss | f(3) }} / {{ b.brier | f(3) }}{% endif %}{% endfor %}</dd>
+    <dt>ECE</dt><dd>{{ perf.ece | pct(1) }} (mean |stated − observed|, 5 bins)</dd>{% endif %}
+    <dt>Ensemble weights</dt><dd>{% for g, w in model.weights.items() %}{{ g }} {{ '%.2f' % w.effective }}{{ ' · ' if not loop.last }}{% endfor %}</dd>
+    <dt>Calibration</dt><dd>{{ mp.calibration.method }}{% if mp.calibration.temperature %} (T={{ mp.calibration.temperature }}){% endif %}</dd>
+    <dt>Last decision</dt><dd>{% if model.last_decision %}{{ model.last_decision.decision }} — {{ model.last_decision.reason[:220] }} ({{ model.last_decision.decided_at }}){% endif %}</dd>
+    {% if comparison %}<dt>Last candidate test</dt><dd>{{ comparison.description }} — {{ comparison.decision }} (incumbent {{ comparison.incumbent.log_loss | f(4) }} vs candidate {{ comparison.candidate.log_loss | f(4) }}, paired n={{ comparison.paired.n }})</dd>{% endif %}
+  </dl>
+</details>
+{% elif not model.active %}<p class="muted">No model trained yet.</p>{% endif %}
 {% endblock %}

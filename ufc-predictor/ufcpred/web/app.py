@@ -20,7 +20,7 @@ from ..learning import loop
 from ..models import registry
 from ..providers import manual
 from ..util import loads, utcnow
-from . import charts
+from . import charts, plain
 
 HERE = Path(__file__).parent
 app = FastAPI(title="UFC Prediction Engine")
@@ -33,6 +33,7 @@ T.filters["method"] = lambda m: services.METHOD_LABEL.get(m, m or "—")
 T.filters["loads"] = lambda s: loads(s, {})
 T.filters["clock"] = lambda s: "—" if s is None else f"{s // 60}:{s % 60:02d}"
 T.globals.update(charts=charts, now=lambda: utcnow())
+plain.install(T)
 
 # ------------------------------------------------------------------ access control
 # Reads are public unless UFCPRED_PRIVATE=1. Every write (POST) needs the admin token when

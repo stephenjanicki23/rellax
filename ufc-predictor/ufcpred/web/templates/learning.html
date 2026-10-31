@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% block body %}
-<h1>Learning Center</h1>
-<div class="sub">Weaknesses are hypotheses until they pass a false-discovery-controlled test; model changes are adopted only after a paired, chronological out-of-sample comparison. Promotion mode: <b>{{ promotion_mode }}</b>.</div>
-
+<h1>How the engine learns</h1>
+<div class="card" style="margin-bottom:14px"><p style="margin:0">After each event the engine looks for patterns in its mistakes — for example, "it keeps underrating
+older fighters". A pattern only counts if it holds up across many fights, not just a few unlucky ones. When it finds one,
+it tries a fix and tests it on past fights in date order. The fix is only kept if it clearly does better; otherwise the engine stays as it is.</p>
+<p class="small muted" style="margin:8px 0 0">The tables below are the engine's detailed lab notes. Promotion mode: <b>{{ promotion_mode }}</b>.</p></div>
 <div class="grid g2">
-<div class="card"><h2>Identified weaknesses (latest analysis)</h2>
+<div class="card"><h2>Possible weaknesses it checked</h2>
 <div class="scroll"><table class="small"><tr><th>Hypothesis</th><th class="num">n</th><th class="num">Bias</th><th class="num">95% CI</th><th class="num">q</th><th>Status</th></tr>
 {% for h in hyps %}<tr><td>{{ h.description }}</td><td class="num">{{ h.n }}</td><td class="num">{{ '%+.1f%%' % (h.effect * 100) if h.effect is not none else '—' }}</td>
 <td class="num">{% if h.ci_low is not none %}{{ '%+.1f' % (h.ci_low * 100) }}…{{ '%+.1f' % (h.ci_high * 100) }}{% endif %}</td><td class="num">{{ h.q_value | f(3) }}</td>
@@ -21,7 +23,7 @@
 </div>
 </div>
 
-<div class="card" style="margin-top:14px"><h2>Experiments (candidate changes)</h2>
+<div class="card" style="margin-top:14px"><h2>Fixes it tried</h2>
 <div class="scroll"><table class="small"><tr><th>As of</th><th>Change</th><th>Motivation</th><th>Result</th><th>Status</th></tr>
 {% for c in cands %}{% set r = c.result_json | loads %}<tr><td>{{ c.as_of }}</td><td>{{ c.description }}</td><td>{{ c.hypothesis_key or 'routine experiment' }}</td>
 <td>{% if r.paired %}Δlog loss {{ '%+.4f' % r.paired.mean_delta }} · P(better) {{ r.paired.p_candidate_better | pct }} · n={{ r.paired.n }} / {{ r.paired.n_events }} events
@@ -29,7 +31,7 @@
 <td>{{ c.status }}{% if c.status == 'pending_approval' %}<form class="inline" method="post" action="/learning/approve/{{ c.id }}"><button class="primary">approve</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" class="muted">No experiments yet.</td></tr>{% endfor %}</table></div></div>
 
-<div class="card" style="margin-top:14px"><h2>Promotion decisions (append-only)</h2>
+<div class="card" style="margin-top:14px"><h2>Decisions to keep or reject a fix</h2>
 <div class="scroll"><table class="small"><tr><th>When</th><th>Decision</th><th>Incumbent → candidate</th><th>Reason</th><th>By</th></tr>
 {% for d in decisions %}<tr><td>{{ d.decided_at }}</td><td><b>{{ d.decision }}</b></td><td>{{ d.inc_label or '—' }} → {{ d.cand_label or '—' }}</td><td>{{ d.reason }}</td><td>{{ d.decided_by }}</td></tr>{% endfor %}</table></div></div>
 

@@ -186,3 +186,30 @@ def test_ufcstats_live_parser_on_fixture():
     fights = parse_event_card(card, evs[0])
     assert len(fights) == 1 and fights[0].red_name == "Red Fighter" and fights[0].weight_class == "Lightweight"
     assert fights[0].red_external_id == "ufcstats:aa11" and fights[0].scheduled_rounds == 5
+
+
+def test_manual_card_merges_with_the_providers_copy_and_results_attach(tmp_db):
+    """A card imported by hand before the event, then published by the provider with results
+    (and the corners listed the other way round), is one event: results grade the manual fights."""
+    card = {"event": {"name": "UFC Test Night: A vs. B", "date": "2030-06-01", "source_url": "https://example.org/c"},
+            "fights": [{"red": "Alpha One", "blue": "Bravo Two", "weight_class": "Lightweight", "scheduled_rounds": 5,
+                        "card_segment": "main"}]}
+    ingest_bundle(tmp_db, manual.parse_card(json.dumps(card)))
+    manual_fight = tmp_db.execute("SELECT id, red_fighter_id, blue_fighter_id FROM fights").fetchone()
+    from ufcpred.providers.base import PResult
+    prov = Bundle(provider="ufcstats_mirror",
+                  events=[PEvent("ufcstats:ev1", "UFC Test Night: A vs. B", "2030-06-01", location="Las Vegas")],
+                  fighters=[PFighter("ufcstats:a", "Alpha One"), PFighter("ufcstats:b", "Bravo Two")],
+                  fights=[PFight("ufcstats:f1", "ufcstats:ev1", "Bravo Two", "Alpha One", "ufcstats:b", "ufcstats:a",
+                                 "Lightweight", scheduled_rounds=5)],
+                  results=[PResult("ufcstats:f1", "win", "red", "KO_TKO", "Punches", 2, 65)],
+                  stats=[PRoundStats("ufcstats:f1", "red", 1, {"sig_l": 30, "sig_a": 50})])
+    ingest_bundle(tmp_db, prov)
+    assert tmp_db.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
+    assert tmp_db.execute("SELECT COUNT(*) FROM fights").fetchone()[0] == 1
+    res = tmp_db.execute("SELECT * FROM fight_results WHERE fight_id=?", (manual_fight["id"],)).fetchone()
+    # the provider listed Bravo first and said the first-listed fighter won: Bravo is the manual card's blue corner
+    assert res["winner_fighter_id"] == manual_fight["blue_fighter_id"]
+    st = tmp_db.execute("SELECT fighter_id, sig_l FROM fight_stats WHERE fight_id=?", (manual_fight["id"],)).fetchone()
+    assert st["fighter_id"] == manual_fight["blue_fighter_id"] and st["sig_l"] == 30
+    assert tmp_db.execute("SELECT status FROM events").fetchone()[0] == "completed"

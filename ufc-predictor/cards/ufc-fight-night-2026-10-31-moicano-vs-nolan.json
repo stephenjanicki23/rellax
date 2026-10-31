@@ -1,0 +1,23 @@
+{
+  "event": {
+    "name": "UFC Fight Night: Moicano vs. Nolan",
+    "date": "2026-10-31",
+    "venue": null,
+    "location": null,
+    "source_url": "https://www.ufc.com/event/ufc-fight-night-october-31-2026"
+  },
+  "fights": [
+    {"bout_order": 1, "card_segment": "main", "red": "Renato Moicano", "blue": "Tom Nolan", "weight_class": "Lightweight", "scheduled_rounds": 5},
+    {"bout_order": 2, "card_segment": "main", "red": "Randy Brown", "blue": "Jacobe Smith", "weight_class": "Welterweight", "scheduled_rounds": 3},
+    {"bout_order": 3, "card_segment": "main", "red": "Ode' Osbourne", "blue": "Cody Durden", "weight_class": "Flyweight", "scheduled_rounds": 3},
+    {"bout_order": 4, "card_segment": "main", "red": "Yana Santos", "blue": "Luana Santos", "weight_class": "Women's Bantamweight", "scheduled_rounds": 3},
+    {"bout_order": 5, "card_segment": "main", "red": "Jean-Paul Lebosnoyani", "blue": "Farman Hasanov", "weight_class": "Welterweight", "scheduled_rounds": 3},
+    {"bout_order": 6, "card_segment": "prelim", "red": "Francis Marshall", "blue": "Dakota Hope", "weight_class": "Catch Weight (148 lb)", "scheduled_rounds": 3},
+    {"bout_order": 7, "card_segment": "prelim", "red": "Rodrigo Sezinando", "blue": "Theodor Berggren", "weight_class": "Welterweight", "scheduled_rounds": 3},
+    {"bout_order": 8, "card_segment": "prelim", "red": "Julian Erosa", "blue": "JeongYeong Lee", "weight_class": "Featherweight", "scheduled_rounds": 3},
+    {"bout_order": 9, "card_segment": "prelim", "red": "Zach Reese", "blue": "Mickey Gall", "weight_class": "Middleweight", "scheduled_rounds": 3},
+    {"bout_order": 10, "card_segment": "prelim", "red": "Nick Klein", "blue": "Joseph Kropschot", "weight_class": "Middleweight", "scheduled_rounds": 3},
+    {"bout_order": 11, "card_segment": "prelim", "red": "Talita Alencar", "blue": "Piera Rodríguez", "weight_class": "Women's Strawweight", "scheduled_rounds": 3},
+    {"bout_order": 12, "card_segment": "prelim", "red": "Lucia Szabová", "blue": "Tainara Lisboa", "weight_class": "Women's Flyweight", "scheduled_rounds": 3}
+  ]
+}
