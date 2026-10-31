@@ -2,36 +2,38 @@
 {% block title %}{{ f.name }}{% endblock %}
 {% block body %}
 <h1>{{ f.name }}{% if f.nickname %} <span class="muted">“{{ f.nickname }}”</span>{% endif %}</h1>
-<div class="sub"><span class="tag confirmed">{{ f.origin }}</span> {{ f.external_id or '' }} · UFC record {{ st.wins }}-{{ st.losses }}{% if st.draws %}-{{ st.draws }}{% endif %}{% if st.no_contests %} ({{ st.no_contests }} NC){% endif %} · UFC-only record (pre-UFC bouts unavailable in source)</div>
-{% for i in issues %}<div class="banner warn small">{{ i.kind }}: {{ i.message }}</div>{% endfor %}
+<div class="sub">UFC record {{ st.wins }}-{{ st.losses }}{% if st.draws %}-{{ st.draws }}{% endif %}{% if st.no_contests %} ({{ st.no_contests }} no contest){% endif %} · only UFC fights are counted</div>
+{% for i in issues %}<div class="banner warn small">{{ i.message }}</div>{% endfor %}
+<p class="small muted">Hover over (or tap) any stat name to see what it measures.</p>
 <div class="grid g3">
 <div class="card"><h2>Profile</h2><dl class="kv">
-<dt>Age today</dt><dd>{{ na(st.age, '{:.1f}') }}</dd><dt>Date of birth</dt><dd>{{ na(f.dob) }}</dd>
-<dt>Height</dt><dd>{{ na(st.height, '{:.0f} in') }}</dd><dt>Reach</dt><dd>{{ na(st.reach, '{:.0f} in') }}</dd>
-<dt>Stance</dt><dd>{{ na(st.stance) }}</dd><dt>Listed weight</dt><dd>{{ na(f.listed_weight_lbs, '{:.0f} lbs') }}</dd>
-<dt>Days since last fight</dt><dd>{{ na(st.days_since_last) }}</dd><dt>Elo (now)</dt><dd>{{ '%.0f' % st.elo }}</dd>
-<dt>Avg. opponent Elo</dt><dd>{{ '%.0f' % st.opp_elo_mean }}</dd><dt>Streak</dt><dd>{{ '%+d' % st.streak }}</dd>
-<dt>Training / camp</dt><dd><span class="tag unavailable">no reliable source configured</span></dd>
-</dl>{% for c in corr %}<p class="small">Manual correction: {{ c.field }} = {{ c.value }} (<a href="{{ c.source_url }}">source</a>)</p>{% endfor %}</div>
-<div class="card"><h2>Striking <span class="tag estimate">shrunk rates</span></h2><dl class="kv">
-<dt>Sig. landed / min</dt><dd>{{ '%.2f' % st.slpm }} (recent {{ '%.2f' % st.d_slpm }})</dd>
-<dt>Sig. absorbed / min</dt><dd>{{ '%.2f' % st.sapm }} (recent {{ '%.2f' % st.d_sapm }})</dd>
-<dt>Accuracy</dt><dd>{{ st.str_acc | pct }}</dd><dt>Defense</dt><dd>{{ st.str_def | pct }}</dd>
-<dt>Knockdowns / 15</dt><dd>{{ '%.2f' % st.kd15 }}</dd><dt>Knocked down / 15</dt><dd>{{ '%.2f' % st.kd_abs15 }}</dd>
-<dt>Head / distance share</dt><dd>{{ st.head_share | pct }} / {{ st.dist_share | pct }}</dd>
-<dt>Late-round output</dt><dd>{{ na(st.late_ratio, '{:.2f}× round 1') }}</dd></dl></div>
-<div class="card"><h2>Grappling &amp; durability <span class="tag estimate">shrunk rates</span></h2><dl class="kv">
-<dt>Takedowns / 15</dt><dd>{{ '%.2f' % st.td15 }}</dd><dt>TD accuracy</dt><dd>{{ st.td_acc | pct }}</dd>
-<dt>TD defense</dt><dd>{{ st.td_def | pct }}</dd><dt>Sub attempts / 15</dt><dd>{{ '%.2f' % st.sub15 }}</dd>
-<dt>Control share</dt><dd>{{ st.ctrl_share | pct }} (controlled {{ st.opp_ctrl_share | pct }})</dd>
-<dt>KO / Sub wins</dt><dd>{{ st.record_counts.wins_by.get('KO_TKO', 0) }} / {{ st.record_counts.wins_by.get('SUB', 0) }}</dd>
-<dt>KO / Sub losses</dt><dd>{{ st.record_counts.losses_by.get('KO_TKO', 0) }} / {{ st.record_counts.losses_by.get('SUB', 0) }}</dd>
-<dt>Minutes with stats</dt><dd>{{ '%.0f' % st.minutes }} over {{ st.n_with_stats }} of {{ st.n_fights }} fights</dd></dl>
-<p class="small muted">Shrinkage pulls small samples toward the point-in-time population rate; raw zeros are never assumed for missing data.</p></div>
+<dt>{{ stat('age', 'Age') }}</dt><dd>{{ na(st.age, '{:.0f}') }}</dd><dt>Date of birth</dt><dd>{{ na(f.dob) }}</dd>
+<dt>{{ stat('height') }}</dt><dd>{{ na(st.height, '{:.0f} in') }}</dd><dt>{{ stat('reach') }}</dt><dd>{{ na(st.reach, '{:.0f} in') }}</dd>
+<dt>{{ stat('stance') }}</dt><dd>{{ na(st.stance) }}</dd><dt>Weight</dt><dd>{{ na(f.listed_weight_lbs, '{:.0f} lbs') }}</dd>
+<dt>{{ stat('days_since_last') }}</dt><dd>{{ na(st.days_since_last) }}</dd>
+<dt>{{ stat('streak') }}</dt><dd>{{ ('%d-fight win streak' % st.streak) if st.streak > 0 else (('%d-fight losing streak' % -st.streak) if st.streak < 0 else '—') }}</dd>
+<dt>{{ stat('elo') }}</dt><dd>{{ '%.0f' % st.elo }}</dd>
+<dt>{{ stat('opp_elo_mean') }}</dt><dd>{{ '%.0f' % st.opp_elo_mean }}</dd>
+</dl>{% for c in corr %}<p class="small">Corrected: {{ c.field }} = {{ c.value }} (<a href="{{ c.source_url }}">source</a>)</p>{% endfor %}</div>
+<div class="card"><h2>Striking</h2><dl class="kv">
+<dt>{{ stat('slpm') }}</dt><dd>{{ '%.2f' % st.slpm }} <span class="muted small">(recently {{ '%.2f' % st.d_slpm }})</span></dd>
+<dt>{{ stat('sapm') }}</dt><dd>{{ '%.2f' % st.sapm }} <span class="muted small">(recently {{ '%.2f' % st.d_sapm }})</span></dd>
+<dt>{{ stat('str_acc') }}</dt><dd>{{ st.str_acc | pct }}</dd><dt>{{ stat('str_def') }}</dt><dd>{{ st.str_def | pct }}</dd>
+<dt>{{ stat('kd15') }}</dt><dd>{{ '%.2f' % st.kd15 }}</dd><dt>{{ stat('kd_abs15') }}</dt><dd>{{ '%.2f' % st.kd_abs15 }}</dd>
+<dt>{{ stat('head_share') }}</dt><dd>{{ st.head_share | pct }}</dd><dt>{{ stat('dist_share') }}</dt><dd>{{ st.dist_share | pct }}</dd>
+<dt>{{ stat('late_ratio') }}</dt><dd>{{ na(st.late_ratio, '{:.2f}× round 1') }}</dd></dl></div>
+<div class="card"><h2>Grappling &amp; toughness</h2><dl class="kv">
+<dt>{{ stat('td15') }}</dt><dd>{{ '%.2f' % st.td15 }}</dd><dt>{{ stat('td_acc') }}</dt><dd>{{ st.td_acc | pct }}</dd>
+<dt>{{ stat('td_def') }}</dt><dd>{{ st.td_def | pct }}</dd><dt>{{ stat('sub15') }}</dt><dd>{{ '%.2f' % st.sub15 }}</dd>
+<dt>{{ stat('ctrl_share') }}</dt><dd>{{ st.ctrl_share | pct }}</dd><dt>{{ stat('opp_ctrl_share') }}</dt><dd>{{ st.opp_ctrl_share | pct }}</dd>
+<dt>{{ tip('Wins by KO / Sub', 'UFC wins by knockout and by submission.') }}</dt><dd>{{ st.record_counts.wins_by.get('KO_TKO', 0) }} / {{ st.record_counts.wins_by.get('SUB', 0) }}</dd>
+<dt>{{ tip('Losses by KO / Sub', 'UFC losses by being knocked out and by being submitted.') }}</dt><dd>{{ st.record_counts.losses_by.get('KO_TKO', 0) }} / {{ st.record_counts.losses_by.get('SUB', 0) }}</dd>
+<dt>{{ stat('minutes') }}</dt><dd>{{ '%.0f' % st.minutes }} min over {{ st.n_with_stats }} of {{ st.n_fights }} fights</dd></dl></div>
 </div>
-{% if trend | length > 1 %}<div class="card" style="margin-top:14px"><h2>Elo after each UFC fight</h2>{{ charts.line(trend, 'elo', 'Elo', '{:.0f}', 1500, 'starting 1500') | safe }}</div>{% endif %}
-<div class="card scroll" style="margin-top:14px"><h2>UFC fights</h2><table class="small">
-<tr><th>Date</th><th>Event</th><th>Opponent</th><th>Result</th><th>Method</th><th class="num">Sig. landed–absorbed</th><th class="num">TD for–against</th><th class="num">Control</th><th class="num">KD</th></tr>
+<p class="small muted">Fighters with only a few UFC fights have their numbers nudged toward the UFC average, so one great or bad night doesn't dominate. Missing information is shown as unknown, never as zero.</p>
+{% if trend | length > 1 %}<div class="card" style="margin-top:14px"><h2>{{ stat('elo', 'Power rating') }} after each UFC fight</h2>{{ charts.line(trend, 'elo', 'Power rating', '{:.0f}', 1500, 'average 1500') | safe }}</div>{% endif %}
+<div class="card scroll" style="margin-top:14px"><h2>UFC fight history</h2><table class="small">
+<tr><th>Date</th><th>Event</th><th>Opponent</th><th>Result</th><th>Method</th><th class="num">{{ tip('Strikes landed–taken', 'Significant strikes they landed, then strikes the opponent landed on them.') }}</th><th class="num">{{ tip('Takedowns for–against', 'Takedowns they landed, then takedowns landed on them.') }}</th><th class="num">{{ tip('Control', 'Time spent controlling the opponent (minutes:seconds).') }}</th><th class="num">{{ tip('KD', 'Knockdowns scored.') }}</th></tr>
 {% for x in fights %}{% set s = per.get(x.id) %}{% set o = opp.get(x.id) %}<tr><td><a href="/fight/{{ x.id }}">{{ x.date }}</a></td><td>{{ x.event_name }}</td><td><a href="/fighter/{{ x.opp_id }}">{{ x.opp_name }}</a></td>
 <td>{% if x.outcome == 'win' %}{{ 'W' if x.winner_fighter_id == f.id else 'L' }}{% elif x.outcome %}{{ x.outcome | upper }}{% else %}{{ x.status }}{% endif %}</td>
 <td>{{ x.method | method }}{% if x.end_round %} R{{ x.end_round }} {{ x.end_time_sec | clock }}{% endif %}</td>

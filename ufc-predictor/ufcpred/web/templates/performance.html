@@ -1,8 +1,41 @@
 {% extends "base.html" %}{% from "macros.html" import modetag %}
 {% block body %}
-<h1>Model performance {{ modetag(mode) }}</h1>
-<div class="sub">Graded locked predictions only, each scored against the latest official result revision. <a href="?mode={{ 'live' if mode == 'replay' else 'replay' }}">Show {{ 'live' if mode == 'replay' else 'replay' }}</a></div>
-{% if not perf.n %}<div class="banner warn">No graded predictions in {{ mode }} mode.</div>{% else %}
+<h1>How good is the engine? {{ modetag(mode) }}</h1>
+<div class="sub">Every pick is saved before the fight, then checked against the real result. <a href="?mode={{ 'live' if mode == 'replay' else 'replay' }}">Show {{ 'live picks' if mode == 'replay' else 'past event tests' }}</a></div>
+{% if not perf.n %}<div class="banner warn">No finished fights to check yet.</div>{% else %}
+{% set correct = (perf.accuracy * perf.n) | round | int %}
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card stat"><div class="l">Picks correct</div><div class="v">{{ perf.accuracy | pct }}</div><div class="d">{{ correct }} of {{ perf.n }} fights</div></div>
+  <div class="card stat"><div class="l">Coin flip would get</div><div class="v">50%</div><div class="d">the bar to beat</div></div>
+  <div class="card stat"><div class="l">{{ tip('Always pick higher power rating', 'Just picking whoever has the better win/loss-based rating every time.') }}</div><div class="v">{{ perf.baselines['Elo only'].accuracy | pct if perf.baselines.get('Elo only') else '—' }}</div><div class="d">a simple strategy to compare against</div></div>
+  <div class="card stat"><div class="l">{{ term('honest', 'Are the percentages honest?') }}</div><div class="v">{{ 'Yes' if perf.ece < 0.05 else 'Mostly' if perf.ece < 0.1 else 'Not yet' }}</div><div class="d">off by {{ perf.ece | pct(1) }} on average</div></div>
+</div>
+<div class="grid g2">
+<div class="card"><h2>When the engine says X%, does it happen X% of the time?</h2>{{ charts.calibration(perf.calibration) | safe }}
+<p class="small muted">Each dot groups picks with similar odds. Dots near the dashed line mean the percentages can be trusted at face value. Hover a dot for its numbers.</p>
+<table class="small"><tr><th>Engine said</th><th class="num">Fights</th><th class="num">Favourite actually won</th></tr>
+{% for b in perf.calibration if b.n %}<tr><td>about {{ b.mean_conf | pct }}</td><td class="num">{{ b.n }}</td><td class="num">{{ b.accuracy | pct }}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Accuracy over time</h2>
+<p class="small muted" style="margin-top:-4px">Share of picks right over each stretch of 50 fights. The dashed line is a coin flip (50%).</p>
+{{ charts.line(perf.series, 'acc50', 'Accuracy', '{:.0%}', 0.5, 'coin flip', lo=0.3, hi=0.9) | safe }}
+<table class="small"><tr><th>Most recent</th><th class="num">Picks right</th></tr>
+{% for w in perf.windows %}<tr><td>Last {{ w.n }} fights</td>{% if w.accuracy is not none %}<td class="num">{{ (w.accuracy * w.n) | round | int }} of {{ w.n }} ({{ w.accuracy | pct }})</td>{% else %}<td class="muted">{{ w.note }}</td>{% endif %}</tr>{% endfor %}</table></div>
+</div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h2>Picking how the fight ends</h2>
+<table><tr><th>Ending</th><th class="num">Happened</th><th class="num">Engine predicted</th><th class="num">{{ tip('Right when predicted', 'When the engine predicted this ending, how often it actually happened.') }}</th></tr>
+{% for m, v in perf.method.items() %}<tr><td>{{ m | method }}</td><td class="num">{{ v.actual }}</td><td class="num">{{ v.predicted }}</td><td class="num">{{ v.precision | pct }}</td></tr>{% endfor %}</table>
+<h3>By confidence</h3>
+<table class="small"><tr><th>{{ term('confidence', 'Confidence') }}</th><th class="num">Fights</th><th class="num">Picks right</th></tr>
+{% for r in perf.by_confidence %}<tr><td>{{ r.key }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct }}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>By weight class</h2><table class="small"><tr><th>Division</th><th class="num">Fights</th><th class="num">Picks right</th></tr>
+{% for r in perf.by_weight_class %}<tr><td>{{ r.key }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct }}</td></tr>{% endfor %}</table>
+<h3>By event</h3><div class="scroll" style="max-height:360px;overflow-y:auto"><table class="small"><tr><th>Event</th><th class="num">Fights</th><th class="num">Picks right</th></tr>
+{% for r in perf.by_event %}<tr><td><a href="/review/{{ r.key[2] }}?mode={{ mode }}">{{ r.key[0] }} {{ r.key[1] }}</a></td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct }}</td></tr>{% endfor %}</table></div></div>
+</div>
+
+<details class="tech"><summary>Technical details (for the statistically curious)</summary>
 <div class="grid g4" style="margin-bottom:14px">
   <div class="card stat"><div class="l">Winner accuracy (n={{ perf.n }})</div><div class="v">{{ perf.accuracy | pct(1) }}</div><div class="d">95% CI {{ perf.accuracy_ci[0] | pct(1) }}–{{ perf.accuracy_ci[1] | pct(1) }}</div></div>
   <div class="card stat"><div class="l">Log loss</div><div class="v">{{ perf.log_loss | f(4) }}</div><div class="d">95% CI {{ perf.log_loss_ci[0] | f(3) }}–{{ perf.log_loss_ci[1] | f(3) }} (event bootstrap)</div></div>
@@ -56,5 +89,6 @@ n={{ comparison.paired.n }} over {{ comparison.paired.n_events }} events, P(cand
 <div class="card"><h2>By event</h2><div class="scroll" style="max-height:520px;overflow-y:auto"><table class="small"><tr><th>Event</th><th class="num">n</th><th class="num">Accuracy</th><th class="num">Log loss</th></tr>
 {% for r in perf.by_event %}<tr><td><a href="/review/{{ r.key[2] }}?mode={{ mode }}">{{ r.key[0] }} {{ r.key[1] }}</a></td><td class="num">{{ r.n }}</td><td class="num">{{ r.accuracy | pct }}</td><td class="num">{{ r.log_loss | f(3) }}</td></tr>{% endfor %}</table></div></div>
 </div>
+</details>
 {% endif %}
 {% endblock %}

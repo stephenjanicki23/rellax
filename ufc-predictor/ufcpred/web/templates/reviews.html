@@ -1,12 +1,12 @@
 {% extends "base.html" %}{% from "macros.html" import modetag %}
 {% block body %}
-<h1>Post-event reviews {{ modetag(mode) }}</h1>
-<div class="sub">An event is only listed as evaluated once its official results have been processed. <a href="?mode={{ 'live' if mode == 'replay' else 'replay' }}">Show {{ 'live' if mode == 'replay' else 'replay' }}</a></div>
+<h1>Event reviews {{ modetag(mode) }}</h1>
+<div class="sub">How the picks did at each event, once the official results are in. <a href="?mode={{ 'live' if mode == 'replay' else 'replay' }}">Show {{ 'live' if mode == 'replay' else 'replay' }}</a></div>
 <div class="card scroll"><table>
-<tr><th>Date</th><th>Event</th><th class="num">Graded</th><th class="num">Winner correct</th><th class="num">Method correct</th><th class="num">Log loss</th><th class="num">Brier</th></tr>
+<tr><th>Date</th><th>Event</th><th class="num">Fights checked</th><th class="num">Winner right</th><th class="num">Winner + method right</th></tr>
 {% for r in rows %}<tr><td>{{ r.date }}</td><td><a href="/review/{{ r.id }}?mode={{ mode }}">{{ r.name }}</a></td>
 <td class="num">{{ r.graded }}</td><td class="num">{% if r.graded %}{{ r.correct }} ({{ (r.correct / r.graded) | pct }}){% else %}<span class="muted">results pending</span>{% endif %}</td>
-<td class="num">{{ r.mc or 0 }}</td><td class="num">{{ r.ll | f(3) }}</td><td class="num">{{ r.brier | f(3) }}</td></tr>
-{% else %}<tr><td colspan="7" class="muted">No locked events.</td></tr>{% endfor %}
+<td class="num">{{ r.mc or 0 }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No locked events.</td></tr>{% endfor %}
 </table></div>
 {% endblock %}
