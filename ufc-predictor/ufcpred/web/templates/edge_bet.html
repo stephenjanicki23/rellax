@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Bet: {{ b.pick_name }}{% endblock %}
+{% from "macros.html" import edgebar %}
+{% block body %}
+<div class="small"><a href="/edge/event/{{ b.event_id }}">← {{ b.event_name }}</a></div>
+<h1>{{ b.pick_name }} <span class="muted">to beat</span> {{ b.opponent_name }}</h1>
+<div class="sub">{{ b.event_date }} · {{ b.weight_class or 'Catch weight' }} · <a href="/fight/{{ b.fight_id }}?mode=live">fight analysis</a></div>
+{% if msg %}<div class="banner info">{{ msg }}</div>{% endif %}
+
+<div class="grid g2">
+<div class="card"><h2>The bet</h2>
+  <dl class="kv">
+    <dt>Confidence</dt><dd><span class="pill {{ b.tier }}">{{ b.tier }}</span> · score {{ b.confidence_score }}</dd>
+    <dt>Engine's chance</dt><dd>{{ '—' if b.p_pick is none else '%.1f%%' % (b.p_pick * 100) }}</dd>
+    <dt>Stake</dt><dd>{{ 'no bet (Low confidence is tracked only)' if b.tier == 'Low' else (b.stake_cents | money(false)) }}</dd>
+    <dt>Odds</dt><dd>{% if b.odds_american is none %}<span class="tag unavailable">none recorded</span>{% else %}{{ '%+d' % b.odds_american }}
+      <span class="muted small">({{ '%.3f' % b.odds_decimal }} decimal · {{ b.odds_bookmaker or b.odds_source }}{% if b.odds_captured_at %} · {{ b.odds_captured_at[:16] | replace('T', ' ') }}{% endif %})</span>{% endif %}</dd>
+    <dt>Result</dt><dd>{% set r = b %}{% include "_bet_status.html" %}{% if b.settle_note %} <span class="small muted">{{ b.settle_note }}</span>{% endif %}</dd>
+    <dt>Net P/L</dt><dd>{{ b.net_cents | money if b.net_cents is not none else '—' }}</dd>
+    <dt>Recorded</dt><dd>{{ b.created_at[:16] | replace('T', ' ') }} UTC</dd>
+    <dt>Locked</dt><dd>{{ (b.locked_at[:16] | replace('T', ' ')) ~ ' UTC' if b.locked_at else 'not yet — follows the newest prediction until the card locks' }}</dd>
+    <dt>Prediction used</dt><dd>#{{ b.prediction_id }} (version {{ b.prediction_version }}){% if why.made_at %}, made {{ why.made_at[:16] | replace('T', ' ') }}{% endif %}{% if why.model %} · model {{ why.model }}{% endif %}</dd>
+    {% if why.recorded_after_result %}<dt>Note</dt><dd class="small">Recorded after the result from the prediction locked before the fight; the pick and stake were fixed before the fight.</dd>{% endif %}
+  </dl>
+</div>
+<div class="card"><h2>Why the engine picked {{ b.pick_name }}</h2>
+  <p class="small muted">As recorded with the bet{% if why.method %} · predicted {{ why.method | method }}{% if why.round %} in round {{ why.round }}{% endif %}{% endif %}.</p>
+  <h3>In favour</h3>
+  <ul class="factors small">{% for x in why.for_pick or [] %}<li>{{ FACTOR_NAMES.get(x.feature, x.feature) }}</li>{% else %}<li class="muted">none recorded</li>{% endfor %}</ul>
+  <h3>Against</h3>
+  <ul class="factors small">{% for x in why.against_pick or [] %}<li>{{ FACTOR_NAMES.get(x.feature, x.feature) }}</li>{% else %}<li class="muted">none recorded</li>{% endfor %}</ul>
+  {% if why.confidence and why.confidence.reasons %}<h3>Confidence notes</h3>
+  <ul class="factors small">{% for c in why.confidence.reasons %}{% set t = plainify(c) %}{% if t %}<li>{{ t }}</li>{% endif %}{% endfor %}</ul>{% endif %}
+</div>
+</div>
+
+<div class="card scroll" style="margin-top:14px"><h2>History</h2>
+<table class="small"><tr><th>When (UTC)</th><th>What</th><th>Details</th></tr>
+{% for h in hist %}<tr><td>{{ h.ts[:16] | replace('T', ' ') }}<br><span class="muted">{{ h.actor }}</span></td><td><b>{{ h.action | replace('_', ' ') }}</b></td>
+  <td>{% for c in h.changes %}<div>{{ c }}</div>{% endfor %}{% if h.reason %}<div class="muted">{{ h.reason }}</div>{% endif %}</td></tr>{% endfor %}
+</table></div>
+
+{% if admin %}
+<form class="card" method="post" action="/edge/bet/{{ b.id }}/correct" style="margin-top:14px">
+  <h2>Correct this bet</h2>
+  <p class="small muted">For mistakes only. Every correction needs a reason and is kept in the history above. Leave a field empty to keep it.</p>
+  <div class="filters">
+    <label>Odds (American)<input name="odds_american" placeholder="e.g. -150 or +130"></label>
+    <label>Stake ($)<input name="stake" placeholder="{{ b.stake_cents / 100 }}"></label>
+    <label>Settlement<select name="status"><option value="">keep</option><option value="auto">follow the official result</option>
+      <option value="void">void (stake returned)</option><option value="push">push (stake returned)</option><option value="win">win</option><option value="loss">loss</option></select></label>
+    <label style="grid-column: span 2">Reason (required)<input name="reason" required placeholder="what was wrong and where the correct value comes from"></label>
+    <div><button class="primary">Save correction</button></div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

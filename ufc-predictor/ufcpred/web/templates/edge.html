@@ -1,60 +1,118 @@
 {% extends "base.html" %}
 {% block title %}Betting Edge{% endblock %}
+{% macro pl(c) -%}<span class="{{ 'gain' if c and c > 0 else 'loss' if c and c < 0 else '' }}">{{ c | money }}</span>{%- endmacro %}
+{% macro pct1(v) -%}{{ '—' if v is none else '%.1f%%' % (v * 100) }}{%- endmacro %}
+{% macro roi(v) -%}{% if v is none %}—{% else %}<span class="{{ 'gain' if v > 0 else 'loss' if v < 0 else '' }}">{{ '%+.1f%%' % (v * 100) }}</span>{% endif %}{%- endmacro %}
 {% block body %}
 <h1>Betting Edge</h1>
-<div class="sub">Where the engine's own chances disagree with the betting odds. The engine never sees the odds — they are only
-  compared afterwards, so its picks stay independent.</div>
-<p class="small muted">Read this as a shortlist to research, not a list of bets. A very large gap more often means the engine is
-  missing something the market knows (an injury, a bad weight cut, a debutant's pre-UFC record) than a free bet.</p>
+<div class="sub">Simulated flat bets on the engine's own picks: <b>${{ stakes.High }}</b> on every High-confidence pick,
+  <b>${{ stakes.Medium }}</b> on every Medium one, and Low-confidence picks tracked without a bet. Nothing here is a real wager,
+  and the prediction engine never sees any of it.
+  · <a href="/edge/bets">Full bet ledger →</a>
+  {% if admin %}<form class="inline" method="post" action="/actions/sync_bets" style="margin-left:6px"><button>Update bets now</button></form>{% endif %}</div>
 
-{% if not data %}
-<div class="banner warn">No upcoming card and no imported odds yet.</div>
-{% else %}{% set ev = data.card.event %}
-<h2>{{ ev.name }} <span class="muted small">· {{ ev.date }}</span></h2>
-{% if not data.n_odds %}
-<div class="banner">No odds imported for this card yet. {% if admin %}On <a href="/settings">Settings</a>, import a betting-odds file
-  (<code>odds_template.csv</code>: event date, both fighters, both odds, e.g. <code>-150</code> and <code>+130</code>).{% else %}Check back later.{% endif %}</div>
-{% endif %}
-
-<div class="grid">
-{% for r in data.rows %}{% set it = r.item %}{% set f = it.fight %}{% set e = r.edge %}
-<div class="card">
-  <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
-    <div><a href="/fight/{{ f.id }}?mode=live"><span class="red">{{ f.red_name }}</span> vs <span class="blue">{{ f.blue_name }}</span></a>
-      <span class="small muted">· {{ f.weight_class or 'Catch weight' }}</span></div>
-    {% if e %}
-      {% if e.flag %}<span class="tag confirmed tip" tabindex="0" data-tip="The engine gives {{ e.best.name }} a better chance than the odds do, by enough that a bet would be expected to return at least {{ (edge_min * 100) | round | int }}% on average over many similar bets. It is still a single fight — anything can happen.">worth a look: {{ e.best.name }}</span>
-      {% else %}<span class="tag unavailable tip" tabindex="0" data-tip="The odds and the engine roughly agree, or the odds already price in the engine's view. No clear edge.">no clear edge</span>{% endif %}
-    {% elif it.payload %}<span class="tag unavailable">no odds</span>{% else %}<span class="tag unavailable">no prediction</span>{% endif %}
-  </div>
-  {% if e %}
-  <div class="scroll"><table class="small" style="margin-top:8px">
-    <tr><th>Fighter</th><th class="num">Odds</th><th class="num">{{ tip('Odds say', 'The chance of winning implied by the odds, with the bookmaker\'s built-in margin removed.') }}</th><th class="num">{{ tip('Engine says', 'The engine\'s own chance of winning, worked out without looking at the odds.') }}</th><th class="num hide-sm">{{ tip('Difference', 'Engine chance minus odds chance. Positive means the engine rates this fighter higher than the betting market does.') }}</th><th class="num">{{ tip('Expected return', 'What a $100 bet would win or lose on average over many bets like this, if the engine\'s chance is right. Negative means a losing bet in the long run.') }}</th></tr>
-    {% for s in e.sides %}<tr><td class="{{ s.side }}">{{ s.name }}</td><td class="num">{{ '%+d' % s.american }}</td><td class="num">{{ s.market | pct }}</td><td class="num">{{ s.engine | pct }}</td>
-      <td class="num hide-sm {{ 'good' if s.gap > 0 }}">{{ '%+.0f' % (s.gap * 100) }} pts</td>
-      <td class="num"><b>{{ '%+.0f' % (s.ev * 100) }}</b> per $100</td></tr>{% endfor %}
-  </table></div>
-  <div class="small muted" style="margin-top:6px">{{ e.bookmaker or 'Odds' }}{% if e.captured_at %} · captured {{ e.captured_at[:16] | replace('T', ' ') }}{% endif %}
-    · {{ tip('engine confidence: ' ~ e.confidence, 'How much to trust the engine\'s number for this fight. Treat edges on low-confidence fights with extra caution.') }}
-    {% if e.flag and e.confidence == 'Low' %}<span class="status warn">low confidence — be careful</span>{% endif %}</div>
-  {% if r.outcome %}<div class="small" style="margin-top:4px">Result: <span class="status {{ 'good' if r.outcome.won else 'bad' }}">{{ 'won' if r.outcome.won else 'lost' }}</span>
-    {{ '%+.2f' % r.outcome.profit }} units on a 1-unit bet</div>{% endif %}
-  {% endif %}
+{% if events %}{% set le = events[0] %}
+<div class="banner {{ 'info' if le.net >= 0 else 'warn' }}" style="margin-bottom:14px">
+  <b>Latest card — <a href="/edge/event/{{ le.event_id }}">{{ le.name }}</a></b> ({{ le.date }}):
+  {% if le.settled %}{{ pl(le.net) }} overall · High {{ pl(le.tiers.High.net) }} · Medium {{ pl(le.tiers.Medium.net) }}
+    · ROI {{ roi(le.roi) }}{% if le.pending %} · {{ le.pending }} bet{{ 's' if le.pending != 1 }} still open{% endif %}
+  {% elif le.bets %}{{ le.bets }} bet{{ 's' if le.bets != 1 }} placed ({{ le.staked | money(false) }} staked), waiting for results.
+  {% else %}no qualifying bets.{% endif %}
 </div>
-{% endfor %}
-</div>
-{% endif %}
-
-<div class="card" style="margin-top:16px"><h2>Track record of "worth a look" picks</h2>
-{% if record.n %}
-  <p>If you had bet 1 unit on every flagged fighter: <b>{{ record.wins }} of {{ record.n }}</b> won, for a total of
-    <b class="{{ 'good' if record.profit > 0 else '' }}">{{ '%+.2f' % record.profit }} units</b> ({{ '%+.0f' % (record.roi * 100) }}% per bet).</p>
-  <table class="small"><tr><th>Event</th><th class="num">Fights with odds</th><th class="num">Flagged</th><th class="num">Settled</th><th class="num">Units</th></tr>
-  {% for x in record.events %}<tr><td><a href="/edge?event={{ x.id }}">{{ x.date }} {{ x.name }}</a></td><td class="num">{{ x.n_odds }}</td><td class="num">{{ x.flagged }}</td><td class="num">{{ x.settled }}</td><td class="num">{{ '%+.2f' % x.profit }}</td></tr>{% endfor %}</table>
 {% else %}
-  <p class="muted">Nothing settled yet. Once a card with imported odds is graded, every flagged pick is tracked here so you can see whether the edges are real.</p>
+<div class="banner">No bets yet. Bets are recorded automatically from the next live card's predictions (High and Medium
+  confidence), locked when the card locks, and settled when the official results arrive.</div>
 {% endif %}
-  <p class="small muted">Draws and no contests are left out (bets are usually refunded). Dozens of cards are needed before the result
-    means much: even a real edge loses for long stretches, and a lucky run can look like an edge. This is not betting advice.</p>
+
+<div class="grid g4 kpis" style="margin-bottom:14px">
+  <div class="card stat kpi"><div class="l">{{ tip('Lifetime net P/L', 'Total profit minus losses across every settled bet. Open bets are not included.') }}</div>
+    <div class="v {{ 'gain' if s.net > 0 else 'loss' if s.net < 0 }}">{{ s.net | money }}</div><div class="d">{{ s.settled }} settled bet{{ 's' if s.settled != 1 }}</div></div>
+  <div class="card stat kpi"><div class="l">High-confidence P/L</div>
+    <div class="v {{ 'gain' if s.high_net > 0 else 'loss' if s.high_net < 0 }}">{{ s.high_net | money }}</div><div class="d">${{ stakes.High }} per pick</div></div>
+  <div class="card stat kpi"><div class="l">Medium-confidence P/L</div>
+    <div class="v {{ 'gain' if s.medium_net > 0 else 'loss' if s.medium_net < 0 }}">{{ s.medium_net | money }}</div><div class="d">${{ stakes.Medium }} per pick</div></div>
+  <div class="card stat kpi"><div class="l">{{ tip('Overall ROI', 'Net profit divided by the total staked on bets that won or lost. Pushes and voids return the stake and are left out.') }}</div>
+    <div class="v">{{ roi(s.roi) }}</div><div class="d">on {{ s.settled_stake | money(false) }} settled</div></div>
+  <div class="card stat kpi"><div class="l">{{ tip('Win rate', 'Winning bets divided by bets that won or lost (pushes and voids excluded).') }}</div>
+    <div class="v">{{ pct1(s.win_rate) }}</div><div class="d">{{ s.wins }} of {{ s.decided }}</div></div>
+  <div class="card stat kpi"><div class="l">Total bets</div><div class="v">{{ s.total }}</div>
+    <div class="d">{{ s.settled }} settled · {{ s.pending }} open{% if s.needs_odds %} · <a href="/edge/bets?status=needs_odds">{{ s.needs_odds }} need odds</a>{% endif %}</div></div>
+  <div class="card stat kpi"><div class="l">{{ tip('Total risked', 'Sum of stakes on every recorded bet except voided ones. Open exposure is the part still waiting for a result.') }}</div>
+    <div class="v">{{ s.risked | money(false) }}</div><div class="d">{{ s.exposure | money(false) }} open exposure</div></div>
+  <div class="card stat kpi"><div class="l">{{ tip('Low-confidence picks', 'Tracked to see how the engine does on them, but no money is staked.') }}</div>
+    <div class="v">{{ s.tracked_low }}</div><div class="d">tracked, not bet</div></div>
+</div>
+
+<div class="card" style="margin-bottom:14px"><h2>Cumulative profit / loss</h2>
+  {{ charts.multi_line(curve, [('High', 'High confidence', 's1'), ('Medium', 'Medium confidence', 's2'), ('all', 'Combined', 's3')], 'Cumulative profit and loss') | safe }}
+  <p class="small muted">Settled bets only, in date order. Hover the chart for running totals.</p>
+</div>
+
+<div class="card scroll" style="margin-bottom:14px"><h2>High vs Medium confidence</h2>
+<table>
+  <tr><th></th>{% for t in tiers %}<th class="num"><span class="pill {{ t.tier }}">{{ t.tier }}</span></th>{% endfor %}</tr>
+  <tr><td>Total bets</td>{% for t in tiers %}<td class="num">{{ t.bets }}{% if t.pending %} <span class="muted small">({{ t.pending }} open)</span>{% endif %}</td>{% endfor %}</tr>
+  <tr><td>Wins / losses / pushes / voids</td>{% for t in tiers %}<td class="num">{{ t.wins }} / {{ t.losses }} / {{ t.pushes }} / {{ t.voids }}</td>{% endfor %}</tr>
+  <tr><td>Win %</td>{% for t in tiers %}<td class="num">{{ pct1(t.win_rate) }}{% if t.win_ci[0] is not none %} <span class="muted small">({{ '%.0f' % (t.win_ci[0] * 100) }}–{{ '%.0f' % (t.win_ci[1] * 100) }}%)</span>{% endif %}</td>{% endfor %}</tr>
+  <tr><td>{{ tip('Average predicted chance', 'The engine\'s average win probability for these picks. Compare it with the actual win % above.') }}</td>{% for t in tiers %}<td class="num">{{ pct1(t.avg_p) }}</td>{% endfor %}</tr>
+  <tr><td>Settled stake</td>{% for t in tiers %}<td class="num">{{ t.settled_stake | money(false) }}</td>{% endfor %}</tr>
+  <tr><td>{{ tip('Gross winnings', 'Profit earned by winning bets (returned stakes are not counted).') }}</td>{% for t in tiers %}<td class="num gain">{{ t.gross_winnings | money }}</td>{% endfor %}</tr>
+  <tr><td>Total losses</td>{% for t in tiers %}<td class="num loss">{{ (-t.total_losses) | money }}</td>{% endfor %}</tr>
+  <tr><td><b>Net P/L</b></td>{% for t in tiers %}<td class="num"><b>{{ pl(t.net) }}</b></td>{% endfor %}</tr>
+  <tr><td>ROI</td>{% for t in tiers %}<td class="num">{{ roi(t.roi) }}</td>{% endfor %}</tr>
+  <tr><td>Average odds</td>{% for t in tiers %}<td class="num">{{ '—' if t.avg_american is none else '%+d' % t.avg_american }}</td>{% endfor %}</tr>
+  <tr><td>Average P/L per settled bet</td>{% for t in tiers %}<td class="num">{{ pl(none if t.avg_pl is none else t.avg_pl | round | int) }}</td>{% endfor %}</tr>
+  <tr><td>Longest winning / losing streak</td>{% for t in tiers %}<td class="num">{{ t.longest_win }} / {{ t.longest_loss }}</td>{% endfor %}</tr>
+</table></div>
+
+<div class="card scroll" style="margin-bottom:14px"><h2>Card by card</h2>
+{% if events %}
+<table class="small">
+  <tr><th>Date</th><th>Event</th><th class="num">High picks</th><th class="num">Medium picks</th><th class="num">Staked</th>
+    <th class="num">High P/L</th><th class="num">Medium P/L</th><th class="num">Card P/L</th><th class="num">High win %</th>
+    <th class="num">Medium win %</th><th class="num">ROI</th><th class="num">Open</th><th>Result</th></tr>
+  {% for e in events %}<tr><td>{{ e.date }}</td><td><a href="/edge/event/{{ e.event_id }}">{{ e.name }}</a></td>
+    <td class="num">{{ e.tiers.High.picks }}</td><td class="num">{{ e.tiers.Medium.picks }}</td><td class="num">{{ e.staked | money(false) }}</td>
+    <td class="num">{{ pl(e.tiers.High.net) }}</td><td class="num">{{ pl(e.tiers.Medium.net) }}</td><td class="num"><b>{{ pl(e.net) }}</b></td>
+    <td class="num">{{ pct1(e.tiers.High.win_rate) }}</td><td class="num">{{ pct1(e.tiers.Medium.win_rate) }}</td>
+    <td class="num">{{ roi(e.roi) }}</td><td class="num">{{ e.pending or '' }}</td>
+    <td><span class="pill {{ 'win' if 'profitable' in e.state else 'loss' if 'losing' in e.state else 'pending' if 'progress' in e.state else '' }}">{{ e.state }}</span></td></tr>{% endfor %}
+</table>
+{% else %}<p class="muted">No cards with bets yet.</p>{% endif %}
+</div>
+
+{% set m = fb.min_n %}
+<div class="card" style="margin-bottom:14px"><h2>Is the confidence rating working?</h2>
+  <p class="small muted" style="margin-top:-4px">Checks how the engine's picks have actually done. A segment needs at least {{ m }} decided
+    picks before it counts as evidence; smaller ones are shown greyed out as early signs only. Nothing here changes the model —
+    the engine's own learning loop works separately with its own statistical tests.</p>
+  <p><b>{{ fb.tier_verdict }}</b></p>
+  <div class="scroll"><table class="small">
+    <tr><th>Confidence</th><th class="num">Decided picks</th><th class="num">Engine expected</th><th class="num">Actually won</th><th class="num">95% range</th><th class="num">ROI</th><th>Verdict</th></tr>
+    {% for t in fb.tiers %}<tr class="{{ '' if t.evidence else 'muted' }}"><td><span class="pill {{ t.name }}">{{ t.name }}</span></td><td class="num">{{ t.n }}</td>
+      <td class="num">{{ pct1(t.avg_p) }}</td><td class="num">{{ pct1(t.rate) }}</td>
+      <td class="num">{% if t.ci[0] is not none %}{{ '%.0f' % (t.ci[0] * 100) }}–{{ '%.0f' % (t.ci[1] * 100) }}%{% endif %}</td>
+      <td class="num">{{ roi(t.roi) if t.bets else '—' }}</td><td>{{ t.verdict }}</td></tr>{% endfor %}
+  </table></div>
+  <p class="small">{{ tip('Expected vs realised', 'Expected P/L is what the bets should have made if the engine\'s probabilities were exactly right, given the odds taken. A realised figure far below expected suggests the engine is overconfident against the market.') }}:
+    expected {{ pl(fb.expected_net) }} vs realised {{ pl(fb.realised_net) }} over {{ fb.n_priced }} priced bet{{ 's' if fb.n_priced != 1 }}.</p>
+  <details><summary class="small">Breakdowns: favourites vs underdogs, weight class, confidence score, main reason</summary>
+  {% for title, segs in [('Favourite or underdog', fb.favourite), ('Weight class', fb.weight_class), ('Confidence score', fb.score_band), ('Main reason for the pick', fb.top_factor)] %}
+  <h3>{{ title }}</h3>
+  <div class="scroll"><table class="small"><tr><th></th><th class="num">Decided</th><th class="num">Engine expected</th><th class="num">Won</th><th class="num">Bets</th><th class="num">Net P/L</th><th class="num">ROI</th><th>Verdict</th></tr>
+  {% for g in segs %}<tr class="{{ '' if g.evidence else 'muted' }}"><td>{{ g.name }}</td><td class="num">{{ g.n }}</td><td class="num">{{ pct1(g.avg_p) }}</td><td class="num">{{ pct1(g.rate) }}</td>
+    <td class="num">{{ g.bets }}</td><td class="num">{{ pl(g.net) if g.bets else '—' }}</td><td class="num">{{ roi(g.roi) }}</td><td>{{ g.verdict }}</td></tr>
+  {% else %}<tr><td colspan="8" class="muted">No settled picks yet.</td></tr>{% endfor %}</table></div>
+  {% endfor %}
+  </details>
+</div>
+
+<div class="card"><h2>Odds vs engine</h2>
+  {% if next_ev %}<p>Compare the betting odds with the engine's chances for <a href="/edge/event/{{ next_ev.id }}">{{ next_ev.name }}</a> ({{ next_ev.date }}).</p>{% endif %}
+  <details><summary class="small">"Worth a look" value picks — a separate idea, tracked on its own</summary>
+  <p class="small muted">Sides where the engine's chance implies at least +{{ (edge_min * 100) | round | int }}% expected return at the odds, 1 unit each.</p>
+  {% if record.n %}<p class="small">{{ record.wins }} of {{ record.n }} won · {{ '%+.2f' % record.profit }} units ({{ '%+.0f' % (record.roi * 100) }}% per bet).</p>
+  {% else %}<p class="small muted">Nothing settled yet.</p>{% endif %}
+  </details>
 </div>
 {% endblock %}

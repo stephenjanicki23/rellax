@@ -44,13 +44,13 @@ def test_betting_edge_compares_odds_without_feeding_the_engine(synth):
     before = conn.execute("SELECT id, p_red, content_sha256 FROM predictions WHERE event_id=? AND mode='live'",
                           (ev,)).fetchall()
     assert before
-    assert "No odds imported" in c.get("/edge").text
+    assert "No odds imported" in c.get(f"/edge/event/{ev}").text
     csv = ("event_date,red,blue,red_odds,blue_odds,format,bookmaker,captured_at,source_url\n"
            "2099-02-01,Synthetic Fighter 2,Synthetic Fighter 1,+400,-600,american,TestBook,2020-01-01T12:00:00Z,\n")
     r = c.post("/import/odds", files={"file": ("odds.csv", csv, "text/csv")}, follow_redirects=False)
     from urllib.parse import unquote
     assert "'stored': 1" in unquote(r.headers["location"])
-    page = c.get("/edge").text
+    page = c.get(f"/edge/event/{ev}").text
     assert "Expected return" in page and "TestBook" in page
     # importing odds changes nothing the engine produced, and re-predicting does not use them either
     after = conn.execute("SELECT id, p_red, content_sha256 FROM predictions WHERE event_id=? AND mode='live'",

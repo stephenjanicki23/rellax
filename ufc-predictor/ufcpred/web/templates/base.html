@@ -20,7 +20,7 @@ try{if(localStorage.getItem('theme')==='light')document.documentElement.dataset.
       {% set links = [("dashboard","/","Dashboard"),("events","/events","Fight Cards"),("history","/history","History"),
         ("reviews","/reviews","Reviews"),("learning","/learning","Learning"),("performance","/performance","Performance"),("edge","/edge","Betting Edge"),
         ("fighters","/fighters","Fighters"),("data_quality","/data-quality","Data Quality"),("settings","/settings","Settings")] %}
-      {% for key, href, label in links %}<a href="{{ href }}" class="{{ 'on' if page == key or (key=='events' and page=='event') or (key=='reviews' and page=='review') or (key=='fighters' and page=='fighter') else '' }}">{{ label }}</a>{% endfor %}
+      {% for key, href, label in links %}<a href="{{ href }}" class="{{ 'on' if page == key or (key=='events' and page=='event') or (key=='reviews' and page=='review') or (key=='fighters' and page=='fighter') or (key=='edge' and page.startswith('edge')) else '' }}">{{ label }}</a>{% endfor %}
     </nav>
     <div class="top-actions">
       <details class="legend-pop">

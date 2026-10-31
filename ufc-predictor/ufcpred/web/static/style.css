@@ -199,3 +199,25 @@ details.tech[open] > summary { margin-bottom: 12px; }
 .explain { color: var(--text-secondary); font-size: 13.5px; }
 .num.good, b.good { color: var(--good); }
 @media (max-width: 720px) { .hide-sm { display: none; } }
+
+/* ---------- betting tracker */
+:root { --series-2: #e0a43a; --series-3: #b4b9c4; --gain: #3fb27f; --loss: #e66767; }
+:root[data-theme="light"] { --series-2: #c27c0e; --series-3: #475569; --gain: #15803d; --loss: #c62828; }
+.chart .s2 { stroke: var(--series-2); } .chart .s3 { stroke: var(--series-3); stroke-dasharray: 5 4; }
+.chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; color: var(--text-secondary); }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.sw.s1 { background: var(--series-1); } .sw.s2 { background: var(--series-2); } .sw.s3 { background: var(--series-3); }
+.gain { color: var(--gain); } .loss { color: var(--loss); }
+.kpi .v.gain, .kpi .v.loss { font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  border: 1px solid var(--border-strong); color: var(--text-secondary); white-space: nowrap; }
+.pill.win { color: var(--gain); border-color: color-mix(in srgb, var(--gain) 45%, transparent); }
+.pill.loss { color: var(--loss); border-color: color-mix(in srgb, var(--loss) 45%, transparent); }
+.pill.pending { color: var(--accent); }
+.pill.High { color: var(--series-1); } .pill.Medium { color: var(--series-2); }
+.filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+.filters label { display: grid; gap: 4px; font-size: 12px; color: var(--text-secondary); }
+.filters input, .filters select { width: 100%; }
+table.ledger td, table.ledger th { white-space: nowrap; }
+@media (max-width: 720px) { .grid.kpis { grid-template-columns: 1fr 1fr; gap: 10px; } .kpis .stat .v { font-size: 22px; } .kpis .stat { padding: 12px; } }

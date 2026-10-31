@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ ev.name }} · Betting{% endblock %}
+{% macro pl(c) -%}<span class="{{ 'gain' if c and c > 0 else 'loss' if c and c < 0 else '' }}">{{ c | money }}</span>{%- endmacro %}
+{% macro pct1(v) -%}{{ '—' if v is none else '%.1f%%' % (v * 100) }}{%- endmacro %}
+{% block body %}
+<div class="small"><a href="/edge">← Betting Edge</a></div>
+<h1>{{ ev.name }}</h1>
+<div class="sub">{{ ev.date }} · <a href="/event/{{ ev.id }}?mode=live">fight card</a> · <a href="/edge/bets?event={{ ev.id }}">this card in the ledger</a>
+  · <a href="/edge/bets.csv?event={{ ev.id }}">export CSV</a></div>
+
+{% if st %}
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card stat"><div class="l">Card P/L</div><div class="v {{ 'gain' if st.net > 0 else 'loss' if st.net < 0 }}">{{ st.net | money }}</div><div class="d">{{ st.state }}</div></div>
+  <div class="card stat"><div class="l">High confidence</div><div class="v {{ 'gain' if st.tiers.High.net > 0 else 'loss' if st.tiers.High.net < 0 }}">{{ st.tiers.High.net | money }}</div>
+    <div class="d">{{ st.tiers.High.picks }} pick{{ 's' if st.tiers.High.picks != 1 }} · won {{ pct1(st.tiers.High.win_rate) }}</div></div>
+  <div class="card stat"><div class="l">Medium confidence</div><div class="v {{ 'gain' if st.tiers.Medium.net > 0 else 'loss' if st.tiers.Medium.net < 0 }}">{{ st.tiers.Medium.net | money }}</div>
+    <div class="d">{{ st.tiers.Medium.picks }} pick{{ 's' if st.tiers.Medium.picks != 1 }} · won {{ pct1(st.tiers.Medium.win_rate) }}</div></div>
+  <div class="card stat"><div class="l">Staked · ROI</div><div class="v">{{ st.staked | money(false) }}</div>
+    <div class="d">ROI {{ '—' if st.roi is none else '%+.1f%%' % (st.roi * 100) }}{% if st.pending %} · {{ st.pending }} open{% endif %}</div></div>
+</div>
+{% endif %}
+
+<div class="card scroll" style="margin-bottom:14px"><h2>Bets on this card</h2>
+{% if rows %}
+<table class="small ledger">
+  <tr><th>Pick</th><th>Opponent</th><th>Confidence</th><th class="num">Engine chance</th><th class="num">Odds</th><th class="num">Stake</th><th>Result</th><th class="num">Net P/L</th><th></th></tr>
+  {% for r in rows %}<tr class="{{ 'muted' if r.tier == 'Low' }}"><td><b>{{ r.pick_name }}</b></td><td>{{ r.opponent_name }}</td>
+    <td><span class="pill {{ r.tier }}">{{ r.tier }}</span> <span class="muted">{{ r.confidence_score }}</span></td>
+    <td class="num">{{ '—' if r.p_pick is none else '%.0f%%' % (r.p_pick * 100) }}</td>
+    <td class="num">{{ '—' if r.odds_american is none else '%+d' % r.odds_american }}</td>
+    <td class="num">{{ 'no bet' if r.tier == 'Low' else (r.stake_cents | money(false)) }}</td>
+    <td>{% include "_bet_status.html" %}</td>
+    <td class="num">{{ pl(r.net_cents) if r.net_cents is not none else '' }}</td>
+    <td><a href="/edge/bet/{{ r.id }}">details</a></td></tr>{% endfor %}
+</table>
+{% else %}<p class="muted">No bets recorded for this card. Bets are created from live predictions (High and Medium confidence).</p>{% endif %}
+</div>
+
+{% if data and data.n_odds %}
+<div class="card scroll"><h2>Odds vs engine</h2>
+<table class="small">
+  <tr><th>Fight</th><th>Fighter</th><th class="num">Odds</th><th class="num">{{ tip('Odds say', 'The chance implied by the odds, with the bookmaker\'s margin removed.') }}</th><th class="num">Engine says</th><th class="num">{{ tip('Expected return', 'What $100 would win or lose on average over many bets like this, if the engine\'s chance is right.') }}</th></tr>
+  {% for r in data.rows if r.edge %}{% for s in r.edge.sides %}<tr>{% if loop.first %}<td rowspan="2">{{ r.item.fight.red_name }} vs {{ r.item.fight.blue_name }}{% if r.edge.flag %}<br><span class="tag confirmed">worth a look: {{ r.edge.best.name }}</span>{% endif %}</td>{% endif %}
+    <td class="{{ s.side }}">{{ s.name }}</td><td class="num">{{ '%+d' % s.american }}</td><td class="num">{{ s.market | pct }}</td><td class="num">{{ s.engine | pct }}</td>
+    <td class="num">{{ '%+.0f' % (s.ev * 100) }} per $100</td></tr>{% endfor %}{% endfor %}
+</table>
+<p class="small muted">Odds: {{ (data.rows | selectattr('edge') | map(attribute='edge.bookmaker') | reject('none') | unique | join(', ')) or 'imported' }}.
+  A very large gap more often means the engine is missing something the market knows than a free bet.</p>
+</div>
+{% elif data %}
+<div class="banner">No odds imported for this card yet. {% if admin %}Import a betting-odds file on <a href="/settings">Settings</a>
+  or press <b>Refresh odds</b> there if the odds feed is set up.{% else %}Check back later.{% endif %}
+  Bets without odds stay open and are left out of profit and loss until odds are recorded.</div>
+{% endif %}
+{% endblock %}
