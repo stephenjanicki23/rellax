@@ -90,6 +90,7 @@ DEFAULT_SETTINGS: dict = {
     "providers.historical": "ufcstats_mirror",
     "providers.upcoming": "manual",              # manual | ufcstats_live
     "providers.odds": "none",                    # none | manual | the_odds_api
+    "providers.odds.bookmakers": "williamhill_us",  # The Odds API bookmaker keys, comma-separated; empty = all US books
     "providers.ufcstats_mirror.base_url": "https://raw.githubusercontent.com/Greco1899/scrape_ufc_stats/main",
     "providers.min_request_interval_s": 2.0,
     "analyst.provider": "deterministic",         # deterministic | anthropic

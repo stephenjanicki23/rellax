@@ -213,3 +213,51 @@ def test_manual_card_merges_with_the_providers_copy_and_results_attach(tmp_db):
     st = tmp_db.execute("SELECT fighter_id, sig_l FROM fight_stats WHERE fight_id=?", (manual_fight["id"],)).fetchone()
     assert st["fighter_id"] == manual_fight["blue_fighter_id"] and st["sig_l"] == 30
     assert tmp_db.execute("SELECT status FROM events").fetchone()[0] == "completed"
+
+
+def test_odds_feed_keeps_only_the_chosen_bookmaker_and_never_leaks_the_key(tmp_db, monkeypatch):
+    import pytest
+    from ufcpred import lifecycle
+    from ufcpred.db import set_setting
+    from ufcpred.providers import odds as odds_mod
+    from ufcpred.providers.base import ProviderError, SourceMeta
+    from ufcpred.util import utcnow
+    card = {"event": {"name": "UFC Odds Night", "date": "2099-03-01", "source_url": "https://example.org/card"},
+            "fights": [{"red": "Alpha One", "blue": "Bravo Two", "weight_class": "Lightweight", "scheduled_rounds": 3}]}
+    ingest_bundle(tmp_db, manual.parse_card(json.dumps(card)), reconcile_cards=True)
+    assert "skipped" in lifecycle.refresh_odds(tmp_db)            # provider off by default
+    set_setting(tmp_db, "providers.odds", "the_odds_api")
+    monkeypatch.setenv("ODDS_API_KEY", "SECRETKEY123")
+    payload = [{"home_team": "Bravo Two", "away_team": "Alpha One", "bookmakers": [
+        {"key": "williamhill_us", "title": "Caesars", "last_update": "2099-02-28T12:00:00Z",
+         "markets": [{"key": "h2h", "outcomes": [{"name": "Alpha One", "price": 1.5}, {"name": "Bravo Two", "price": 2.7}]}]},
+        {"key": "draftkings", "title": "DraftKings", "last_update": "2099-02-28T12:00:00Z",
+         "markets": [{"key": "h2h", "outcomes": [{"name": "Alpha One", "price": 1.4}, {"name": "Bravo Two", "price": 3.0}]}]}]}]
+    seen_urls = []
+
+    def fake_fetch(url, provider, resource, **kw):
+        seen_urls.append(url)
+        return json.dumps(payload), SourceMeta(provider, resource, url, utcnow(), "x", "ok", 200, None, "")
+    monkeypatch.setattr(odds_mod, "fetch", fake_fetch)
+    out = lifecycle.refresh_odds(tmp_db)
+    assert out["stored"] == 1 and out["bookmakers_seen"] == ["draftkings", "williamhill_us"]
+    assert "bookmakers=williamhill_us" in seen_urls[0]
+    row = tmp_db.execute("SELECT * FROM odds").fetchone()
+    assert row["bookmaker"] == "Caesars" and row["red_decimal"] == 1.5 and row["blue_decimal"] == 2.7  # corners kept
+    assert lifecycle.refresh_odds(tmp_db)["stored"] == 0          # an unchanged line is not stored twice
+    # a failing request reports the error without the key, on the public Data Quality page too
+
+    def failing(url, provider, resource, **kw):
+        from ufcpred.providers.http import redact
+        raise ProviderError(f"HTTP 401 for {redact(url)}")
+    monkeypatch.setattr(odds_mod, "fetch", failing)
+    err = lifecycle.refresh_odds(tmp_db)
+    assert "error" in err and "SECRETKEY123" not in err["error"]
+    issues = " ".join(r[0] or "" for r in tmp_db.execute("SELECT message FROM data_quality_issues"))
+    assert "SECRETKEY123" not in issues
+    from ufcpred.providers.http import redact
+    assert redact("https://h/x?apiKey=SECRETKEY123&a=1") == "https://h/x?apiKey=***&a=1"
+    monkeypatch.setattr(odds_mod, "fetch", lambda url, provider, resource, **k: (
+        '{"message": "quota exceeded"}', SourceMeta(provider, resource, url, utcnow(), "x", "ok", 200, None, "")))
+    with pytest.raises(ProviderError):                            # an error object instead of a list of fights
+        odds_mod.TheOddsAPIProvider(api_key="k").fetch_odds([])

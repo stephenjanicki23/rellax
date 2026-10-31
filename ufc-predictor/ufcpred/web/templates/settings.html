@@ -7,7 +7,7 @@
 <dl class="kv small">
 <dt>Historical statistics</dt><dd>UFCStats CSV mirror — <code>{{ values['providers.ufcstats_mirror.base_url'] }}</code></dd>
 <dt>Upcoming cards</dt><dd><b>{{ values['providers.upcoming'] }}</b>{% if values['providers.upcoming'] == 'manual' %} — import below{% else %} — ufcstats.com (HTTP; respects robots.txt){% endif %}</dd>
-<dt>Odds</dt><dd><b>{{ values['providers.odds'] }}</b> · ODDS_API_KEY {{ 'set' if env.ODDS_API_KEY else 'not set' }}</dd>
+<dt>Odds</dt><dd><b>{{ values['providers.odds'] }}</b>{% if values['providers.odds'] == 'the_odds_api' %} · bookmakers <code>{{ values['providers.odds.bookmakers'] or 'all US' }}</code>{% endif %} · ODDS_API_KEY {{ 'set' if env.ODDS_API_KEY else 'not set' }} · shown on Betting Edge only, never used by the engine</dd>
 <dt>AI analyst</dt><dd><b>{{ values['analyst.provider'] }}</b> · ANTHROPIC_API_KEY {{ 'set' if env.ANTHROPIC_API_KEY else 'not set' }}</dd>
 <dt>Database</dt><dd><b>{{ backend }}</b> · <code>{{ env.database }}</code>{% if on_vercel and backend == 'sqlite' %} <span class="status bad">ephemeral — set DATABASE_URL (Neon) in the Vercel project</span>{% endif %}</dd>
 <dt>Hosting</dt><dd>{% if on_vercel %}Vercel · refresh, lifecycle tick, learning loop, replay and backups run in the <b>UFC Predictor jobs</b> GitHub Actions workflow · admin token {{ 'set' if token_configured else 'NOT set — writes disabled' }}{% else %}local{% endif %}</dd></dl>
@@ -19,6 +19,7 @@
 <div class="card"><h2>Lifecycle actions</h2>
 <form class="inline" method="post" action="/actions/refresh_history"><button>Refresh historical data</button></form>
 <form class="inline" method="post" action="/actions/refresh_upcoming"><button>Refresh upcoming card</button></form>
+<form class="inline" method="post" action="/actions/refresh_odds"><button>Refresh odds</button></form>
 <form class="inline" method="post" action="/actions/tick"><button>Run full lifecycle tick</button></form>
 <h3>Upcoming events</h3>
 {% for e in upcoming %}<div class="small" style="margin:6px 0"><b>{{ e.name }}</b> {{ e.date }} — {{ e.status }}
