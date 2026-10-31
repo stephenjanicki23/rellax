@@ -26,9 +26,11 @@ try{if(localStorage.getItem('theme')==='light')document.documentElement.dataset.
       <details class="legend-pop">
         <summary class="btn icon-btn" title="What the labels mean">?</summary>
         <div class="legend-body">
-          <div><span class="tag confirmed">confirmed</span> official or sourced data</div>
-          <div><span class="tag estimate">estimate</span> model output</div>
-          <div><span class="tag unavailable">unavailable</span> not in any source</div>
+          <div><b>How to read this site</b></div>
+          <div>Terms with a <span class="tip">dotted underline</span> explain themselves: hover over them, or tap on a phone.</div>
+          <div><span class="tag confirmed">official</span> from an official source</div>
+          <div><span class="tag estimate">estimate</span> the engine's prediction</div>
+          <div><span class="tag unavailable">unknown</span> no source has this information</div>
         </div>
       </details>
       {% if admin %}{% if on_vercel %}<a class="btn" href="/logout">Log out</a>{% endif %}{% else %}<a class="btn" href="/login">Admin</a>{% endif %}
@@ -40,5 +42,17 @@ try{if(localStorage.getItem('theme')==='light')document.documentElement.dataset.
 <main>
 {% block body %}{% endblock %}
 </main>
+<div id="tipbox" role="tooltip" hidden></div>
+<script>/* hover or tap any dotted-underlined term for a plain-English description */
+(function(){var box=document.getElementById('tipbox'),cur=null;
+function show(el){cur=el;box.textContent=el.getAttribute('data-tip');box.hidden=false;
+ var r=el.getBoundingClientRect(),w=Math.min(300,window.innerWidth-24);box.style.maxWidth=w+'px';
+ var bw=box.offsetWidth,bh=box.offsetHeight,x=Math.min(Math.max(12,r.left+r.width/2-bw/2),window.innerWidth-bw-12),
+ y=r.top-bh-8;if(y<8)y=r.bottom+8;box.style.left=x+'px';box.style.top=y+'px';}
+function hide(){cur=null;box.hidden=true;}
+document.addEventListener('mouseover',function(e){var t=e.target.closest&&e.target.closest('[data-tip]');if(t)show(t);else if(cur&&!cur.contains(document.activeElement))hide();});
+document.addEventListener('focusin',function(e){var t=e.target.closest&&e.target.closest('[data-tip]');if(t)show(t);});
+document.addEventListener('click',function(e){var t=e.target.closest&&e.target.closest('[data-tip]');if(t){show(t);}else hide();});
+window.addEventListener('scroll',hide,{passive:true});})();</script>
 </body>
 </html>
