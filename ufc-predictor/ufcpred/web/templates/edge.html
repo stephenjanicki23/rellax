@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Betting Edge{% endblock %}
+{% block body %}
+<h1>Betting Edge</h1>
+<div class="sub">Where the engine's own chances disagree with the betting odds. The engine never sees the odds — they are only
+  compared afterwards, so its picks stay independent.</div>
+<p class="small muted">Read this as a shortlist to research, not a list of bets. A very large gap more often means the engine is
+  missing something the market knows (an injury, a bad weight cut, a debutant's pre-UFC record) than a free bet.</p>
+
+{% if not data %}
+<div class="banner warn">No upcoming card and no imported odds yet.</div>
+{% else %}{% set ev = data.card.event %}
+<h2>{{ ev.name }} <span class="muted small">· {{ ev.date }}</span></h2>
+{% if not data.n_odds %}
+<div class="banner">No odds imported for this card yet. {% if admin %}On <a href="/settings">Settings</a>, import a betting-odds file
+  (<code>odds_template.csv</code>: event date, both fighters, both odds, e.g. <code>-150</code> and <code>+130</code>).{% else %}Check back later.{% endif %}</div>
+{% endif %}
+
+<div class="grid">
+{% for r in data.rows %}{% set it = r.item %}{% set f = it.fight %}{% set e = r.edge %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+    <div><a href="/fight/{{ f.id }}?mode=live"><span class="red">{{ f.red_name }}</span> vs <span class="blue">{{ f.blue_name }}</span></a>
+      <span class="small muted">· {{ f.weight_class or 'Catch weight' }}</span></div>
+    {% if e %}
+      {% if e.flag %}<span class="tag confirmed tip" tabindex="0" data-tip="The engine gives {{ e.best.name }} a better chance than the odds do, by enough that a bet would be expected to return at least {{ (edge_min * 100) | round | int }}% on average over many similar bets. It is still a single fight — anything can happen.">worth a look: {{ e.best.name }}</span>
+      {% else %}<span class="tag unavailable tip" tabindex="0" data-tip="The odds and the engine roughly agree, or the odds already price in the engine's view. No clear edge.">no clear edge</span>{% endif %}
+    {% elif it.payload %}<span class="tag unavailable">no odds</span>{% else %}<span class="tag unavailable">no prediction</span>{% endif %}
+  </div>
+  {% if e %}
+  <div class="scroll"><table class="small" style="margin-top:8px">
+    <tr><th>Fighter</th><th class="num">Odds</th><th class="num">{{ tip('Odds say', 'The chance of winning implied by the odds, with the bookmaker\'s built-in margin removed.') }}</th><th class="num">{{ tip('Engine says', 'The engine\'s own chance of winning, worked out without looking at the odds.') }}</th><th class="num hide-sm">{{ tip('Difference', 'Engine chance minus odds chance. Positive means the engine rates this fighter higher than the betting market does.') }}</th><th class="num">{{ tip('Expected return', 'What a $100 bet would win or lose on average over many bets like this, if the engine\'s chance is right. Negative means a losing bet in the long run.') }}</th></tr>
+    {% for s in e.sides %}<tr><td class="{{ s.side }}">{{ s.name }}</td><td class="num">{{ '%+d' % s.american }}</td><td class="num">{{ s.market | pct }}</td><td class="num">{{ s.engine | pct }}</td>
+      <td class="num hide-sm {{ 'good' if s.gap > 0 }}">{{ '%+.0f' % (s.gap * 100) }} pts</td>
+      <td class="num"><b>{{ '%+.0f' % (s.ev * 100) }}</b> per $100</td></tr>{% endfor %}
+  </table></div>
+  <div class="small muted" style="margin-top:6px">{{ e.bookmaker or 'Odds' }}{% if e.captured_at %} · captured {{ e.captured_at[:16] | replace('T', ' ') }}{% endif %}
+    · {{ tip('engine confidence: ' ~ e.confidence, 'How much to trust the engine\'s number for this fight. Treat edges on low-confidence fights with extra caution.') }}
+    {% if e.flag and e.confidence == 'Low' %}<span class="status warn">low confidence — be careful</span>{% endif %}</div>
+  {% if r.outcome %}<div class="small" style="margin-top:4px">Result: <span class="status {{ 'good' if r.outcome.won else 'bad' }}">{{ 'won' if r.outcome.won else 'lost' }}</span>
+    {{ '%+.2f' % r.outcome.profit }} units on a 1-unit bet</div>{% endif %}
+  {% endif %}
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:16px"><h2>Track record of "worth a look" picks</h2>
+{% if record.n %}
+  <p>If you had bet 1 unit on every flagged fighter: <b>{{ record.wins }} of {{ record.n }}</b> won, for a total of
+    <b class="{{ 'good' if record.profit > 0 else '' }}">{{ '%+.2f' % record.profit }} units</b> ({{ '%+.0f' % (record.roi * 100) }}% per bet).</p>
+  <table class="small"><tr><th>Event</th><th class="num">Fights with odds</th><th class="num">Flagged</th><th class="num">Settled</th><th class="num">Units</th></tr>
+  {% for x in record.events %}<tr><td><a href="/edge?event={{ x.id }}">{{ x.date }} {{ x.name }}</a></td><td class="num">{{ x.n_odds }}</td><td class="num">{{ x.flagged }}</td><td class="num">{{ x.settled }}</td><td class="num">{{ '%+.2f' % x.profit }}</td></tr>{% endfor %}</table>
+{% else %}
+  <p class="muted">Nothing settled yet. Once a card with imported odds is graded, every flagged pick is tracked here so you can see whether the edges are real.</p>
+{% endif %}
+  <p class="small muted">Draws and no contests are left out (bets are usually refunded). Dozens of cards are needed before the result
+    means much: even a real edge loses for long stretches, and a lucky run can look like an edge. This is not betting advice.</p>
+</div>
+{% endblock %}

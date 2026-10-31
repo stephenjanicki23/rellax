@@ -250,6 +250,14 @@ def rollback(version_id: int, reason: str = Form("manual rollback from Learning 
     return RedirectResponse("/learning", status_code=303)
 
 
+@app.get("/edge", response_class=HTMLResponse)
+def edge(request: Request, event: int | None = None, conn=Depends(get_db)):
+    ev = conn.execute("SELECT * FROM events WHERE id=?", (event,)).fetchone() if event else services.edge_event(conn)
+    data = services.betting_edge(conn, ev["id"]) if ev else None
+    return render(request, "edge.html", data=data, record=services.betting_track_record(conn),
+                  edge_min=services.EDGE_MIN)
+
+
 @app.get("/performance", response_class=HTMLResponse)
 def performance(request: Request, mode: str | None = None, conn=Depends(get_db)):
     mode = mode or services.preferred_mode(conn)

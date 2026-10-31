@@ -221,3 +221,72 @@ def counts(conn) -> dict:
             "open_issues": q("SELECT COUNT(*) FROM data_quality_issues WHERE resolved_at IS NULL"),
             "last_history_source": conn.execute("SELECT retrieved_at, status FROM data_sources WHERE provider='ufcstats_mirror' "
                                                 "ORDER BY id DESC LIMIT 1").fetchone()}
+
+
+# ------------------------------------------------------------------ betting edge (comparison only)
+# Odds are never an engine input here: they are read only to compare against the engine's own picks.
+EDGE_MIN = 0.05   # flag a side when the engine's chance implies at least +5% expected return at the offered odds
+
+
+def latest_odds(conn, fight_id: int):
+    return conn.execute("SELECT * FROM odds WHERE fight_id=? ORDER BY captured_at DESC, id DESC LIMIT 1",
+                        (fight_id,)).fetchone()
+
+
+def _edge_for(item: dict, odds) -> dict | None:
+    p = item.get("payload")
+    if not p or odds is None:
+        return None
+    rd, bd = float(odds["red_decimal"]), float(odds["blue_decimal"])
+    ir, ib = 1 / rd, 1 / bd
+    sides = []
+    for side, name, pm, dec, imp in (("red", item["fight"]["red_name"], p["p_red"], rd, ir / (ir + ib)),
+                                     ("blue", item["fight"]["blue_name"], p["p_blue"], bd, ib / (ir + ib))):
+        sides.append({"side": side, "name": name, "engine": pm, "market": imp, "decimal": dec,
+                      "american": round((dec - 1) * 100) if dec >= 2 else round(-100 / (dec - 1)),
+                      "gap": pm - imp, "ev": pm * dec - 1})
+    best = max(sides, key=lambda s: s["ev"])
+    return {"sides": sides, "best": best, "flag": best["ev"] >= EDGE_MIN, "overround": ir + ib - 1,
+            "bookmaker": odds["bookmaker"], "captured_at": odds["captured_at"],
+            "confidence": p["confidence"]["label"]}
+
+
+def betting_edge(conn, event_id: int) -> dict:
+    card = event_card(conn, event_id, "live")
+    rows = []
+    for item in card["fights"]:
+        e = _edge_for(item, latest_odds(conn, item["fight"]["id"]))
+        res = item["result"]
+        outcome = None
+        if e and e["flag"] and res and res["outcome"] == "win":
+            won = res["winner_fighter_id"] == item["fight"][f"{e['best']['side']}_fighter_id"]
+            outcome = {"won": won, "profit": e["best"]["decimal"] - 1 if won else -1.0}
+        rows.append({"item": item, "edge": e, "outcome": outcome})
+    return {"card": card, "rows": rows, "n_odds": sum(1 for r in rows if r["edge"])}
+
+
+def betting_track_record(conn) -> dict:
+    """Flat 1-unit stake on every flagged side of every graded live event that had odds (draws/NC excluded)."""
+    evs = conn.execute("""SELECT DISTINCT e.id, e.name, e.date FROM events e JOIN fights f ON f.event_id=e.id
+                          JOIN odds o ON o.fight_id=f.id JOIN prediction_locks l ON l.event_id=e.id AND l.mode='live'
+                          ORDER BY e.date DESC""").fetchall()
+    bets, events = [], []
+    for ev in evs:
+        b = betting_edge(conn, ev["id"])
+        done = [r["outcome"] for r in b["rows"] if r["outcome"]]
+        bets += done
+        events.append({"id": ev["id"], "name": ev["name"], "date": ev["date"], "n_odds": b["n_odds"],
+                       "flagged": sum(1 for r in b["rows"] if r["edge"] and r["edge"]["flag"]),
+                       "settled": len(done), "profit": sum(x["profit"] for x in done)})
+    n = len(bets)
+    return {"n": n, "wins": sum(1 for x in bets if x["won"]), "profit": sum(x["profit"] for x in bets),
+            "roi": (sum(x["profit"] for x in bets) / n) if n else None, "events": events}
+
+
+def edge_event(conn):
+    """The card the Betting Edge page opens on: the next upcoming card, else the latest card with odds."""
+    nxt = upcoming_event(conn)
+    if nxt:
+        return nxt
+    return conn.execute("""SELECT e.* FROM events e JOIN fights f ON f.event_id=e.id JOIN odds o ON o.fight_id=f.id
+                           ORDER BY e.date DESC LIMIT 1""").fetchone()
