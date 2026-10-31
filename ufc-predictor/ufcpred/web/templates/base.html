@@ -18,7 +18,7 @@ try{if(localStorage.getItem('theme')==='light')document.documentElement.dataset.
     <a class="brand" href="/"><span class="brand-mark">U</span><span>Prediction Engine<small>calibrated · self-grading</small></span></a>
     <nav>
       {% set links = [("dashboard","/","Dashboard"),("events","/events","Fight Cards"),("history","/history","History"),
-        ("reviews","/reviews","Reviews"),("learning","/learning","Learning"),("performance","/performance","Performance"),
+        ("reviews","/reviews","Reviews"),("learning","/learning","Learning"),("performance","/performance","Performance"),("edge","/edge","Betting Edge"),
         ("fighters","/fighters","Fighters"),("data_quality","/data-quality","Data Quality"),("settings","/settings","Settings")] %}
       {% for key, href, label in links %}<a href="{{ href }}" class="{{ 'on' if page == key or (key=='events' and page=='event') or (key=='reviews' and page=='review') or (key=='fighters' and page=='fighter') else '' }}">{{ label }}</a>{% endfor %}
     </nav>
