@@ -35,19 +35,25 @@ class TheOddsAPIProvider(OddsProvider):
     name = "the_odds_api"
     URL = "https://api.the-odds-api.com/v4/sports/mma_mixed_martial_arts/odds"
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, bookmakers: list[str] | None = None):
         self.api_key = api_key or os.environ.get("ODDS_API_KEY")
+        self.bookmakers = [b for b in (bookmakers or []) if b]   # e.g. ["williamhill_us"]; empty = every US book
+        self.seen_bookmakers: dict[str, str] = {}
 
     def fetch_odds(self, fights: list[dict]) -> Bundle:
         if not self.api_key:
             raise ProviderUnavailable("The Odds API key is not configured", "set ODDS_API_KEY")
-        url = f"{self.URL}?regions=us&markets=h2h&oddsFormat=decimal&apiKey={self.api_key}"
-        text, meta = fetch(url, self.name, "mma_odds.json", min_interval_s=5, max_age_s=900, check_robots=False)
+        scope = f"bookmakers={','.join(self.bookmakers)}" if self.bookmakers else "regions=us"
+        url = f"{self.URL}?{scope}&markets=h2h&oddsFormat=decimal&apiKey={self.api_key}"
+        resource = "mma_odds_" + ("_".join(self.bookmakers) or "us") + ".json"
+        text, meta = fetch(url, self.name, resource, min_interval_s=5, max_age_s=900, check_robots=False)
         meta.url = self.URL  # never store the key
         try:
             games = json.loads(text)
         except ValueError as e:
             raise ProviderError(f"odds payload not JSON: {e}") from e
+        if not isinstance(games, list):
+            raise ProviderError(f"unexpected odds payload: {str(games)[:200]}")
         b = Bundle(provider=self.name, sources=[meta])
         index = {}
         for f in fights:
@@ -58,6 +64,9 @@ class TheOddsAPIProvider(OddsProvider):
             if not f:
                 continue
             for bm in g.get("bookmakers", []):
+                self.seen_bookmakers[bm.get("key", "")] = bm.get("title") or bm.get("key", "")
+                if self.bookmakers and bm.get("key") not in self.bookmakers:
+                    continue
                 for mk in bm.get("markets", []):
                     if mk.get("key") != "h2h":
                         continue
@@ -65,5 +74,5 @@ class TheOddsAPIProvider(OddsProvider):
                     r, bl = prices.get(P.name_key(f["red_name"])), prices.get(P.name_key(f["blue_name"]))
                     if r and bl:
                         b.odds.append(POdds(f["external_id"], float(r), float(bl), bm.get("last_update") or utcnow(),
-                                            bm.get("key"), self.URL))
+                                            bm.get("title") or bm.get("key"), self.URL))
         return b

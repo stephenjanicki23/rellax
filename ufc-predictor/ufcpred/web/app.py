@@ -390,6 +390,8 @@ def action(name: str, event_id: int | None = Form(None), reason: str = Form(""),
             msg = str(lifecycle.refresh_history(conn))
         elif name == "refresh_upcoming":
             msg = str(lifecycle.refresh_upcoming(conn))
+        elif name == "refresh_odds":
+            msg = "odds: " + str(lifecycle.refresh_odds(conn))
         elif name == "tick":
             msg = "tick complete"
             lifecycle.tick(conn)

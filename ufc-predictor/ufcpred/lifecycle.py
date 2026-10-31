@@ -75,6 +75,50 @@ def refresh_upcoming(conn) -> dict:
         return {"error": str(e), "config_required": getattr(e, "config_required", "")}
 
 
+def refresh_odds(conn) -> dict:
+    """Store current odds for unfought bouts on upcoming cards. Comparison only: the engine never reads them."""
+    from .providers.odds import TheOddsAPIProvider
+    if setting(conn, "providers.odds") != "the_odds_api":
+        return {"skipped": "odds provider is not the_odds_api"}
+    jid = _job(conn, "refresh_odds")
+    rows = conn.execute(
+        """SELECT f.id, fr.name AS red_name, fb.name AS blue_name FROM fights f JOIN events e ON e.id=f.event_id
+           JOIN fighters fr ON fr.id=f.red_fighter_id JOIN fighters fb ON fb.id=f.blue_fighter_id
+           WHERE e.date>=? AND e.status IN ('scheduled','locked') AND f.status NOT IN ('canceled','replaced')
+             AND NOT EXISTS (SELECT 1 FROM fight_results r WHERE r.fight_id=f.id)""",
+        ((dt.date.fromisoformat(utcnow()[:10]) - dt.timedelta(days=1)).isoformat(),)).fetchall()
+    if not rows:
+        _finish(conn, jid, "skipped", "no upcoming bouts")
+        return {"skipped": "no upcoming bouts"}
+    books = [b.strip() for b in str(setting(conn, "providers.odds.bookmakers") or "").split(",") if b.strip()]
+    prov = TheOddsAPIProvider(bookmakers=books)
+    fights = [{"external_id": str(r["id"]), "red_name": r["red_name"], "blue_name": r["blue_name"]} for r in rows]
+    try:
+        b = prov.fetch_odds(fights)
+    except ProviderError as e:
+        flag_issue(conn, "source", prov.name, "source_failure", str(e), "error")
+        conn.commit()
+        _finish(conn, jid, "error", str(e))
+        return {"error": str(e), "config_required": getattr(e, "config_required", "")}
+    stored = 0
+    for o in b.odds:
+        fid = int(o.fight_external_id)
+        last = conn.execute("""SELECT red_decimal, blue_decimal FROM odds WHERE fight_id=? AND provider=? AND bookmaker=?
+                               ORDER BY captured_at DESC, id DESC LIMIT 1""", (fid, prov.name, o.bookmaker)).fetchone()
+        if last and abs(last["red_decimal"] - o.red_decimal) < 1e-9 and abs(last["blue_decimal"] - o.blue_decimal) < 1e-9:
+            continue   # unchanged line: keep the table small
+        conn.execute("INSERT INTO odds(fight_id, provider, bookmaker, red_decimal, blue_decimal, captured_at, source_url, "
+                     "created_at) VALUES (?,?,?,?,?,?,?,?)",
+                     (fid, prov.name, o.bookmaker, o.red_decimal, o.blue_decimal, o.captured_at, o.source_url, utcnow()))
+        stored += 1
+    out = {"bouts": len(fights), "bouts_with_odds": len({o.fight_external_id for o in b.odds}), "stored": stored,
+           "bookmakers_requested": books or ["all US"], "bookmakers_seen": sorted(prov.seen_bookmakers)}
+    audit(conn, "odds.refresh", "odds", None, out)
+    conn.commit()
+    _finish(conn, jid, "ok", str(out))
+    return out
+
+
 def lock_time(conn, ev) -> str:
     hours = float(setting(conn, "lifecycle.lock_hours_before"))
     if ev["start_time_utc"]:
@@ -142,6 +186,7 @@ def process_results(conn) -> list:
 def tick(conn) -> dict:
     jid = _job(conn, "tick")
     report = {"history": refresh_history(conn), "upcoming": refresh_upcoming(conn)}
+    report["odds"] = refresh_odds(conn)
     report["locks"] = lock_due(conn)
     report["predictions"] = predict_upcoming(conn)
     report["results"] = process_results(conn)
