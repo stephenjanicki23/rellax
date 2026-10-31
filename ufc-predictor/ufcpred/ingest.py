@@ -94,9 +94,22 @@ def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
     FCOLS = ("name", "nickname", "dob", "height_in", "reach_in", "stance", "listed_weight_lbs")
     existing = {r["external_id"]: r for r in conn.execute(f"SELECT id, external_id, {', '.join(FCOLS)} FROM fighters")}
     ins, upd, queued = [], [], set()
+    # fighters created from a hand-imported card (debutants, unmatched names) are adopted by the provider's profile
+    placeholders: dict[str, list] = {}
+    if origin != "manual":
+        for ext, r in existing.items():
+            if ext and ext.startswith("manual-fighter:"):
+                placeholders.setdefault(P.name_key(r["name"]), []).append(r)
+    adopt = []
     for f in bundle.fighters:
         new_vals = (f.name, f.nickname, f.dob, f.height_in, f.reach_in, f.stance, f.listed_weight_lbs)
         old = existing.get(f.external_id)
+        if old is None and len(placeholders.get(P.name_key(f.name), [])) == 1 and f.external_id not in queued:
+            ph = placeholders.pop(P.name_key(f.name))[0]
+            adopt.append((f.external_id, *new_vals, origin, now, ph["id"]))
+            existing[f.external_id] = ph
+            queued.add(f.external_id)
+            continue
         if old is None:
             if f.external_id not in queued:
                 ins.append((f.external_id, *new_vals, src_id, origin, now, now))
@@ -114,15 +127,24 @@ def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
     if upd:
         conn.executemany("UPDATE fighters SET name=?, nickname=?, dob=?, height_in=?, reach_in=?, stance=?, "
                          "listed_weight_lbs=?, updated_at=? WHERE id=?", upd)
+    if adopt:
+        conn.executemany("UPDATE fighters SET external_id=?, name=?, nickname=?, dob=?, height_in=?, reach_in=?, "
+                         "stance=?, listed_weight_lbs=?, origin=?, updated_at=? WHERE id=?", adopt)
+        for a_ in adopt:
+            flag_issue(conn, "fighter", a_[-1], "no_history", "matched to provider profile " + a_[0], "info")
+            conn.execute("UPDATE data_quality_issues SET resolved_at=? WHERE entity='fighter' AND entity_id=? "
+                         "AND kind='no_history'", (now, str(a_[-1])))
     fighter_ids = {r["external_id"]: r["id"] for r in conn.execute("SELECT id, external_id FROM fighters")}
 
     # Events
     ECOLS = ("name", "date", "location", "venue", "start_time_utc", "source_url")
-    ev_rows = {r["external_id"]: r for r in conn.execute(f"SELECT id, external_id, {', '.join(ECOLS)} FROM events")}
+    ev_rows = {r["external_id"]: r for r in conn.execute(
+        f"SELECT id, external_id, origin, {', '.join(ECOLS)} FROM events")}
     by_date: dict[str, list] = {}
     for r in ev_rows.values():
         by_date.setdefault(r["date"], []).append(r)
     ins, upd = [], []
+    event_alias: dict[str, int] = {}   # a card imported by hand and the provider's copy are one event
     for e in bundle.events:
         old = ev_rows.get(e.external_id)
         if old is None and e.external_id in ev_rows:     # repeated within this import
@@ -133,10 +155,18 @@ def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
             if merged != tuple(old[c] for c in ECOLS):
                 upd.append((*merged, now, old["id"]))
             continue
-        for d in by_date.get(e.date, []):
-            if d["external_id"] != e.external_id:
-                flag_issue(conn, "event", e.external_id, "possible_duplicate_event",
-                           f"'{e.name}' on {e.date} may duplicate existing event #{d['id']} '{d['name']}'", "warning")
+        same_day = [d for d in by_date.get(e.date, []) if d["external_id"] != e.external_id]
+        other_origin = [d for d in same_day if isinstance(d["id"], int) and d["origin"] != origin]
+        if len(other_origin) == 1:
+            d = other_origin[0]
+            event_alias[e.external_id] = d["id"]
+            flag_issue(conn, "event", d["id"], "merged_event",
+                       f"'{e.name}' from {bundle.provider} matched to existing {d['origin']} event #{d['id']} "
+                       f"'{d['name']}' on {e.date}; their fights and results are merged", "info")
+            continue
+        for d in same_day:
+            flag_issue(conn, "event", e.external_id, "possible_duplicate_event",
+                       f"'{e.name}' on {e.date} may duplicate existing event #{d['id']} '{d['name']}'", "warning")
         ins.append((e.external_id, e.name, e.date, e.start_time_utc, e.venue, e.location, "scheduled", origin, src_id,
                     e.source_url, now, now))
         by_date.setdefault(e.date, []).append({"id": "(same import)", "name": e.name, "external_id": e.external_id})
@@ -149,12 +179,16 @@ def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
         conn.executemany("UPDATE events SET name=?, date=?, location=?, venue=?, start_time_utc=?, source_url=?, "
                          "updated_at=? WHERE id=?", upd)
     event_ids = {r["external_id"]: r["id"] for r in conn.execute("SELECT id, external_id FROM events")}
+    event_ids.update(event_alias)
 
     # Fights
     FUPD = ("weight_class", "is_title", "scheduled_rounds", "card_segment", "bout_order", "short_notice_red",
             "short_notice_blue", "weight_miss_red", "weight_miss_blue")
     fight_rows = {r["external_id"]: r for r in conn.execute(
-        f"SELECT id, external_id, event_id, red_fighter_id, blue_fighter_id, status, {', '.join(FUPD)} FROM fights")}
+        f"SELECT id, external_id, event_id, red_fighter_id, blue_fighter_id, status, origin, {', '.join(FUPD)} "
+        f"FROM fights")}
+    fights_by_id = {r["id"]: r for r in fight_rows.values()}
+    fight_alias: dict[str, tuple[int, bool]] = {}   # provider fight -> (stored fight id, corners swapped)
     pairs = {(r["event_id"], frozenset((r["red_fighter_id"], r["blue_fighter_id"]))): r["id"]
              for r in fight_rows.values()}
     card_by_event: dict[int, list] = {}
@@ -206,6 +240,12 @@ def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
         key = (ev_id, frozenset((red, blue)))
         if key in pairs:
             dup = pairs[key]
+            stored = fights_by_id.get(dup) if dup is not None else None
+            if stored is not None and stored["origin"] != origin:
+                # the same bout, imported by hand before the provider published it: attach, don't duplicate
+                fight_alias[f.external_id] = (dup, stored["red_fighter_id"] != red)
+                card_by_event.setdefault(ev_id, []).append(dup)
+                continue
             flag_issue(conn, "fight", f.external_id, "duplicate_fight",
                        f"same pairing already stored{'' if dup is None else f' as fight #{dup}'}; skipped", "warning")
             summary["duplicates_skipped"] += 1
@@ -231,6 +271,11 @@ def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
         conn.executemany("UPDATE fights SET status='canceled', updated_at=? WHERE id=?", cancel)
     fights = {r["external_id"]: r for r in conn.execute(
         "SELECT id, external_id, red_fighter_id, blue_fighter_id, scheduled_rounds FROM fights")}
+    by_id = {r["id"]: r for r in fights.values()}
+    swapped = {}
+    for ext, (fid_, sw) in fight_alias.items():
+        fights[ext] = by_id[fid_]
+        swapped[ext] = sw
     fight_ids = {k: r["id"] for k, r in fights.items()}
     for ev_id in card_by_event:
         card_by_event[ev_id] = [fight_ids[x] if isinstance(x, str) else x for x in card_by_event[ev_id]]
@@ -252,8 +297,11 @@ def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
         if fight is None:
             continue
         fid = fight["id"]
-        winner = fight["red_fighter_id"] if r.winner_corner == "red" else \
-            fight["blue_fighter_id"] if r.winner_corner == "blue" else None
+        corner = r.winner_corner
+        if swapped.get(r.fight_external_id) and corner in ("red", "blue"):
+            corner = "blue" if corner == "red" else "red"
+        winner = fight["red_fighter_id"] if corner == "red" else \
+            fight["blue_fighter_id"] if corner == "blue" else None
         if r.outcome != "win":
             winner = None
         prev = latest.get(fid)
@@ -293,7 +341,8 @@ def ingest_bundle(conn, bundle: Bundle, *, reconcile_cards: bool = False,
         if fight is None or fight["id"] in have:
             continue
         fid = fight["id"]
-        fighter = fight["red_fighter_id"] if s.corner == "red" else fight["blue_fighter_id"]
+        red_side = (s.corner == "red") != bool(swapped.get(s.fight_external_id))
+        fighter = fight["red_fighter_id"] if red_side else fight["blue_fighter_id"]
         st = dict(s.stats)
         problems = _validate_stats(st)
         if problems:
