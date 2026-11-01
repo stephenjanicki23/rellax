@@ -300,7 +300,9 @@ def edge(request: Request, conn=Depends(get_db)):
                   tiers=[betting.tier_stats(rows, t) for t in ("High", "Medium")], events=betting.event_stats(rows),
                   curve=betting.cumulative(rows), fb=betting.feedback(rows, min_n), next_ev=ev,
                   record=services.betting_track_record(conn), edge_min=services.EDGE_MIN,
-                  stakes={t: setting(conn, f"betting.stake_{t.lower()}") for t in ("High", "Medium", "Low")})
+                  stakes={t: setting(conn, f"betting.stake_{t.lower()}") for t in ("High", "Medium", "Low")},
+                  rules={"high": float(setting(conn, "betting.min_prob_high")),
+                         "bet": float(setting(conn, "betting.min_prob_bet"))})
 
 
 @app.get("/edge/event/{event_id}", response_class=HTMLResponse)

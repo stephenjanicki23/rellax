@@ -110,7 +110,29 @@ def _t(ts: str | None) -> str:
 def _stakes(conn) -> dict:
     return {"High": _cents(float(setting(conn, "betting.stake_high")) * 100),
             "Medium": _cents(float(setting(conn, "betting.stake_medium")) * 100),
-            "Low": _cents(float(setting(conn, "betting.stake_low")) * 100)}
+            "Low": _cents(float(setting(conn, "betting.stake_low")) * 100),
+            "_min_p_high": float(setting(conn, "betting.min_prob_high")),
+            "_min_p_bet": float(setting(conn, "betting.min_prob_bet"))}
+
+
+def bet_tier(confidence_label: str | None, p_pick: float | None, rules: dict) -> tuple[str, str]:
+    """Stake tier from the engine's confidence AND its win probability, with the reason.
+
+    Confidence says how reliable the probability is, not how likely the pick is to win, so a
+    High-confidence 50% call is still a coin flip and gets no bet."""
+    label = confidence_label if confidence_label in TIERS else "Low"
+    if p_pick is None:
+        return "Low", "no win probability recorded"
+    if label == "Low":
+        return "Low", "Low confidence: tracked, not bet"
+    if p_pick < rules["_min_p_bet"]:
+        return "Low", f"{p_pick:.0%} is too close to a coin flip (needs {rules['_min_p_bet']:.0%}+): tracked, not bet"
+    if label == "High" and p_pick >= rules["_min_p_high"]:
+        return "High", f"High confidence and {p_pick:.0%} chance (needs {rules['_min_p_high']:.0%}+)"
+    if label == "High":
+        return "Medium", (f"High confidence but only {p_pick:.0%} chance (under {rules['_min_p_high']:.0%}): "
+                          "Medium stake")
+    return "Medium", f"Medium confidence and {p_pick:.0%} chance"
 
 
 def _log(conn, bet_id, action, before=None, after=None, reason=None, actor="system"):
@@ -126,7 +148,7 @@ def _snapshot(pred, fight, ev, stakes) -> dict:
     red = pred["predicted_winner_id"] == fight["red_fighter_id"]
     side, other = ("red", "blue") if red else ("blue", "red")
     conf = p.get("confidence") or {}
-    tier = conf.get("label") if conf.get("label") in TIERS else "Low"
+    tier, why = bet_tier(conf.get("label"), p.get(f"p_{side}"), stakes)
     expl = p.get("explanation") or {}
     favour = expl.get("favoring_red" if red else "favoring_blue") or []
     against = expl.get("favoring_blue" if red else "favoring_red") or []
@@ -135,6 +157,7 @@ def _snapshot(pred, fight, ev, stakes) -> dict:
         "model": (p.get("model") or {}).get("version"), "p_pick": p.get(f"p_{side}"),
         "method": pred["predicted_method"], "round": pred["predicted_round"],
         "confidence": {"label": conf.get("label"), "score": conf.get("score"), "reasons": conf.get("reasons", [])},
+        "stake_rule": why,
         "for_pick": [{"feature": x.get("feature"), "logit": x.get("logit"), "text": x.get("text")} for x in favour[:3]],
         "against_pick": [{"feature": x.get("feature"), "logit": x.get("logit"), "text": x.get("text")}
                          for x in against[:3]],
@@ -254,14 +277,19 @@ def _sync_fight(conn, ev, lock, f, official, latest, stakes, out, actor):
              actor)
         out["created"] += 1
         bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bid,)).fetchone()
-    elif not bet["locked_at"] and pred is not None and pred["id"] != bet["prediction_id"] and res is None:
+    elif not bet["locked_at"] and pred is not None and res is None and (
+            pred["id"] != bet["prediction_id"]
+            or (snap := _snapshot(pred, f, ev, stakes))["tier"] != bet["tier"]
+            or snap["stake_cents"] != bet["stake_cents"]):
         snap = _snapshot(pred, f, ev, stakes)
         before = {k: bet[k] for k in ("prediction_id", "tier", "pick_name", "stake_cents", "p_pick")}
         _update(conn, bet["id"], {k: v for k, v in snap.items() if k not in ("event_name", "event_date")}
                 | {"status": "pending" if snap["stake_cents"] else "no_bet"})
-        _log(conn, bet["id"], "prediction_changed", before,
+        _log(conn, bet["id"], "prediction_changed" if pred["id"] != bet["prediction_id"] else "stake_resized", before,
              {k: snap[k] for k in ("prediction_id", "tier", "pick_name", "stake_cents", "p_pick")},
-             "the engine re-predicted this fight before the card locked; the bet follows the newest prediction",
+             ("the engine re-predicted this fight before the card locked; the bet follows the newest prediction"
+              if pred["id"] != bet["prediction_id"] else
+              "stake rule changed before the card locked: " + loads(snap["rationale_json"], {}).get("stake_rule", "")),
              actor)
         out["updated"] += 1
         bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()

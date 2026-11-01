@@ -5,9 +5,10 @@
 {% macro roi(v) -%}{% if v is none %}—{% else %}<span class="{{ 'gain' if v > 0 else 'loss' if v < 0 else '' }}">{{ '%+.1f%%' % (v * 100) }}</span>{% endif %}{%- endmacro %}
 {% block body %}
 <h1>Betting Edge</h1>
-<div class="sub">Simulated flat bets on the engine's own picks: <b>${{ stakes.High }}</b> on every High-confidence pick,
-  <b>${{ stakes.Medium }}</b> on every Medium one, and Low-confidence picks tracked without a bet. Nothing here is a real wager,
-  and the prediction engine never sees any of it.
+<div class="sub">Simulated flat bets on the engine's own picks: <b>${{ stakes.High }}</b> when the engine is High-confidence
+  <i>and</i> gives the pick at least {{ '%.0f' % (rules.high * 100) }}%, <b>${{ stakes.Medium }}</b> for other picks of
+  {{ '%.0f' % (rules.bet * 100) }}%+ (High or Medium confidence), and no bet on near coin flips (under {{ '%.0f' % (rules.bet * 100) }}%)
+  or Low-confidence picks — those are still tracked. Nothing here is a real wager, and the prediction engine never sees any of it.
   · <a href="/edge/bets">Full bet ledger →</a>
   {% if admin %}<form class="inline" method="post" action="/actions/sync_bets" style="margin-left:6px"><button>Update bets now</button></form>{% endif %}</div>
 
