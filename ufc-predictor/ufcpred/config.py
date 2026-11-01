@@ -22,6 +22,7 @@ class ModelConfig:
     # Which sub-models participate in the ensemble
     submodels: tuple = ("A_baseline", "B_form", "C_style", "D_durability", "E_context")
     style_v2: bool = False                 # extra grappling/control interactions in Model C
+    strike_location: bool = False          # body/leg strike features in Models A and C (adopted only if validated)
     # Regularisation (Gaussian prior precision, on standardised features)
     l2: dict = field(default_factory=lambda: {
         "A_baseline": 2.0, "B_form": 4.0, "C_style": 12.0, "D_durability": 6.0, "E_context": 6.0,
@@ -40,6 +41,8 @@ class ModelConfig:
     def to_dict(self) -> dict:
         d = asdict(self)
         d["submodels"] = list(self.submodels)
+        if not d["strike_location"]:   # added later: omitted when off so existing fingerprints stay the same
+            del d["strike_location"]
         return d
 
     @classmethod

@@ -347,4 +347,4 @@ def describe_feature(name: str, a: dict, b: dict) -> str:
 
 
 def feature_list(cfg: ModelConfig) -> dict:
-    return {g: [f.name for f in features_for(g, cfg.style_v2)] for g in groups_for(cfg)}
+    return {g: [f.name for f in features_for(g, cfg.style_v2, cfg.strike_location)] for g in groups_for(cfg)}
