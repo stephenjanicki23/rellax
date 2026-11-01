@@ -5,9 +5,11 @@
 {% macro roi(v) -%}{% if v is none %}—{% else %}<span class="{{ 'gain' if v > 0 else 'loss' if v < 0 else '' }}">{{ '%+.1f%%' % (v * 100) }}</span>{% endif %}{%- endmacro %}
 {% block body %}
 <h1>Betting Edge</h1>
-<div class="sub">Simulated flat bets on the engine's own picks: <b>${{ stakes.High }}</b> on every High-confidence pick,
-  <b>${{ stakes.Medium }}</b> on every Medium one, and Low-confidence picks tracked without a bet. Nothing here is a real wager,
-  and the prediction engine never sees any of it.
+<div class="sub">Simulated flat bets on the engine's own picks: <b>${{ stakes.High }}</b> when the engine is High-confidence
+  <i>and</i> gives the pick at least {{ '%.0f' % (rules.high * 100) }}%, <b>${{ stakes.Medium }}</b> for other picks of
+  {{ '%.0f' % (rules.bet * 100) }}%+ (High or Medium confidence), and no bet on near coin flips (under {{ '%.0f' % (rules.bet * 100) }}%)
+  or Low-confidence picks — those are still tracked. A qualifying pick is only bet when the price is right: the engine's chance must
+  give at least {{ '%+.0f' % (min_ev * 100) }}% expected return at the odds, otherwise it's a pass. Nothing here is a real wager, and the prediction engine never sees any of it.
   · <a href="/edge/bets">Full bet ledger →</a>
   {% if admin %}<form class="inline" method="post" action="/actions/sync_bets" style="margin-left:6px"><button>Update bets now</button></form>{% endif %}</div>
 
@@ -41,6 +43,26 @@
     <div class="v">{{ s.risked | money(false) }}</div><div class="d">{{ s.exposure | money(false) }} open exposure</div></div>
   <div class="card stat kpi"><div class="l">{{ tip('Low-confidence picks', 'Tracked to see how the engine does on them, but no money is staked.') }}</div>
     <div class="v">{{ s.tracked_low }}</div><div class="d">tracked, not bet</div></div>
+</div>
+
+<div class="card" style="margin-bottom:14px"><h2>Bet quality scorecard</h2>
+  <p class="small muted" style="margin-top:-4px">The four things that decide whether this works, for the bets actually placed.
+    Accuracy alone isn't enough: a model can pick winners and still lose money backing overpriced favourites.
+    {% if not sc.enough %}<b>Early days:</b> {{ sc.n }} settled bet{{ 's' if sc.n != 1 }} so far — these numbers mean little until about {{ sc.min_n }}.{% endif %}</p>
+  <div class="grid g4 kpis">
+    <div class="stat"><div class="l">{{ tip('Calibration', 'When the engine gave these picks X%, did they win about X% of the time? Close numbers mean its probabilities can be trusted at face value.') }}</div>
+      <div class="v">{{ pct1(sc.win_rate) }}</div><div class="d">won vs {{ pct1(sc.avg_p) }} expected{% if sc.win_ci[0] is not none %} · range {{ '%.0f' % (sc.win_ci[0]*100) }}–{{ '%.0f' % (sc.win_ci[1]*100) }}%{% endif %}</div></div>
+    <div class="stat"><div class="l">{{ tip('Brier score', 'Average squared gap between the predicted chance and what happened (0 = perfect, 0.25 = coin-flip guessing). Lower is better.') }}</div>
+      <div class="v">{{ '—' if sc.brier is none else '%.3f' % sc.brier }}</div><div class="d">0.250 = coin flip</div></div>
+    <div class="stat"><div class="l">{{ tip('Log loss', 'Like Brier but punishes confident misses much harder. 0.693 = coin flip; lower is better.') }}</div>
+      <div class="v">{{ '—' if sc.log_loss is none else '%.3f' % sc.log_loss }}</div><div class="d">0.693 = coin flip</div></div>
+    <div class="stat"><div class="l">{{ tip('ROI', 'Profit divided by money staked on bets that won or lost — the number that says whether it actually makes money after the odds.') }}</div>
+      <div class="v">{{ roi(sc.roi) }}</div><div class="d">{{ sc.net | money }} on {{ sc.n }} bet{{ 's' if sc.n != 1 }}</div></div>
+  </div>
+  <p class="small" style="margin-top:10px">{{ tip('Closing line value', 'Whether the price we took was better than the final price before the fight. Beating the closing line consistently is the quickest reliable sign of a real edge — it shows up long before profit does.') }}:
+    {% if sc.clv_n %}average <b>{{ '%+.1f%%' % (sc.clv_avg * 100) }}</b>, beat the close on {{ '%.0f%%' % (sc.clv_beat * 100) }} of {{ sc.clv_n }} bet{{ 's' if sc.clv_n != 1 }}
+    {% else %}<span class="muted">needs a second price before the fight (the odds feed refreshes every 6 hours, or import odds again closer to the event)</span>{% endif %}
+    · {{ sc.passed_on_price }} pick{{ 's' if sc.passed_on_price != 1 }} passed because the price was too short (needs {{ '%+.0f%%' % (min_ev * 100) }} expected return)</p>
 </div>
 
 <div class="card" style="margin-bottom:14px"><h2>Cumulative profit / loss</h2>

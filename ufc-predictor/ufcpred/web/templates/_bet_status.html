@@ -1,4 +1,6 @@
-{%- if r.tier == 'Low' and r.status == 'no_bet' -%}<span class="pill">{{ r.settle_note or 'tracked' }}</span>
+{%- set _pr = ((r.rationale_json | loads) or {}).get('price_rule') or '' -%}
+{%- if r.status == 'no_bet' and 'price too short' in _pr -%}<span class="pill tip" tabindex="0" data-tip="Passed: {{ _pr }}.">pass · price{% if r.settle_note %} · {{ r.settle_note }}{% endif %}</span>
+{%- elif r.status == 'no_bet' -%}<span class="pill">{{ r.settle_note or 'tracked' }}</span>
 {%- elif r.status in ('win', 'loss') and r.net_cents is none -%}<span class="pill pending tip" tabindex="0" data-tip="The result is in, but no odds were recorded for this bet, so it is left out of profit and loss until an admin enters the odds that were available.">{{ r.status }} · needs odds</span>
 {%- elif r.status == 'pending' -%}<span class="pill pending">open</span>
 {%- else -%}<span class="pill {{ r.status }}{% if r.settle_note %} tip" tabindex="0" data-tip="{{ r.settle_note }}{% endif %}">{{ r.status }}</span>{%- endif -%}

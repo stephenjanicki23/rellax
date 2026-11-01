@@ -99,6 +99,9 @@ DEFAULT_SETTINGS: dict = {
     "betting.stake_high": 100,                   # simulated stake (dollars) per High-confidence pick
     "betting.stake_medium": 50,                  # per Medium-confidence pick
     "betting.stake_low": 0,                      # Low-confidence picks are tracked, not bet
+    "betting.min_prob_high": 0.60,               # High stake needs High confidence AND at least this win chance
+    "betting.min_prob_bet": 0.55,                # below this win chance a pick is a near coin flip: no bet
+    "betting.min_ev": 0.05,                      # stake only when expected return at the offered odds is at least this
     "betting.min_sample": 30,                    # settled bets before a segment is treated as evidence
     "providers.ufcstats_mirror.base_url": "https://raw.githubusercontent.com/Greco1899/scrape_ufc_stats/main",
     "providers.min_request_interval_s": 2.0,
