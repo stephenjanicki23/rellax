@@ -9,7 +9,7 @@
   "fights": [
     {
       "bout_order": 1,
-      "card_segment": "unknown",
+      "card_segment": "main",
       "red": "Waldo Cortes Acosta",
       "blue": "Johnny Walker",
       "weight_class": "Heavyweight",
@@ -17,7 +17,7 @@
     },
     {
       "bout_order": 2,
-      "card_segment": "unknown",
+      "card_segment": "main",
       "red": "Tatiana Suarez",
       "blue": "Virna Jandiroba",
       "weight_class": "Women's Strawweight",
@@ -25,7 +25,7 @@
     },
     {
       "bout_order": 3,
-      "card_segment": "unknown",
+      "card_segment": "main",
       "red": "Davey Grant",
       "blue": "Elijah Smith",
       "weight_class": "Bantamweight",
@@ -33,7 +33,7 @@
     },
     {
       "bout_order": 4,
-      "card_segment": "unknown",
+      "card_segment": "main",
       "red": "Seokhyeon Ko",
       "blue": "Wellington Turman",
       "weight_class": "Welterweight",
@@ -41,7 +41,7 @@
     },
     {
       "bout_order": 5,
-      "card_segment": "unknown",
+      "card_segment": "main",
       "red": "Billy Elekana",
       "blue": "Lucas Fernando",
       "weight_class": "Light Heavyweight",
@@ -49,7 +49,7 @@
     },
     {
       "bout_order": 6,
-      "card_segment": "unknown",
+      "card_segment": "main",
       "red": "Mantas Kondratavicius",
       "blue": "Andre Petroski",
       "weight_class": "Middleweight",
@@ -57,7 +57,7 @@
     },
     {
       "bout_order": 7,
-      "card_segment": "unknown",
+      "card_segment": "prelim",
       "red": "Gabriel Lorenco",
       "blue": "Thomas Petersen",
       "weight_class": "Heavyweight",
@@ -65,7 +65,7 @@
     },
     {
       "bout_order": 8,
-      "card_segment": "unknown",
+      "card_segment": "prelim",
       "red": "Karine Silva",
       "blue": "Gabriella Fernandes",
       "weight_class": "Women's Flyweight",
@@ -73,7 +73,7 @@
     },
     {
       "bout_order": 9,
-      "card_segment": "unknown",
+      "card_segment": "prelim",
       "red": "Mitch Raposo",
       "blue": "Marcos Degli",
       "weight_class": "Flyweight",
@@ -81,7 +81,7 @@
     },
     {
       "bout_order": 10,
-      "card_segment": "unknown",
+      "card_segment": "prelim",
       "red": "Jose Delano",
       "blue": "Murtazali Magomedov",
       "weight_class": "Featherweight",
@@ -89,7 +89,7 @@
     },
     {
       "bout_order": 11,
-      "card_segment": "unknown",
+      "card_segment": "prelim",
       "red": "Keiichiro Nakamura",
       "blue": "Ollie Schmid",
       "weight_class": "Featherweight",
@@ -97,7 +97,7 @@
     },
     {
       "bout_order": 12,
-      "card_segment": "unknown",
+      "card_segment": "prelim",
       "red": "Austin Bashi",
       "blue": "Lucas Brennan",
       "weight_class": "Featherweight",
@@ -105,7 +105,7 @@
     },
     {
       "bout_order": 13,
-      "card_segment": "unknown",
+      "card_segment": "prelim",
       "red": "Priscila Cachoeira",
       "blue": "Nina Milosevic",
       "weight_class": "Women's Bantamweight",
@@ -113,7 +113,7 @@
     },
     {
       "bout_order": 14,
-      "card_segment": "unknown",
+      "card_segment": "prelim",
       "red": "Jonny Parsons",
       "blue": "Jose Souza",
       "weight_class": "Welterweight",
