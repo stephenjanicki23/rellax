@@ -45,6 +45,12 @@ STATS: dict[str, tuple[str, str, str]] = {
     "d_kd15": ("Recent knockdowns per 15 min", "Knockdown rate in recent fights.", "{:.2f}"),
     "kd_abs15": ("Knocked down per 15 min", "How often they get knocked down, per 15 minutes. Lower suggests a "
                  "sturdier chin.", "{:.2f}"),
+    "adj_striking": ("Striking vs. opposition", "Strikes landed compared with what their opponents usually allow. "
+                     "1.0 is typical; 1.2 means 20% more than those opponents normally give up.", "{:.2f}×"),
+    "adj_absorbed": ("Strikes taken vs. opposition", "Strikes absorbed compared with what their opponents usually "
+                     "land. Below 1.0 means better defence than those opponents usually face.", "{:.2f}×"),
+    "adj_wrestling": ("Takedowns vs. opposition", "Takedowns landed compared with what their opponents usually give "
+                      "up. Above 1.0 means a better wrestler than the opposition usually faces.", "{:.2f}×"),
     "body_pm": ("Body strikes landed / min", "Significant strikes to the body landed per minute.", "{:.2f}"),
     "leg_pm": ("Leg kicks landed / min", "Significant strikes to the legs landed per minute.", "{:.2f}"),
     "body_abs_pm": ("Body strikes absorbed / min", "Body strikes taken per minute. Lower is better.", "{:.2f}"),
@@ -109,12 +115,13 @@ FACTORS: dict[str, str] = {
     "class_change": "Weight-class move", "low_exp": "Experience (fewer than 3 UFC fights)",
     "five_round_cardio": "Cardio in a 5-round fight", "five_round_age": "Age in a 5-round fight",
     "short_notice": "Short-notice replacement", "weight_miss": "Missed weight", "market": "Betting odds",
-    "body_pm": "More body work", "leg_pm": "More leg kicks", "body_diff": "Wins the body exchanges",
+    "adj_striking": "Out-lands the usual for these opponents", "adj_absorbed": "Gets hit less than these opponents usually manage",
+    "adj_wrestling": "Out-wrestles the usual for these opponents", "body_pm": "More body work", "leg_pm": "More leg kicks", "body_diff": "Wins the body exchanges",
     "leg_diff": "Wins the leg-kick exchanges", "legs_vs_leg_defense": "Leg kicks against a fighter who absorbs them",
 }
 
 GROUPS = {"A_baseline": "Career stats", "B_form": "Recent form", "C_style": "Style matchup",
-          "C_style_v2": "Style matchup", "A_strikeloc": "Career stats", "C_strikeloc": "Style matchup", "D_durability": "Durability", "E_context": "Situation",
+          "C_style_v2": "Style matchup", "A_strikeloc": "Career stats", "A_oppadj": "Career stats", "C_strikeloc": "Style matchup", "D_durability": "Durability", "E_context": "Situation",
           "F_market": "Betting odds"}
 
 BASELINES = {"Coin flip (50/50)": "Coin flip", "Elo only": "Higher power rating always wins",

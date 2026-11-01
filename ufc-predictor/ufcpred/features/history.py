@@ -44,6 +44,10 @@ class FightRecord:
     elo_pre: float = 1500.0
     opp_elo_pre: float = 1500.0
     expected: float = 0.5
+    # what this opponent usually allowed / produced per minute *before* this fight (point-in-time, shrunk)
+    opp_sapm_pre: float | None = None     # sig strikes the opponent usually absorbs per minute
+    opp_slpm_pre: float | None = None     # sig strikes the opponent usually lands per minute
+    opp_tdabs_pre: float | None = None    # takedowns the opponent usually gives up per minute
 
 
 @dataclass
@@ -97,6 +101,8 @@ class HistoryStore:
 
         elo = defaultdict(lambda: 1500.0)
         pop = defaultdict(float)
+        cum = defaultdict(lambda: defaultdict(float))     # fighter -> stats totals from fights before today
+        pending_cum = []
         last_date = None
         pending_elo = []
         for r in rows:
@@ -109,6 +115,10 @@ class HistoryStore:
                 for fid_, delta in pending_elo:
                     elo[fid_] += delta
                 pending_elo = []
+                for fid_, add in pending_cum:
+                    for kk, vv in add.items():
+                        cum[fid_][kk] += vv
+                pending_cum = []
             last_date = date
             red, blue = r["red_fighter_id"], r["blue_fighter_id"]
             secs = res["total_time_sec"]
@@ -123,6 +133,12 @@ class HistoryStore:
                 s_red = 0.5
             else:
                 s_red = None
+            pp = h.population(date)
+            def opp_rates(o):
+                c, m = cum[o], cum[o]["secs"] / 60
+                return ((c["sig_abs"] + pp["slpm"] * 15) / (m + 15), (c["sig_l"] + pp["slpm"] * 15) / (m + 15),
+                        (c["td_abs"] + pp["td_pm"] * 15) / (m + 15))
+            pre = {red: opp_rates(blue), blue: opp_rates(red)}
             for me, opp, s, e_me, e_opp, exp in ((red, blue, s_red, er, eb, exp_red),
                                                  (blue, red, None if s_red is None else 1 - s_red, eb, er,
                                                   1 - exp_red)):
@@ -132,7 +148,10 @@ class HistoryStore:
                 h.records[me].append(FightRecord(
                     r["id"], r["event_id"], date, me, opp, s, res["method"], res["end_round"], secs,
                     r["scheduled_rounds"], r["weight_class"], own[0] if own else None, oth[0] if oth else None,
-                    late[0], late[1], early[0], early[1], e_me, e_opp, exp))
+                    late[0], late[1], early[0], early[1], e_me, e_opp, exp, *pre[me]))
+                if own and oth and secs:
+                    pending_cum.append((me, {"secs": secs, "sig_l": own[0].get("sig_l") or 0,
+                                             "sig_abs": oth[0].get("sig_l") or 0, "td_abs": oth[0].get("td_l") or 0}))
             if s_red is not None:
                 k = h.elo_k
                 pending_elo.append((red, k * (s_red - exp_red)))
@@ -283,11 +302,16 @@ def fighter_state(h: HistoryStore, fighter_id: int, at_date: str, cutoff: str | 
     secs = 0.0
     n_stats = 0
     late_sig = late_s = early_sig = early_s = 0.0
+    exp_sig = exp_abs = exp_td = 0.0
     for r in recs:
         if r.own is None or r.opp is None or not r.seconds:
             continue
         n_stats += 1
         secs += r.seconds
+        if r.opp_sapm_pre is not None:
+            exp_sig += r.opp_sapm_pre * r.seconds / 60
+            exp_abs += r.opp_slpm_pre * r.seconds / 60
+            exp_td += r.opp_tdabs_pre * r.seconds / 60
         for k, v in r.own.items():
             tot[k] += v or 0
         for k, v in r.opp.items():
@@ -327,6 +351,12 @@ def fighter_state(h: HistoryStore, fighter_id: int, at_date: str, cutoff: str | 
     st["leg_diff_pm"] = st["leg_pm"] - st["leg_abs_pm"]
     st["ctrl_share"] = (tot["ctrl_sec"] + pop["ctrl_share"] * pm * 60) / (secs + pm * 60)
     st["opp_ctrl_share"] = (opp["ctrl_sec"] + pop["ctrl_share"] * pm * 60) / (secs + pm * 60)
+    # strength-adjusted: output relative to what these particular opponents usually allowed / produced
+    # (1.0 = typical; shrunk toward 1.0 with 15 minutes of "average" opposition)
+    k_sig, k_td = pop["slpm"] * pm, pop["td_pm"] * pm
+    st["adj_striking"] = (tot["sig_l"] + k_sig) / (exp_sig + k_sig)
+    st["adj_absorbed"] = (opp["sig_l"] + k_sig) / (exp_abs + k_sig)
+    st["adj_wrestling"] = (tot["td_l"] + k_td) / (exp_td + k_td)
     sig_total = tot["sig_l"]
     st["dist_share"] = (tot["dist_l"] + 0.7 * 20) / (sig_total + 20)
     st["ground_share"] = (tot["ground_l"] + 0.12 * 20) / (sig_total + 20)
