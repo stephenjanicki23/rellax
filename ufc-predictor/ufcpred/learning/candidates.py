@@ -76,6 +76,10 @@ def generate(incumbent: ModelConfig, hypotheses: list[dict], max_candidates: int
             return out[:max_candidates]
 
     # Routine experiments: re-validate the decay rate and ensemble structure even when no weakness is supported.
+    if not incumbent.opp_adjusted:
+        add(Candidate("feature_group", "Routine experiment: add strength-adjusted striking, defence and wrestling "
+                      "(output relative to what each opponent usually allowed)",
+                      incumbent.with_changes(opp_adjusted=True)))
     if not incumbent.strike_location:
         add(Candidate("feature_group", "Routine experiment: add body and leg strike features (volume landed, "
                       "landed minus absorbed, leg kicks vs. opponent's leg-kick defence)",

@@ -165,9 +165,49 @@ def fight(request: Request, fight_id: int, mode: str | None = None, version: int
                             ORDER BY e.id""", (fight_id, mode)).fetchall()
     mv = conn.execute("SELECT label, config_json FROM model_versions WHERE id=?",
                       (pred["model_version_id"],)).fetchone() if pred else None
+    has_result = bool(res)
+    locked = ledger.is_locked(conn, f["event_id"], "live")
     return render(request, "fight.html", f=f, mode=mode, versions=versions, pred=pred,
                   payload=loads(pred["payload_json"]) if pred else None, official=official, results=res,
-                  evals=evals, model=mv)
+                  evals=evals, model=mv, fightweek_open=not has_result and not locked and f["status"] == "scheduled",
+                  msg=request.query_params.get("msg", ""))
+
+
+_TRISTATE = {"": None, "unknown": None, "yes": 1, "no": 0}
+
+
+@app.post("/fight/{fight_id}/fightweek")
+def fight_week(fight_id: int, short_notice_red: str = Form(""), short_notice_blue: str = Form(""),
+               weight_miss_red: str = Form(""), weight_miss_blue: str = Form(""), source: str = Form(""),
+               conn=Depends(get_db)):
+    """Record fight-week facts (short-notice replacement, missed weight) before the card locks."""
+    f = conn.execute("SELECT * FROM fights WHERE id=?", (fight_id,)).fetchone()
+    if f is None:
+        raise HTTPException(404)
+    back = f"/fight/{fight_id}?mode=live&msg="
+    if ledger.is_locked(conn, f["event_id"], "live") or f["status"] != "scheduled":
+        return RedirectResponse(back + "refused: the card is locked or the bout is over, so its pick can no "
+                                "longer change", status_code=303)
+    if not source.strip():
+        return RedirectResponse(back + "refused: say where this information comes from", status_code=303)
+    vals = {k: _TRISTATE.get(v.strip().lower(), None) for k, v in
+            (("short_notice_red", short_notice_red), ("short_notice_blue", short_notice_blue),
+             ("weight_miss_red", weight_miss_red), ("weight_miss_blue", weight_miss_blue))}
+    before = {k: f[k] for k in vals}
+    conn.execute("UPDATE fights SET short_notice_red=?, short_notice_blue=?, weight_miss_red=?, weight_miss_blue=?, "
+                 "updated_at=? WHERE id=?", (*vals.values(), utcnow(), fight_id))
+    db.audit(conn, "fight.fight_week", "fight", fight_id, {"before": before, "after": vals, "source": source.strip()},
+             actor="admin")
+    conn.commit()
+    msg = "fight-week info saved"
+    if before != vals:
+        try:
+            ids = predict.predict_event(conn, f["event_id"], mode="live", reason="fight-week info updated",
+                                        fight_ids=[fight_id])
+            msg += f"; re-predicted ({len(ids)} new version)" + _sync_note(conn)
+        except (ledger.LedgerError, RuntimeError, ValueError) as e:
+            msg += f"; prediction not refreshed: {e}"
+    return RedirectResponse(back + msg[:300], status_code=303)
 
 
 # ------------------------------------------------------------------ history & review

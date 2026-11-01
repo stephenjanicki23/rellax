@@ -161,6 +161,13 @@ FEATURES: list[Feat] = [
          ("leg_pm", "leg_abs_pm")),
     Feat("legs_vs_leg_defense", "C_strikeloc", _prod(_A("leg_pm"), _B("leg_abs_pm")),
          "leg-kick volume vs. opponent's leg kicks absorbed", ("leg_pm", "leg_abs_pm")),
+    # strength-adjusted output (enabled only by a validated candidate: ModelConfig.opp_adjusted)
+    Feat("adj_striking", "A_oppadj", _A("adj_striking"), "strikes landed vs. what these opponents usually allow",
+         ("adj_striking",), "{:.2f}"),
+    Feat("adj_absorbed", "A_oppadj", _A("adj_absorbed"), "strikes absorbed vs. what these opponents usually land",
+         ("adj_absorbed",), "{:.2f}"),
+    Feat("adj_wrestling", "A_oppadj", _A("adj_wrestling"), "takedowns vs. what these opponents usually give up",
+         ("adj_wrestling",), "{:.2f}"),
     # ---------------- Model D: durability and finish risk
     Feat("ko_loss_rate", "D_durability", _A("ko_loss_rate"), "KO-loss rate", ("ko_loss_rate",), "{:.0%}"),
     Feat("sub_loss_rate", "D_durability", _A("sub_loss_rate"), "submission-loss rate", ("sub_loss_rate",), "{:.0%}"),
@@ -185,8 +192,11 @@ FEATURES: list[Feat] = [
 BY_NAME = {f.name: f for f in FEATURES}
 
 
-def features_for(group: str, style_v2: bool = False, strike_location: bool = False) -> list[Feat]:
+def features_for(group: str, style_v2: bool = False, strike_location: bool = False,
+                 opp_adjusted: bool = False) -> list[Feat]:
     out = [f for f in FEATURES if f.group == group]
+    if opp_adjusted and group == "A_baseline":
+        out += [f for f in FEATURES if f.group == "A_oppadj"]
     if group == "C_style" and style_v2:
         out += [f for f in FEATURES if f.group == "C_style_v2"]
     if strike_location and group in ("A_baseline", "C_style"):
