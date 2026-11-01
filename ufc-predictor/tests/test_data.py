@@ -261,3 +261,22 @@ def test_odds_feed_keeps_only_the_chosen_bookmaker_and_never_leaks_the_key(tmp_d
         '{"message": "quota exceeded"}', SourceMeta(provider, resource, url, utcnow(), "x", "ok", 200, None, "")))
     with pytest.raises(ProviderError):                            # an error object instead of a list of fights
         odds_mod.TheOddsAPIProvider(api_key="k").fetch_odds([])
+
+
+def test_upcoming_provider_explains_an_unexpected_page(monkeypatch):
+    from ufcpred.providers import ufcstats_live as L
+    from ufcpred.providers.base import SourceMeta
+    from ufcpred.util import utcnow
+    blocked = "<html><head><title>Just a moment...</title></head><body><p>Checking your browser</p></body></html>"
+    monkeypatch.setattr(L, "fetch", lambda url, provider, resource, **k: (
+        blocked, SourceMeta(provider, resource, url, utcnow(), "x", "ok", 200, None, "")))
+    with pytest.raises(ProviderError) as e:
+        L.UFCStatsLiveProvider(min_interval_s=0).fetch_upcoming()
+    msg = str(e.value)
+    assert "Just a moment" in msg and "no events table" in msg and "Checking your browser" in msg
+    changed = '<table class="b-statistics__table-events"><tr><td>new layout</td></tr></table>'
+    monkeypatch.setattr(L, "fetch", lambda url, provider, resource, **k: (
+        changed, SourceMeta(provider, resource, url, utcnow(), "x", "ok", 200, None, "")))
+    with pytest.raises(ProviderError) as e:
+        L.UFCStatsLiveProvider(min_interval_s=0).fetch_upcoming()
+    assert "markup changed" in str(e.value)
