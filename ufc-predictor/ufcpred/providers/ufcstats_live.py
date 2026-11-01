@@ -43,6 +43,16 @@ def parse_upcoming_list(page: str) -> list[PEvent]:
     return out
 
 
+def describe_page(page: str) -> str:
+    """A short, safe description of an unexpected page, for the error message."""
+    title = re.search(r"<title[^>]*>(.*?)</title>", page or "", re.S | re.I)
+    text = re.sub(r"\s+", " ", re.sub(r"<script.*?</script>|<style.*?</style>|<[^>]+>", " ", page or "", flags=re.S | re.I))
+    table = "events table present but no rows matched (markup changed)" if "b-statistics__table-events" in (page or "") \
+        else "no events table"
+    return (f"{len(page or '')} characters; title {html.unescape(title.group(1).strip()) if title else 'none'!r}; "
+            f"{table}; text starts {html.unescape(text.strip())[:160]!r}")
+
+
 def parse_event_card(page: str, event: PEvent) -> list[PFight]:
     fights = []
     for order, m in enumerate(_FIGHT_ROW.finditer(page), start=1):
@@ -74,8 +84,9 @@ class UFCStatsLiveProvider(UpcomingProvider):
                            min_interval_s=self.min_interval_s, max_age_s=1800)
         b.sources.append(meta)
         events = parse_upcoming_list(page)
-        if not events and "b-statistics__table-events" in page:
-            raise ProviderError("upcoming events page parsed to zero events; markup may have changed")
+        if not events:
+            # never report "nothing new" when the page simply wasn't what we expected: say what came back
+            raise ProviderError("UFCStats upcoming page gave no events (" + describe_page(page) + ")")
         for ev in sorted(events, key=lambda e: e.date)[: self.max_events]:
             card, meta2 = fetch(ev.source_url, self.name, f"event_{ev.external_id.split(':')[1]}.html",
                                 min_interval_s=self.min_interval_s, max_age_s=1800)
