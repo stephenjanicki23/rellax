@@ -112,7 +112,19 @@ def _stakes(conn) -> dict:
             "Medium": _cents(float(setting(conn, "betting.stake_medium")) * 100),
             "Low": _cents(float(setting(conn, "betting.stake_low")) * 100),
             "_min_p_high": float(setting(conn, "betting.min_prob_high")),
-            "_min_p_bet": float(setting(conn, "betting.min_prob_bet"))}
+            "_min_p_bet": float(setting(conn, "betting.min_prob_bet")),
+            "_min_ev": float(setting(conn, "betting.min_ev"))}
+
+
+def price_check(p_pick: float | None, decimal: float | None, rules: dict) -> tuple[bool, str, float | None]:
+    """Is the offered price good enough? Expected return = p × decimal − 1 (per unit staked)."""
+    if p_pick is None or decimal is None:
+        return False, "no price yet", None
+    ev = p_pick * decimal - 1
+    ok = ev >= rules["_min_ev"]
+    return ok, (f"expected return {ev:+.1%} at {decimal_to_american(decimal):+d} "
+                + (f"meets the {rules['_min_ev']:+.0%} minimum" if ok else
+                   f"is below the {rules['_min_ev']:+.0%} minimum: price too short, passed")), ev
 
 
 def bet_tier(confidence_label: str | None, p_pick: float | None, rules: dict) -> tuple[str, str]:
@@ -280,7 +292,7 @@ def _sync_fight(conn, ev, lock, f, official, latest, stakes, out, actor):
     elif not bet["locked_at"] and pred is not None and res is None and (
             pred["id"] != bet["prediction_id"]
             or (snap := _snapshot(pred, f, ev, stakes))["tier"] != bet["tier"]
-            or snap["stake_cents"] != bet["stake_cents"]):
+            or (bet["odds_decimal"] is None and snap["stake_cents"] != bet["stake_cents"])):
         snap = _snapshot(pred, f, ev, stakes)
         before = {k: bet[k] for k in ("prediction_id", "tier", "pick_name", "stake_cents", "p_pick")}
         _update(conn, bet["id"], {k: v for k, v in snap.items() if k not in ("event_name", "event_date")}
@@ -307,7 +319,8 @@ def _sync_fight(conn, ev, lock, f, official, latest, stakes, out, actor):
         out["locked"] += 1
 
     # odds: follow the market until the lock; afterwards only fill a missing price, never replace one
-    if bet["stake_cents"] and not bet["manual_override"] and (not bet["locked_at"] or bet["odds_decimal"] is None):
+    qualifies = stakes.get(bet["tier"], 0) > 0
+    if qualifies and not bet["manual_override"] and (not bet["locked_at"] or bet["odds_decimal"] is None):
         o = _odds_for(conn, bet, f, first_res)
         if o and (o["odds_id"] != bet["odds_id"]) and bet["odds_source"] != "manual":
             before = {k: bet[k] for k in ("odds_american", "odds_bookmaker", "odds_captured_at")}
@@ -315,6 +328,28 @@ def _sync_fight(conn, ev, lock, f, official, latest, stakes, out, actor):
             _log(conn, bet["id"], "odds_set", before if bet["odds_decimal"] is not None else None,
                  {k: o[k] for k in ("odds_american", "odds_bookmaker", "odds_captured_at")}, None, actor)
             out["odds_set"] += 1
+            bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()
+
+    # price rule: once a price exists, stake only if the expected return clears the minimum. Re-checked while the
+    # line can move (before the lock); decided once for a bet that was locked before any price arrived.
+    why = loads(bet["rationale_json"], {}) or {}
+    if (qualifies and not bet["manual_override"] and res is None and bet["odds_decimal"] is not None
+            and (not bet["locked_at"] or "price_rule" not in why)):
+        ok, text, _ = price_check(bet["p_pick"], bet["odds_decimal"], stakes)
+        stake = stakes[bet["tier"]] if ok else 0
+        if stake != bet["stake_cents"] or why.get("price_rule") != text:
+            before = {"stake_cents": bet["stake_cents"], "price_rule": why.get("price_rule")}
+            _update(conn, bet["id"], {"stake_cents": stake, "status": "pending" if stake else "no_bet",
+                                      "rationale_json": dumps(why | {"price_rule": text})})
+            _log(conn, bet["id"], "priced", before, {"stake_cents": stake, "price_rule": text}, None, actor)
+            out["priced"] += 1
+            bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()
+
+    # closing line: the last price before the fight, compared with the price the bet took
+    if res is not None and bet["odds_decimal"] is not None:
+        c = _odds_for(conn, bet, f, first_res)
+        if c and (c["odds_decimal"], c["odds_captured_at"]) != (bet["closing_decimal"], bet["closing_captured_at"]):
+            _update(conn, bet["id"], {"closing_decimal": c["odds_decimal"], "closing_captured_at": c["odds_captured_at"]})
             bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()
 
     if bet["manual_override"]:
@@ -490,6 +525,38 @@ def summary(rows: list[dict]) -> dict:
         "settled_stake": action_stake,
         "exposure": sum(r["stake_cents"] for r in pending + waiting),
         "tracked_low": sum(1 for r in rows if r["tier"] == "Low"),
+    }
+
+
+def clv(r) -> float | None:
+    """Closing line value: how much better the price taken was than the closing price (+ is good)."""
+    if not r.get("odds_decimal") or not r.get("closing_decimal"):
+        return None
+    return r["odds_decimal"] / r["closing_decimal"] - 1
+
+
+def scorecard(rows: list[dict], min_n: int = 30) -> dict:
+    """The four numbers that matter for placed bets: calibration, Brier, log loss, ROI (+ closing line value)."""
+    action = [r for r in rows if is_realised(r) and r["status"] in ("win", "loss") and r["p_pick"] is not None]
+    n = len(action)
+    won = [1.0 if r["status"] == "win" else 0.0 for r in action]
+    ps = [min(max(r["p_pick"], 1e-6), 1 - 1e-6) for r in action]
+    stake = sum(r["stake_cents"] for r in action)
+    net = sum(r["net_cents"] for r in action)
+    clvs = [c for r in rows if is_bet(r) and (c := clv(r)) is not None]
+    implied = [1 / r["odds_decimal"] for r in action if r["odds_decimal"]]
+    lo, hi = wilson(int(sum(won)), n) if n else (None, None)
+    return {
+        "n": n, "enough": n >= min_n, "min_n": min_n,
+        "avg_p": sum(ps) / n if n else None, "win_rate": sum(won) / n if n else None, "win_ci": (lo, hi),
+        "avg_implied": sum(implied) / len(implied) if implied else None,
+        "brier": sum((p - y) ** 2 for p, y in zip(ps, won)) / n if n else None,
+        "log_loss": -sum(math.log(p if y else 1 - p) for p, y in zip(ps, won)) / n if n else None,
+        "roi": net / stake if stake else None, "net": net,
+        "clv_n": len(clvs), "clv_avg": sum(clvs) / len(clvs) if clvs else None,
+        "clv_beat": sum(1 for c in clvs if c > 0) / len(clvs) if clvs else None,
+        "passed_on_price": sum(1 for r in rows if r["status"] == "no_bet" and r["tier"] in ("High", "Medium")
+                               and "price too short" in ((loads(r["rationale_json"], {}) or {}).get("price_rule") or "")),
     }
 
 

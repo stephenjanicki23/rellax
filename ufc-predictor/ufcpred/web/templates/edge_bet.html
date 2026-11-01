@@ -11,6 +11,8 @@
 <div class="card"><h2>The bet</h2>
   <dl class="kv">
     <dt>Stake tier</dt><dd><span class="pill {{ b.tier }}">{{ b.tier }}</span>{% if why.stake_rule %} <span class="small muted">{{ why.stake_rule }}</span>{% endif %}</dd>
+    {% if why.price_rule %}<dt>Price check</dt><dd class="small">{{ why.price_rule }}</dd>{% endif %}
+    {% if b.closing_decimal %}<dt>Closing line</dt><dd>{{ '%+d' % (b.closing_decimal | american) }} · {{ '%+.1f%%' % ((b.odds_decimal / b.closing_decimal - 1) * 100) }} vs our price</dd>{% endif %}
     <dt>Engine confidence</dt><dd>{{ (why.confidence or {}).label or '—' }} · score {{ b.confidence_score }}</dd>
     <dt>Engine's chance</dt><dd>{{ '—' if b.p_pick is none else '%.1f%%' % (b.p_pick * 100) }}</dd>
     <dt>Stake</dt><dd>{{ 'no bet (Low confidence is tracked only)' if b.tier == 'Low' else (b.stake_cents | money(false)) }}</dd>

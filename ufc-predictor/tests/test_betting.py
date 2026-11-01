@@ -103,6 +103,8 @@ def card(trained, monkeypatch):
     """A live card with locked-in tiers: fight 1 High, fight 2 Medium, fight 3 Low (the engine's label is
     replaced only inside the tracker's snapshot, to make the tiers deterministic)."""
     conn = trained[0]
+    db.set_setting(conn, "betting.min_ev", -1.0)       # these tests cover settlement mechanics, not the price rule
+    conn.commit()
     ev = _card(conn, [("Synthetic Fighter 1", "Synthetic Fighter 2"), ("Synthetic Fighter 3", "Synthetic Fighter 4"),
                       ("Synthetic Fighter 5", "Synthetic Fighter 6")])
     predict.predict_event(conn, ev, mode="live", reason="test")
@@ -348,3 +350,48 @@ def test_unlocked_bets_are_resized_when_the_rule_changes_and_locked_ones_are_not
     conn.commit()
     betting.sync(conn)
     assert {f["id"]: _bet(conn, f)["stake_cents"] for f in fights} == locked   # locked bets never re-sized
+
+
+def test_price_check_requires_positive_expected_return():
+    rules = {"_min_ev": 0.05}
+    ok, text, ev = betting.price_check(0.65, betting.american_to_decimal(-300), rules)   # 65% at -300: overpriced
+    assert not ok and ev < 0 and "price too short" in text
+    ok, text, ev = betting.price_check(0.65, betting.american_to_decimal(+120), rules)   # 65% at +120: value
+    assert ok and ev > 0.4
+    assert betting.price_check(0.65, None, rules)[0] is False
+
+
+def test_price_rule_passes_overpriced_favourites_and_tracks_closing_line(card):
+    from ufcpred import ledger
+    conn, ev, fights = card
+    db.set_setting(conn, "betting.min_ev", 0.05)
+    conn.commit()
+    betting.sync(conn)
+    b = _bet(conn, fights[0])                                # High tier in the fixture
+    p = b["p_pick"]
+    pick_red = b["pick_fighter_id"] == fights[0]["red_fighter_id"]
+    bad, good = 1 / p * 0.9, 1 / p * 1.3                     # expected return -10% and +30%
+    _odds(conn, fights[0], *((bad, 3.0) if pick_red else (3.0, bad)), at="2020-01-01T00:00:00Z")
+    betting.sync(conn)
+    b = _bet(conn, fights[0])
+    assert b["stake_cents"] == 0 and b["status"] == "no_bet"
+    assert "price too short" in json.loads(b["rationale_json"])["price_rule"]
+    _odds(conn, fights[0], *((good, 1.5) if pick_red else (1.5, good)), at="2020-01-02T00:00:00Z")
+    betting.sync(conn)                                       # the line moved before the lock: now worth a bet
+    b = _bet(conn, fights[0])
+    assert b["stake_cents"] == 10000 and b["status"] == "pending"
+    ledger.lock_event(conn, ev, "live", utcnow()[:10], "test lock")
+    betting.sync(conn)
+    _odds(conn, fights[0], *((good * 0.95, 1.6) if pick_red else (1.6, good * 0.95)), at="2020-01-03T00:00:00Z")
+    betting.sync(conn)
+    assert _bet(conn, fights[0])["odds_decimal"] == pytest.approx(good)   # price frozen at the lock
+    _win_for_pick(conn, fights[0], _bet(conn, fights[0]))
+    betting.sync(conn)
+    b = dict(_bet(conn, fights[0]))
+    assert b["closing_decimal"] == pytest.approx(good * 0.95)             # last price before the fight
+    assert betting.clv(b) == pytest.approx(1 / 0.95 - 1)                  # we beat the close
+    acts = [h["action"] for h in betting.history(conn, b["id"])]
+    assert acts.count("priced") == 2
+    sc = betting.scorecard(betting.bets(conn))
+    assert sc["n"] == 1 and sc["win_rate"] == 1.0 and sc["clv_n"] == 1 and sc["clv_avg"] > 0
+    assert sc["brier"] == pytest.approx((1 - p) ** 2) and sc["roi"] > 0

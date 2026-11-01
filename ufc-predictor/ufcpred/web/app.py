@@ -32,6 +32,7 @@ T.filters["f"] = lambda v, d=3: "—" if v is None else f"{v:.{d}f}"
 T.filters["method"] = lambda m: services.METHOD_LABEL.get(m, m or "—")
 T.filters["loads"] = lambda s: loads(s, {})
 T.filters["money"] = betting.money
+T.filters["american"] = betting.decimal_to_american
 T.filters["clock"] = lambda s: "—" if s is None else f"{s // 60}:{s % 60:02d}"
 T.globals.update(charts=charts, now=lambda: utcnow())
 plain.install(T)
@@ -299,6 +300,7 @@ def edge(request: Request, conn=Depends(get_db)):
     return render(request, "edge.html", rows=rows, s=betting.summary(rows),
                   tiers=[betting.tier_stats(rows, t) for t in ("High", "Medium")], events=betting.event_stats(rows),
                   curve=betting.cumulative(rows), fb=betting.feedback(rows, min_n), next_ev=ev,
+                  sc=betting.scorecard(rows, min_n), min_ev=float(setting(conn, "betting.min_ev")),
                   record=services.betting_track_record(conn), edge_min=services.EDGE_MIN,
                   stakes={t: setting(conn, f"betting.stake_{t.lower()}") for t in ("High", "Medium", "Low")},
                   rules={"high": float(setting(conn, "betting.min_prob_high")),
