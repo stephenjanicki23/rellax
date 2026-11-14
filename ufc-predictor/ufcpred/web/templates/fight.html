@@ -137,7 +137,7 @@
   <h3>Uncertainty</h3>
   <p class="small">80% interval for {{ f.red_name }}: {{ p.confidence.interval80_p_red[0] | pct(1) }}–{{ p.confidence.interval80_p_red[1] | pct(1) }}. Confidence score {{ p.confidence.score }}.
   {% for r in p.confidence.reasons %}{{ r }}{{ '; ' if not loop.last }}{% endfor %}. {{ p.conditional_note }}</p>
-  {% set hc = p.confidence.historical_calibration %}{% if hc %}<p class="small">Calibration band {{ hc.bin }}: {{ hc.accuracy | pct(1) if hc.accuracy is not none else '—' }} correct vs {{ hc.mean_conf | pct(1) if hc.mean_conf is not none else '—' }} stated (n={{ hc.n }}).</p>{% endif %}
+  {% set hc = p.confidence.historical_calibration %}{% if hc %}<p class="small">Calibration band {{ hc.bin }}: {% if hc.sufficient %}{{ hc.get('accuracy') | pct(1) }} correct vs {{ hc.get('mean_conf') | pct(1) }} stated{% else %}not enough graded fights yet to judge{% endif %} (n={{ hc.n }}).</p>{% endif %}
   <h3>Sub-models &amp; ensemble</h3>
   <table class="small"><tr><th>Model</th><th class="num">P({{ f.red_name }})</th><th class="num">Learned weight</th></tr>
   {% for g, pr in p.submodels.items() %}<tr><td>{{ g }}</td><td class="num">{{ pr | pct(1) }}</td><td class="num">{{ '%.3f' % p.ensemble_weights[g].effective }}</td></tr>{% endfor %}

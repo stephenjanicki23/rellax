@@ -66,3 +66,25 @@ def test_betting_edge_compares_odds_without_feeding_the_engine(synth):
     e = services.betting_edge(conn, ev)["rows"][0]["edge"]
     red = next(s for s in e["sides"] if s["side"] == "red")
     assert red["american"] == -600 and red["market"] > 0.8
+
+
+def test_fight_page_renders_with_too_few_graded_fights_for_calibration(synth, monkeypatch):
+    """Live picks made after a few graded cards carry a calibration band with no accuracy yet (n < 30)."""
+    conn, truth = synth
+    from ufcpred.replay import replay
+    replay(conn, truth["dates"][82], truth["dates"][84], select_half_life=False, progress=lambda *_: None)
+    from ufcpred import predict as P
+    monkeypatch.setattr(P, "historical_calibration", lambda *a, **k: {"bin": "0.6–0.7", "n": 4, "sufficient": False})
+    from ufcpred.web.app import app
+    c = TestClient(app)
+    card = {"event": {"name": "Calibration Night", "date": "2099-03-01", "source_url": "https://example.org"},
+            "fights": [{"red": "Synthetic Fighter 1", "blue": "Synthetic Fighter 2", "weight_class": "Lightweight",
+                        "scheduled_rounds": 3}]}
+    assert c.post("/import/card", files={"file": ("card.json", json.dumps(card), "application/json")}).status_code == 200
+    ev = conn.execute("SELECT id FROM events WHERE name='Calibration Night'").fetchone()[0]
+    P.predict_event(conn, ev, mode="live", reason="test")
+    conn.commit()
+    fight = conn.execute("SELECT fight_id FROM predictions WHERE mode='live' ORDER BY id DESC LIMIT 1").fetchone()[0]
+    r = c.get(f"/fight/{fight}?mode=live")
+    assert r.status_code == 200, r.text[-800:]
+    assert "not enough graded fights yet" in r.text
