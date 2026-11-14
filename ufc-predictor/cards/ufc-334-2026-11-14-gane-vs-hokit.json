@@ -1,0 +1,117 @@
+{
+  "event": {
+    "name": "UFC 334: Gane vs. Hokit",
+    "date": "2026-11-14",
+    "venue": "Madison Square Garden",
+    "location": "New York City, New York, USA",
+    "source_url": "https://www.ufc.com/event/ufc-334"
+  },
+  "fights": [
+    {
+      "bout_order": 1,
+      "card_segment": "main",
+      "red": "Ciryl Gane",
+      "blue": "Josh Hokit",
+      "weight_class": "Heavyweight",
+      "scheduled_rounds": 5,
+      "title_fight": true
+    },
+    {
+      "bout_order": 2,
+      "card_segment": "main",
+      "red": "Kayla Harrison",
+      "blue": "Amanda Nunes",
+      "weight_class": "Women's Bantamweight",
+      "scheduled_rounds": 5,
+      "title_fight": true
+    },
+    {
+      "bout_order": 3,
+      "card_segment": "main",
+      "red": "Caio Borralho",
+      "blue": "Yousri Belgaroui",
+      "weight_class": "Middleweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 4,
+      "card_segment": "main",
+      "red": "Uros Medic",
+      "blue": "Kevin Holland",
+      "weight_class": "Welterweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 5,
+      "card_segment": "main",
+      "red": "Bilal Hasan",
+      "blue": "Luis Gurule",
+      "weight_class": "Flyweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 6,
+      "card_segment": "prelim",
+      "red": "Stephen Thompson",
+      "blue": "Charles Radtke",
+      "weight_class": "Welterweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 7,
+      "card_segment": "prelim",
+      "red": "Drew Dober",
+      "blue": "Chris Duncan",
+      "weight_class": "Lightweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 8,
+      "card_segment": "prelim",
+      "red": "Jim Miller",
+      "blue": "Terrance McKinney",
+      "weight_class": "Lightweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 9,
+      "card_segment": "prelim",
+      "red": "Donte Johnson",
+      "blue": "Cesar Almeida",
+      "weight_class": "Middleweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 10,
+      "card_segment": "early_prelim",
+      "red": "Jared Gordon",
+      "blue": "Melquizael Costa",
+      "weight_class": "Featherweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 11,
+      "card_segment": "early_prelim",
+      "red": "Macy Chiasson",
+      "blue": "Bia Mesquita",
+      "weight_class": "Women's Bantamweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 12,
+      "card_segment": "early_prelim",
+      "red": "Alatengheili",
+      "blue": "Juan Diaz",
+      "weight_class": "Bantamweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 13,
+      "card_segment": "early_prelim",
+      "red": "Evan Elder",
+      "blue": "Samuel Sanches",
+      "weight_class": "Lightweight",
+      "scheduled_rounds": 3
+    }
+  ]
+}
