@@ -103,7 +103,8 @@
       "red": "Alatengheili",
       "blue": "Juan Diaz",
       "weight_class": "Bantamweight",
-      "scheduled_rounds": 3
+      "scheduled_rounds": 3,
+      "short_notice_red": true
     },
     {
       "bout_order": 13,
