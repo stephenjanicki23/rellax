@@ -1,0 +1,91 @@
+{
+  "event": {
+    "name": "UFC Fight Night: Prochazka vs. Stirling",
+    "date": "2026-11-21",
+    "venue": "ABHA Arena",
+    "location": "Doha, Qatar",
+    "source_url": "https://www.ufc.com/event/ufc-fight-night-november-21-2026"
+  },
+  "fights": [
+    {
+      "bout_order": 1,
+      "card_segment": "main",
+      "red": "Jiri Prochazka",
+      "blue": "Navajo Stirling",
+      "weight_class": "Light Heavyweight",
+      "scheduled_rounds": 5
+    },
+    {
+      "bout_order": 2,
+      "card_segment": "main",
+      "red": "Aljamain Sterling",
+      "blue": "Kevin Vallejos",
+      "weight_class": "Featherweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 3,
+      "card_segment": "main",
+      "red": "Dan Hooker",
+      "blue": "Brian Ortega",
+      "weight_class": "Lightweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 4,
+      "card_segment": "main",
+      "red": "Asu Almabayev",
+      "blue": "Kyoji Horiguchi",
+      "weight_class": "Flyweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 5,
+      "card_segment": "main",
+      "red": "Jared Cannonier",
+      "blue": "Ikram Aliskerov",
+      "weight_class": "Middleweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 6,
+      "card_segment": "main",
+      "red": "Aleksandre Topuria",
+      "blue": "Santiago Luna",
+      "weight_class": "Bantamweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 7,
+      "card_segment": "prelim",
+      "red": "Shamil Gaziev",
+      "blue": "Tallison Teixeira",
+      "weight_class": "Heavyweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 8,
+      "card_segment": "prelim",
+      "red": "Amir Albazi",
+      "blue": "Alessandro Costa",
+      "weight_class": "Flyweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 9,
+      "card_segment": "prelim",
+      "red": "Jake Matthews",
+      "blue": "Tahir Abdullayev",
+      "weight_class": "Welterweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 10,
+      "card_segment": "prelim",
+      "red": "Manoel Sousa",
+      "blue": "Magomed Zaynukov",
+      "weight_class": "Lightweight",
+      "scheduled_rounds": 3
+    }
+  ]
+}
