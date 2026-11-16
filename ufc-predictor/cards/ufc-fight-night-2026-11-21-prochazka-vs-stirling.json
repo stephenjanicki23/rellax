@@ -82,9 +82,17 @@
     {
       "bout_order": 10,
       "card_segment": "prelim",
-      "red": "Manoel Sousa",
-      "blue": "Magomed Zaynukov",
+      "red": "Nikolas Motta",
+      "blue": "Dom Mar Fan",
       "weight_class": "Lightweight",
+      "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 11,
+      "card_segment": "prelim",
+      "red": "Diyar Nurgozhay",
+      "blue": "Alik Lorenz",
+      "weight_class": "Light Heavyweight",
       "scheduled_rounds": 3
     }
   ]
