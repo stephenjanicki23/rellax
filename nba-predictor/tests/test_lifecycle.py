@@ -45,3 +45,9 @@ def test_upcoming_without_provider_is_reported_not_faked(tmp_db):
     db.set_setting(tmp_db, "providers.upcoming", "manual")
     assert "skipped" in lifecycle.refresh_upcoming(tmp_db)
     assert "skipped" in lifecycle.refresh_odds(tmp_db)
+
+
+def test_cli_fails_when_a_data_source_fails():
+    from nbapred.cli import _has_error
+    assert _has_error({"mirror": {"games_new": 1}, "recent": {"error": "HTTP 403"}})
+    assert not _has_error({"mirror": {"skipped": "loaded"}, "recent": {"skipped": "up to date"}})

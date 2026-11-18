@@ -98,3 +98,20 @@ def fetch(url: str, provider: str, resource: str, *, min_interval_s: float = 2.0
     cache.write_text(text)
     return text, SourceMeta(provider, resource, redact(url), utcnow(), sha256(text), "ok", 200, None, str(cache),
                             license=license)
+
+
+def probe(urls: list[str], timeout: float = 20) -> list[dict]:
+    """Which data sources answer from this machine (plain requests with the app's own User-Agent)."""
+    out = []
+    for u in urls:
+        row = {"url": redact(u)}
+        try:
+            code, body = _get(u, timeout)
+            row["result"] = f"HTTP {code}, {len(body)} bytes"
+            row["ok"] = code == 200
+        except Exception as e:  # network failure
+            row["result"] = f"{type(e).__name__}: {redact(str(e))[:120]}"
+            row["ok"] = False
+        out.append(row)
+        time.sleep(1)
+    return out
