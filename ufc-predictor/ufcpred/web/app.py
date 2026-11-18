@@ -292,6 +292,15 @@ def rollback(version_id: int, reason: str = Form("manual rollback from Learning 
     return RedirectResponse("/learning", status_code=303)
 
 
+@app.get("/lab", response_class=HTMLResponse)
+def lab(request: Request, mode: str = "all", conn=Depends(get_db)):
+    from .. import model_lab
+    mode = mode if mode in ("all", "live", "replay") else "all"
+    ev = services.upcoming_event(conn)
+    return render(request, "lab.html", r=model_lab.report(conn, mode), mode=mode, models=model_lab.MODELS,
+                  alt=model_lab.ALT, next_ev=ev, picks=model_lab.upcoming(conn, ev["id"]) if ev else [])
+
+
 def _strategy(request: Request) -> tuple[str, str]:
     """The strategy a Betting Edge page shows (main rule unless ?strategy= names a side strategy)."""
     key = request.query_params.get("strategy", "")
@@ -529,6 +538,9 @@ def action(name: str, event_id: int | None = Form(None), reason: str = Form(""),
             msg = str(review.evaluate_event(conn, event_id, "live"))
         elif name == "sync_bets":
             msg = "bets: " + str(betting.sync(conn, actor="admin"))
+        elif name == "sync_lab":
+            from .. import model_lab
+            msg = "model lab: " + str(model_lab.sync(conn))
         else:
             raise HTTPException(400, "unknown action")
         if name in ("predict", "lock", "evaluate", "refresh_odds", "refresh_upcoming"):
@@ -537,6 +549,8 @@ def action(name: str, event_id: int | None = Form(None), reason: str = Form(""),
         msg = f"refused: {e}"
     if name == "sync_bets":
         return RedirectResponse("/edge", status_code=303)
+    if name == "sync_lab":
+        return RedirectResponse("/lab", status_code=303)
     return RedirectResponse(f"/settings?msg={msg[:300]}", status_code=303)
 
 
