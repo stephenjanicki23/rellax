@@ -175,8 +175,9 @@ _REASONS = [
     (r"^injury report not recorded.*", "We don't know who is ruled out tonight (no injury report recorded)."),
     (r"^(\d+) rotation players out on one side.*", r"\1 rotation players are out for one team; the engine has little "
      r"history of how much that matters."),
-    (r"^wide model uncertainty.*", "The numbers point in different directions, so the range of outcomes is wide."),
-    (r"^sub-models disagree.*", "Different parts of the engine disagree about this game."),
+    (r"^wide model uncertainty.*", "The engine isn't sure which team should be favoured: its likely range includes "
+     "the other team."),
+    (r"^sub-models disagree.*", "The season-long numbers and recent form point to different winners."),
     (r"^(\d+) inputs unknown and imputed", r"\1 pieces of information are missing and had to be estimated."),
     (r"^historical predictions in the .* band were miscalibrated \((\d+%) correct vs (\d+%) stated, n=(\d+)\)",
      r"Past picks at these odds were right \1 of the time when the engine expected \2 (\3 games)."),

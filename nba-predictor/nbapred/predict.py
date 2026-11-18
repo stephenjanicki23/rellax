@@ -77,12 +77,20 @@ def confidence(pred: dict, a: dict, b: dict, hist: dict | None) -> dict:
         score -= 0.15
         reasons.append(f"{max(a['out'], b['out'])} rotation players out on one side; the engine has little history "
                        "of how much that matters")
-    if total_sd > 0.30:
+    # Uncertainty counts against confidence only when it puts the pick itself in doubt. Absolute spread grows
+    # with how lopsided a game is, so fixed thresholds would mark down exactly the clearest games.
+    fav_home = pred["p_home"] >= 0.5
+    fav_low = interval[0] if fav_home else 1 - interval[1]
+    if fav_low < 0.5:
         score -= 0.2
-        reasons.append(f"wide model uncertainty (logit sd {total_sd:.2f})")
-    if disagreement > 0.07:
+        reasons.append(f"wide model uncertainty: the 80% range ({fav_low:.0%} at the low end) includes the other "
+                       f"team being favoured (logit sd {total_sd:.2f})")
+    against = [k for k, v in pred["submodel_p_home"].items()
+               if k in ("A_baseline", "B_form") and (v >= 0.5) != fav_home and abs(v - 0.5) > 0.03]
+    if against:
         score -= 0.15
-        reasons.append(f"sub-models disagree (sd of sub-model probabilities {disagreement:.2f})")
+        reasons.append(f"sub-models disagree: {' and '.join(against)} favour the other team "
+                       f"(sd of sub-model probabilities {disagreement:.2f})")
     if len(imputed) > 4:
         score -= 0.1
         reasons.append(f"{len(imputed)} inputs unknown and imputed")
