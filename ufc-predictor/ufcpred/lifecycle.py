@@ -194,6 +194,12 @@ def tick(conn) -> dict:
         report["bets"] = betting.sync(conn)
     except Exception as e:
         report["bets"] = {"error": f"{type(e).__name__}: {e}"}
+    try:   # Model Lab scores the alternative models on graded fights; tracking only, never blocks the tick
+        from . import model_lab
+        report["model_lab"] = model_lab.sync(conn)
+    except Exception as e:
+        conn.rollback()
+        report["model_lab"] = {"error": f"{type(e).__name__}: {e}"}
     _finish(conn, jid, "ok", str({k: (v if k != "results" else len(v)) for k, v in report.items()}))
     return report
 
