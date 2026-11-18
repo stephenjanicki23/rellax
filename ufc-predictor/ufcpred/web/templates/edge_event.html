@@ -3,10 +3,10 @@
 {% macro pl(c) -%}<span class="{{ 'gain' if c and c > 0 else 'loss' if c and c < 0 else '' }}">{{ c | money }}</span>{%- endmacro %}
 {% macro pct1(v) -%}{{ '—' if v is none else '%.1f%%' % (v * 100) }}{%- endmacro %}
 {% block body %}
-<div class="small"><a href="/edge">← Betting Edge</a></div>
-<h1>{{ ev.name }}</h1>
-<div class="sub">{{ ev.date }} · <a href="/event/{{ ev.id }}?mode=live">fight card</a> · <a href="/edge/bets?event={{ ev.id }}">this card in the ledger</a>
-  · <a href="/edge/bets.csv?event={{ ev.id }}">export CSV</a></div>
+<div class="small"><a href="/edge{{ '?' ~ sq if sq }}">← Betting Edge</a></div>
+<h1>{{ ev.name }}{% if strat != 'confidence_flat' %} <span class="muted">· {{ strategies[strat].name }}</span>{% endif %}</h1>
+<div class="sub">{{ ev.date }} · <a href="/event/{{ ev.id }}?mode=live">fight card</a> · <a href="/edge/bets?event={{ ev.id }}{{ '&' ~ sq if sq }}">this card in the ledger</a>
+  · <a href="/edge/bets.csv?event={{ ev.id }}{{ '&' ~ sq if sq }}">export CSV</a></div>
 
 {% if st %}
 <div class="grid g4" style="margin-bottom:14px">

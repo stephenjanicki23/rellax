@@ -15,7 +15,8 @@ def main() -> int:
                   (SELECT r.winner_fighter_id FROM fight_results r WHERE r.fight_id=b.fight_id ORDER BY r.revision DESC LIMIT 1) AS winner,
                   (SELECT r.method FROM fight_results r WHERE r.fight_id=b.fight_id ORDER BY r.revision DESC LIMIT 1) AS method,
                   (SELECT MIN(r.recorded_at) FROM fight_results r WHERE r.fight_id=b.fight_id) AS first_res
-           FROM sim_bets b JOIN fights f ON f.id=b.fight_id ORDER BY b.event_date, b.id""").fetchall()
+           FROM sim_bets b JOIN fights f ON f.id=b.fight_id WHERE b.strategy='confidence_flat'
+           ORDER BY b.event_date, b.id""").fetchall()
     cols = ["date", "pick", "opp", "tier", "conf", "p", "stake", "bet_dec", "status", "net", "mkt_dec_pick", "mkt_dec_opp",
             "n_odds", "outcome", "pick_won", "method", "fight_status"]
     print("\t".join(cols))
