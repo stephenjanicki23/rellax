@@ -1,0 +1,173 @@
+{% extends "base.html" %}{% from "macros.html" import modetag, na, edgebar %}
+{% block title %}{{ g.away_name }} at {{ g.home_name }}{% endblock %}
+{% block body %}
+<h1><span class="away">{{ g.away_name }}</span> at <span class="home">{{ g.home_name }}</span></h1>
+<div class="sub"><a href="/night/{{ g.event_id }}?mode={{ mode }}">{{ g.event_name }}</a>
+  {% if g.tip_time_utc %}· tip-off {{ g.tip_time_utc[11:16] }} UTC{% endif %} · {{ season_label(g.season_type) }} {{ g.season }}
+  {% if g.neutral_site %}· neutral site{% if g.venue_city %} ({{ g.venue_city }}){% endif %}{% endif %} · {{ modetag(mode) }}</div>
+{% if not pred %}<div class="banner warn">No prediction has been made for this game yet.</div>{% else %}
+{% set p = payload %}
+{% set home_fav = p.predicted_winner_id == g.home_team_id %}
+{% set fav = g.home_name if home_fav else g.away_name %}{% set dog = g.away_name if home_fav else g.home_name %}
+{% set fav_side = 'home' if home_fav else 'away' %}{% set dog_side = 'away' if home_fav else 'home' %}
+{% set fav_p = p.p_home if home_fav else p.p_away %}
+{% if pred.id in official and mode == 'replay' %}<div class="banner info small">🔒 Past-season test: this pick used only games before {{ pred.data_cutoff }} and was locked before the result was graded.</div>
+{% elif pred.id in official %}<div class="banner info small">🔒 This pick was locked before tip-off on {{ pred.created_at[:10] }} and can't be changed. It is the one that gets graded.</div>
+{% elif pred.is_post_lock %}<div class="banner warn small">This update was made after the night locked, so it is not graded.</div>
+{% else %}<div class="banner small">Early pick — it can still update (for example with an injury report) until the night locks shortly before the first tip-off.</div>{% endif %}
+
+{% if msg %}<div class="banner info small">{{ msg }}</div>{% endif %}
+{% if admin and gameday_open %}
+<details class="card" style="margin-bottom:14px"{% if g.home_out is not none or g.away_out is not none %} open{% endif %}>
+  <summary><b>Game-day info</b> <span class="small muted">— rotation players ruled out (before the night locks)</span></summary>
+  <form method="post" action="/game/{{ g.id }}/gameday" class="filters" style="margin-top:10px">
+    {% for key, nm in [('away_out', g.away_name), ('home_out', g.home_name)] %}
+    <label>Rotation players out: {{ nm }}<select name="{{ key }}"><option value="unknown" {{ 'selected' if g[key] is none }}>unknown</option>{% for v in range(0, 6) %}<option value="{{ v }}" {{ 'selected' if g[key] == v }}>{{ v }}</option>{% endfor %}</select></label>
+    {% endfor %}
+    <label style="grid-column: span 2">Source (required)<input name="source" required placeholder="e.g. official NBA injury report, 5:30 pm ET"></label>
+    <div><button class="primary">Save &amp; re-predict</button></div>
+  </form>
+  <p class="small muted">The engine has not yet learned how much absences matter: the historical data never recorded them, so today they mostly
+    lower the confidence rating rather than move the pick. Each entry is kept, so their effect can be learned as they build up.</p>
+</details>
+{% endif %}
+
+<div class="grid g2">
+<div class="card">
+  <h2>Who wins? <span class="tag estimate">estimate</span></h2>
+  <p class="big-pick"><span class="{{ fav_side }}">{{ fav }}</span> is favoured — {{ fav_p | pct }} chance</p>
+  <div class="pbl"><span class="away">{{ g.away_name }} {{ p.p_away | pct }}</span><span class="home">{{ p.p_home | pct }} {{ g.home_name }}</span></div>
+  {{ charts.prob_bar(p.p_away, g.away_name, g.home_name, (1 - p.confidence.interval80_p_home[1], 1 - p.confidence.interval80_p_home[0])) | safe }}
+  <p class="explain">In plain terms: if these teams played this game 10 times, the engine expects <b>{{ fav }}</b> to win about
+    <b>{{ (fav_p * 10) | round | int }}</b>. The small marks on the bar show the likely range for that estimate.</p>
+  <h3>{{ term('confidence', 'Confidence') }}: {{ p.confidence.label }}</h3>
+  <ul class="factors small">{% for r in p.confidence.reasons %}{% set t = plainify(r) %}{% if t %}<li>{{ t }}</li>{% endif %}{% else %}<li>Plenty of information on both teams, and the engine's parts agree.</li>{% endfor %}</ul>
+  {% set hc = p.confidence.historical_calibration %}
+  {% if hc and hc.sufficient %}<p class="small">📈 Track record: past picks with similar odds were right <b>{{ hc.accuracy | pct }}</b> of the time ({{ hc.n }} games).</p>{% endif %}
+</div>
+<div class="card">
+  <h2>By how much? <span class="tag estimate">estimate</span></h2>
+  <p class="big-pick">Expected: <span class="{{ fav_side }}">{{ fav }}</span> by {{ '%.1f' % (p.predicted_margin | abs) }} · {{ term('line', 'engine line') }} {{ line(p.spread_view.engine_line_home, g.home_abbr or 'home') }}</p>
+  <table><tr><th>Winning margin</th><th class="num away">{{ g.away_name }}</th><th class="num home">{{ g.home_name }}</th></tr>
+  {% for b, lab, d in [('CLOSE','By 1–5','A one- or two-possession game.'),('SOLID','By 6–12','A comfortable win.'),('BLOWOUT','By 13+','A blowout.')] %}
+  <tr><td>{{ tip(lab, d) }}</td><td class="num">{{ p.bands.away[b] | pct }}</td><td class="num">{{ p.bands.home[b] | pct }}</td></tr>{% endfor %}
+  <tr><th>Total</th><th class="num">{{ p.p_away | pct }}</th><th class="num">{{ p.p_home | pct }}</th></tr></table>
+  <h3>Points</h3>
+  <p class="small">Projected total <b>{{ '%.1f' % p.total.mu }}</b> (likely range {{ '%.0f' % (p.total.mu - 1.28 * p.total.sd) }}–{{ '%.0f' % (p.total.mu + 1.28 * p.total.sd) }}; league average {{ '%.1f' % p.total.league_avg }}).
+    Overtime: about {{ p.p_overtime | pct }}.</p>
+  {% if p.market %}{% set mk = p.market %}
+  <h3>Against the market <span class="tag confirmed">{{ mk.bookmaker or 'imported' }}</span></h3>
+  <table class="small">
+    {% if mk.p_home is defined %}<tr><td>Moneyline</td><td>market {{ g.home_name }} {{ mk.p_home | pct }}</td><td>engine {{ p.p_home | pct }}</td></tr>{% endif %}
+    {% if mk.spread_home is defined %}<tr><td>Spread</td><td>{{ line(mk.spread_home, g.home_abbr or 'home') }}</td><td>engine says {{ g.home_name if mk.p_home_covers >= 0.5 else g.away_name }} covers ({{ [mk.p_home_covers, 1 - mk.p_home_covers] | max | pct }})</td></tr>{% endif %}
+    {% if mk.total is defined %}<tr><td>Total</td><td>{{ mk.total }}</td><td>engine leans {{ 'over' if mk.p_over >= 0.5 else 'under' }} ({{ [mk.p_over, 1 - mk.p_over] | max | pct }})</td></tr>{% endif %}
+  </table>
+  <p class="small muted">Comparison only — the engine does not use betting lines.</p>{% endif %}
+</div>
+</div>
+
+<h2 style="margin-top:20px">Why the engine thinks this</h2>
+<p class="small muted" style="margin-top:-6px">The biggest reasons on each side. More filled squares = bigger influence on the pick. Hover over a stat to see what it measures.</p>
+<div class="grid g2">
+{% for side, nm, items in [('away', g.away_name, p.explanation.favoring_away), ('home', g.home_name, p.explanation.favoring_home)] %}
+<div class="card"><h2>In favour of <span class="{{ side }}">{{ nm }}</span></h2>
+  {% for x in items %}{% set fx = factor(x, p.stats, g.home_name, g.away_name) %}
+  <div class="factor">
+    <div class="ft">{{ edgebar(fx.level, side[0]) }}{{ fx.title }} <span class="muted small">· {{ fx.group }} · {{ fx.strength }}</span>{% if fx.imputed %} <span class="tag unavailable tip" tabindex="0" data-tip="Some of this information is missing, so it was estimated.">estimated</span>{% endif %}</div>
+    {% for v in fx.stats %}<div class="fv">{{ tip(v.label, v.desc) }}: <span class="away">{{ g.away_name }} {{ v.away }}</span> · <span class="home">{{ g.home_name }} {{ v.home }}</span></div>{% endfor %}
+  </div>
+  {% else %}<p class="muted">Nothing notable.</p>{% endfor %}
+</div>{% endfor %}
+</div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h2>Head to head</h2>
+  <p class="small muted" style="margin-top:-4px">Each team going into this game. Season numbers are nudged toward last season while the sample is small.</p>
+  <table><tr><th>Stat</th><th class="num away">{{ g.away_name }}</th><th class="num home">{{ g.home_name }}</th><th>Better</th></tr>
+  {% for a in p.explanation.statistical_advantages %}<tr><td>{{ stat(a.key) }}</td><td class="num">{{ a.away or '—' }}</td><td class="num">{{ a.home or '—' }}</td>
+    <td>{% if a.edge == 'home' %}<span class="home">●</span>{% elif a.edge == 'away' %}<span class="away">●</span>{% elif a.edge == 'unknown' %}<span class="tag unavailable">unknown</span>{% endif %}</td></tr>{% endfor %}
+  {% for k in ['season_games','last10','streak','days_rest','games_last_4','travel_km','road_trip','out'] %}
+    <tr><td>{{ stat(k) }}</td><td class="num">{{ na(p.stats.away[k]) if p.stats.away[k] is none else stat_value(k, p.stats.away[k]) }}</td>
+    <td class="num">{{ na(p.stats.home[k]) if p.stats.home[k] is none else stat_value(k, p.stats.home[k]) }}</td><td></td></tr>{% endfor %}
+  </table>
+</div>
+<div class="card"><h2>What could go wrong</h2>
+  <h3>How {{ dog }} could win</h3>
+  {% set dog_items = p.explanation.favoring_away if home_fav else p.explanation.favoring_home %}
+  <ul class="factors small">
+    {% for x in dog_items[:3] %}<li>{{ FACTOR_NAMES.get(x.feature, x.feature) }} turns out to matter more than expected.</li>{% endfor %}
+    <li>Ordinary game-to-game noise: the final margin typically lands within about {{ '%.0f' % p.margin.sigma }} points of the expectation.</li>
+  </ul>
+  <h3>What we don't know</h3>
+  <ul class="factors small">{% for u in p.explanation.uncertainties %}{% set t = plainify(u) %}{% if t %}<li>{{ t }}</li>{% endif %}{% endfor %}</ul>
+</div>
+</div>
+
+<div class="card" style="margin-top:14px"><h2>Last 5 games before this one</h2>
+  <div class="grid g2">
+  {% for side, nm in [('away', g.away_name), ('home', g.home_name)] %}<div><h3 class="{{ side }}">{{ nm }}</h3>
+  <table class="small"><tr><th>Date</th><th>Where</th><th>Result</th><th class="num">Margin</th></tr>
+  {% for r in (p.last5[side] or []) | reverse %}<tr><td><a href="/game/{{ r.game_id }}">{{ r.date }}</a></td><td>{{ {1:'home',0:'away'}.get(r.home, 'neutral') }}</td><td>{{ 'Win' if r.result == 1 else 'Loss' }}</td><td class="num">{{ '%+d' % r.margin }}</td></tr>{% else %}<tr><td colspan="4" class="muted">No earlier games on record</td></tr>{% endfor %}</table></div>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:14px"><h2>Result</h2>
+  {% for r in results %}<p>{% if loop.length > 1 %}Update {{ r.revision }} ({{ r.reason }}): {% endif %}<span class="tag confirmed">official</span>
+  {% if r.outcome == 'win' %}{{ g.away_name }} {{ r.away_score }} – {{ r.home_score }} {{ g.home_name }}{% if r.periods and r.periods > 4 %} after {{ r.periods - 4 }} overtime{{ 's' if r.periods > 5 }}{% endif %}{% else %}Abandoned / no result {{ r.details or '' }}{% endif %}
+  {% if r.source_url %} · <a class="small" href="{{ r.source_url }}">source</a>{% endif %}</p>
+  {% else %}<p class="muted">The game hasn't been played yet (or the final score isn't in).</p>{% endfor %}
+  {% if box %}<table class="small"><tr><th>Team</th><th class="num">Pts</th><th class="num">FG</th><th class="num">3P</th><th class="num">FT</th><th class="num">OREB</th><th class="num">DREB</th><th class="num">AST</th><th class="num">TOV</th></tr>
+  {% for b in box %}<tr><td>{{ b.name }}</td><td class="num">{{ b.pts }}</td><td class="num">{{ b.fgm }}-{{ b.fga }}</td><td class="num">{{ b.fg3m }}-{{ b.fg3a }}</td><td class="num">{{ b.ftm }}-{{ b.fta }}</td><td class="num">{{ b.oreb if b.oreb is not none else '—' }}</td><td class="num">{{ b.dreb if b.dreb is not none else '—' }}</td><td class="num">{{ b.ast if b.ast is not none else '—' }}</td><td class="num">{{ b.tov if b.tov is not none else '—' }}</td></tr>{% endfor %}</table>{% endif %}
+  {% for e in evals %}{% set d = e.details_json | loads %}
+    {% if e.scored %}<p><span class="status {{ 'good' if e.correct_winner else 'bad' }}">{{ 'The pick was right' if e.correct_winner else 'The pick was wrong' }}</span>
+      · the engine gave the winner a {{ e.p_actual | pct }} chance
+      · margin off by {{ '%.1f' % (e.margin_error | abs) }} points{% if e.total_error is not none %} · total off by {{ '%.1f' % (e.total_error | abs) }}{% endif %}
+      {% if e.ats_correct is not none %} · {{ term('ats', 'against the spread') }} {{ 'right ✓' if e.ats_correct else 'wrong ✕' }}{% endif %}</p>
+      {% set testable = d.factor_support | rejectattr('verdict', 'equalto', 'not testable from the box score') | list %}
+      {% if testable %}<h3>Did the reasons hold up in the game?</h3>
+      <ul class="factors small">{% for s in testable %}<li>{{ FACTOR_NAMES.get(s.feature, s.feature) }} ({{ g.home_name if s.favoured == 'home' else g.away_name }}):
+        {{ {'supported':'✓ yes','contradicted':'✕ no','neutral':'— even'}.get(s.verdict, s.verdict) }}</li>{% endfor %}</ul>{% endif %}
+    {% else %}<p class="small muted">Not graded (no official result).</p>{% endif %}
+  {% endfor %}
+</div>
+
+{% if pred %}{% set p = payload %}
+<details class="tech"><summary>Technical details (for the statistically curious)</summary>
+<div class="grid g2">
+<div>
+  <h3>Record-keeping</h3>
+  <p class="small">Version {{ pred.version }} of {{ versions | length }} · recorded {{ pred.created_at }} · decision time {{ pred.as_of }}
+  (uses only games before {{ pred.data_cutoff }}) · model <b>{{ model.label }}</b> · reason “{{ pred.reason }}” · ledger hash <code>{{ pred.content_sha256[:12] }}</code></p>
+  <table class="small"><tr><th>v</th><th>Recorded</th><th>Reason</th><th class="num">P(home)</th><th>Status</th></tr>
+  {% for v in versions %}<tr><td><a href="?mode={{ mode }}&version={{ v.version }}">{{ v.version }}</a></td><td>{{ v.created_at }}</td><td>{{ v.reason }}</td><td class="num">{{ v.p_home | pct(1) }}</td>
+  <td>{% if v.id in official %}locked{% elif v.is_post_lock %}post-lock{% else %}superseded/preliminary{% endif %}</td></tr>{% endfor %}</table>
+  <h3>Uncertainty</h3>
+  <p class="small">80% interval for {{ g.home_name }}: {{ p.confidence.interval80_p_home[0] | pct(1) }}–{{ p.confidence.interval80_p_home[1] | pct(1) }}. Confidence score {{ p.confidence.score }}.
+  {% for r in p.confidence.reasons %}{{ r }}{{ '; ' if not loop.last }}{% endfor %}. Margin ~ Normal(μ={{ '%.2f' % p.margin.mu }}, σ={{ '%.2f' % p.margin.sigma }}); total ~ Normal({{ '%.1f' % p.total.mu }}, {{ '%.1f' % p.total.sd }}).</p>
+  <h3>Sub-models &amp; ensemble</h3>
+  <table class="small"><tr><th>Model</th><th class="num">P({{ g.home_name }})</th><th class="num">Learned weight</th></tr>
+  {% for k, pr in p.submodels.items() %}<tr><td>{{ k }}</td><td class="num">{{ pr | pct(1) }}</td><td class="num">{{ '%.3f' % p.ensemble_weights[k].effective }}</td></tr>{% endfor %}
+  <tr><th>Calibrated ensemble</th><th class="num">{{ p.p_home | pct(1) }}</th><th></th></tr></table>
+  <h3>Total-points terms (points vs. league average)</h3>
+  <table class="small">{% for t in p.total.terms | sort(attribute='points', reverse=True) %}<tr><td>{{ t.feature }}{% if t.imputed %} (imputed){% endif %}</td><td class="num">{{ '%+.1f' % t.points }}</td></tr>{% endfor %}</table>
+</div>
+<div>
+  <h3>Factor contributions (log-odds, + favours the home team)</h3>
+  <ul class="factors small">{% for x in p.explanation.favoring_home + p.explanation.favoring_away %}<li>{{ x.text }} <span class="muted">({{ '%+.2f' % x.logit }} · {{ x.group }})</span></li>{% endfor %}</ul>
+  <p class="small muted">{{ p.explanation.basis }}</p>
+  <details><summary class="small">All feature contributions ({{ p.contributions | length }})</summary>
+  <table class="small"><tr><th>Feature</th><th>Model</th><th class="num">Raw diff (home − away)</th><th class="num">Δ log-odds</th></tr>
+  {% for c in p.contributions | sort(attribute='contribution', reverse=True) %}<tr><td>{{ c.feature }}</td><td>{{ c.group }}</td><td class="num">{{ '—' if c.raw_diff is none else '%.3f' % c.raw_diff }}{% if c.imputed %} (imputed){% endif %}</td><td class="num">{{ '%+.3f' % c.contribution }}</td></tr>{% endfor %}
+  </table></details>
+  {% for e in evals %}{% set d = e.details_json | loads %}{% if e.scored %}
+  <h3>Scoring (result revision {{ d.result_revision }})</h3>
+  <p class="small">Log loss {{ e.log_loss | f(3) }} · Brier {{ e.brier | f(3) }} · margin z {{ d.margin_z | f(2) }} · band log loss {{ e.bucket_log_loss | f(3) }} · {{ e.calibration_note }}</p>
+  {% if e.report_json %}{% set rep = e.report_json | loads %}<h3>Failure analysis — {{ e.category | replace('_', ' ') }}</h3>
+  <dl class="kv small">{% for k, v in rep.items() %}<dt>{{ k[3:] | replace('_', ' ') }}</dt><dd>{% if v is string %}{{ v }}{% else %}{{ v | join('; ') }}{% endif %}</dd>{% endfor %}</dl>{% endif %}
+  {% endif %}{% endfor %}
+</div>
+</div>
+</details>
+{% endif %}
+{% endblock %}

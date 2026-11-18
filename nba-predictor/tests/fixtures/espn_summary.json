@@ -1,0 +1,16 @@
+{"header": {"competitions": [{"status": {"period": 4}, "competitors": [
+   {"homeAway": "home", "team": {"id": "18"}}, {"homeAway": "away", "team": {"id": "2"}}]}]},
+ "boxscore": {"teams": [
+  {"team": {"id": "2", "abbreviation": "BOS"}, "statistics": [
+     {"name": "fieldGoalsMade-fieldGoalsAttempted", "displayValue": "38-90"},
+     {"name": "threePointFieldGoalsMade-threePointFieldGoalsAttempted", "displayValue": "16-44"},
+     {"name": "freeThrowsMade-freeThrowsAttempted", "displayValue": "12-14"},
+     {"name": "offensiveRebounds", "displayValue": "11"}, {"name": "defensiveRebounds", "displayValue": "31"},
+     {"name": "assists", "displayValue": "25"}, {"name": "steals", "displayValue": "7"}, {"name": "blocks", "displayValue": "4"},
+     {"name": "turnovers", "displayValue": "13"}, {"name": "totalTurnovers", "displayValue": "14"}, {"name": "fouls", "displayValue": "19"}]},
+  {"team": {"id": "18", "abbreviation": "NY"}, "statistics": [
+     {"name": "fieldGoalsMade-fieldGoalsAttempted", "displayValue": "41-88"},
+     {"name": "threePointFieldGoalsMade-threePointFieldGoalsAttempted", "displayValue": "14-35"},
+     {"name": "freeThrowsMade-freeThrowsAttempted", "displayValue": "16-20"},
+     {"name": "offensiveRebounds", "displayValue": "9"}, {"name": "defensiveRebounds", "displayValue": "36"},
+     {"name": "assists", "displayValue": "24"}, {"name": "turnovers", "displayValue": "12"}, {"name": "fouls", "displayValue": "17"}]}]}}

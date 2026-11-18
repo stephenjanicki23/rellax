@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Game nights{% endblock %}
+{% block body %}
+<h1>Game nights</h1>
+<div class="sub">Every NBA date in the database. Picks lock per night, shortly before the first tip-off.</div>
+<div class="card scroll"><table>
+<tr><th>Date</th><th>Night</th><th class="num">Games</th><th>Status</th><th>Locked predictions</th></tr>
+{% for e in events %}<tr><td>{{ e.date }}</td><td><a href="/night/{{ e.id }}">{{ e.name }}</a></td>
+<td class="num">{{ e.n_games }}</td><td>{{ e.status | replace('_', ' ') }}</td><td>{{ 'yes' if e.n_locks else '—' }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No game nights yet.</td></tr>{% endfor %}
+</table>
+<p><a href="?page={{ page_no + 1 }}">older →</a>{% if page_no %} · <a href="?page={{ page_no - 1 }}">← newer</a>{% endif %}</p></div>
+{% endblock %}

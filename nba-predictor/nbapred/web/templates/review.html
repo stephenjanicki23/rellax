@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% from "macros.html" import modetag %}
+{% block body %}
+{% set ev = card.event %}
+<h1>How the picks did: {{ ev.name }}</h1>
+<div class="sub">{{ modetag(card.mode) }} · <a href="/night/{{ ev.id }}?mode={{ card.mode }}">back to the night</a></div>
+{% set graded = card.games | selectattr('evaluation') | list %}
+{% set scored = graded | selectattr('evaluation.scored') | list %}
+{% if not card.lock %}<div class="banner warn">No locked picks for this night, so there is nothing to review.</div>
+{% elif not graded %}<div class="banner warn">The final scores for this night aren't in yet. Check back after the games.</div>{% endif %}
+{% if scored %}
+{% set correct = scored | selectattr('evaluation.correct_winner') | list | length %}
+{% set bcorrect = scored | selectattr('evaluation.bucket_correct') | list | length %}
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card stat"><div class="l">Winner right</div><div class="v">{{ correct }}/{{ scored | length }}</div></div>
+  <div class="card stat"><div class="l">Winner and margin band right</div><div class="v">{{ bcorrect }}/{{ scored | length }}</div></div>
+</div>
+<p class="small muted">One night is a small sample — a great or bad night says little on its own. The engine only changes itself based on patterns across many games.</p>
+{% endif %}
+<div class="card scroll"><table>
+<tr><th>Game</th><th>Pick</th><th>Final</th><th class="num">{{ tip('Chance given to winner', 'The chance the engine gave the team that actually won.') }}</th><th>Winner</th><th class="num">Margin: expected → actual</th><th class="num">Total: projected → actual</th><th>What went wrong</th></tr>
+{% for item in card.games if item.prediction %}{% set p = item.payload %}{% set e = item.evaluation %}{% set r = item.result %}{% set g = item.game %}
+<tr><td><a href="/game/{{ g.id }}?mode={{ card.mode }}">{{ g.away_name }} at {{ g.home_name }}</a></td>
+<td>{{ p.home.name if p.predicted_winner_id == g.home_team_id else p.away.name }} {{ [p.p_home, p.p_away] | max | pct }}</td>
+<td>{% if r and r.outcome == 'win' %}{{ r.away_score }}–{{ r.home_score }}{% elif r %}no result{% else %}<span class="muted">{{ g.status }}</span>{% endif %}</td>
+{% if e and e.scored %}{% set d = e.details_json | loads %}
+<td class="num">{{ e.p_actual | pct }}</td><td><span class="status {{ 'good' if e.correct_winner else 'bad' }}">{{ 'right' if e.correct_winner else 'wrong' }}</span></td>
+<td class="num">{{ '%+.1f' % p.predicted_margin }} → {{ '%+d' % d.actual_margin }}</td>
+<td class="num">{{ '%.0f' % p.predicted_total }} → {{ d.actual_total }}</td>
+<td>{% set dg = diags.get(item.prediction.id) %}{% if dg %}<a href="/game/{{ g.id }}?mode={{ card.mode }}">{{ dg.category | replace('_', ' ') }}</a>{% endif %}</td>
+{% else %}<td colspan="5" class="muted">{{ 'not graded' if e else 'not graded yet' }}</td>{% endif %}</tr>
+{% endfor %}
+</table><p class="small muted">Margins are home minus away points.</p></div>
+{% if reports %}<details class="tech"><summary>Technical details (for the statistically curious)</summary>
+{% for rep in reports %}{% set s = rep.structured_json | loads %}
+<div class="card" style="margin-top:14px"><h2>Analyst report ({{ rep.provider }}) <span class="tag estimate">narrative</span></h2>
+<p class="small muted">{{ s.caveat }} {{ s.analyst_note or '' }}</p>
+{% for fnd in s.findings %}<dl class="kv small" style="margin-bottom:10px">{% for k in ['observed_error','supporting_evidence','proposed_explanation','confidence_in_explanation','proposed_change','historical_support','experiment_required','experiment_result','promotion_decision'] %}<dt>{{ k | replace('_',' ') }}</dt><dd>{% if fnd[k] is string %}{{ fnd[k] }}{% else %}{{ fnd[k] | join('; ') }}{% endif %}</dd>{% endfor %}</dl>
+{% else %}<p class="small">No statistically supported weakness at this point; {{ s.hypotheses_without_enough_data | length }} hypotheses lack enough data.</p>{% endfor %}
+</div>{% endfor %}
+</details>{% endif %}
+{% endblock %}

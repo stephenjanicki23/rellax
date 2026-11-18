@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% from "macros.html" import na %}
+{% block title %}{{ t.name }}{% endblock %}
+{% block body %}
+<h1>{{ t.name }}</h1>
+<div class="sub">{{ t.conference or '' }}{% if t.division %} · {{ t.division }}{% endif %} · season {{ st.season }} · as of {{ today }}</div>
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card stat"><div class="l">Record</div><div class="v">{{ st.wins }}-{{ st.losses }}</div><div class="d">{{ st.last10 or '—' }} in the last 10</div></div>
+  <div class="card stat"><div class="l">{{ stat('net') }}</div><div class="v">{{ stat_value('net', st.net) }}</div><div class="d">raw {{ stat_value('net', st.raw_net) }}</div></div>
+  <div class="card stat"><div class="l">{{ stat('elo') }}</div><div class="v">{{ stat_value('elo', st.elo) }}</div></div>
+  <div class="card stat"><div class="l">{{ stat('d_net') }}</div><div class="v">{{ stat_value('d_net', st.d_net) }}</div></div>
+</div>
+<div class="grid g2">
+<div class="card"><h2>Profile</h2><table>
+{% for k in ['ortg','drtg','pace','efg','opp_efg','tov_pct','opp_tov_pct','oreb_pct','dreb_pct','ftr','fg3a_rate','fg3_pct','opp_fg3_pct','adj_net','margin_sd','close_win','blowout_loss','streak'] %}
+<tr><td>{{ stat(k) }}</td><td class="num">{{ na(st[k]) if st[k] is none else stat_value(k, st[k]) }}</td><td class="num muted small">{% if st['raw_' ~ k] is defined and st['raw_' ~ k] is not none %}raw {{ stat_value(k, st['raw_' ~ k]) }}{% endif %}</td></tr>{% endfor %}
+</table></div>
+<div class="card"><h2>Power rating over time</h2>
+  {{ charts.line(trend, 'elo', 'Elo', '{:.0f}', 1505, 'average') | safe }}
+  {% if issues %}<h3>Data-quality notes</h3><ul class="small">{% for i in issues %}<li>{{ i.message }}</li>{% endfor %}</ul>{% endif %}
+</div>
+</div>
+<div class="card scroll" style="margin-top:14px"><h2>Games</h2><table>
+<tr><th>Date</th><th>Opponent</th><th>Where</th><th>Type</th><th>Result</th><th class="num">Score</th></tr>
+{% for x in games %}<tr><td>{{ x.date }}</td><td><a href="/game/{{ x.id }}">{{ x.opp_name }}</a></td><td>{{ 'neutral' if x.neutral_site else ('home' if x.home_team_id == t.id else 'away') }}</td>
+<td>{{ season_label(x.season_type) }}</td>
+<td>{% if x.winner_team_id %}{{ 'W' if x.winner_team_id == t.id else 'L' }}{% else %}<span class="muted">{{ x.status }}</span>{% endif %}</td>
+<td class="num">{% if x.home_score is not none %}{{ x.home_score if x.home_team_id == t.id else x.away_score }}–{{ x.away_score if x.home_team_id == t.id else x.home_score }}{% endif %}</td></tr>
+{% endfor %}</table><p class="small muted">Most recent {{ games | length }} games.</p></div>
+{% endblock %}

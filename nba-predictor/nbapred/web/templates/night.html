@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% from "macros.html" import gamerow, modetag %}
+{% block title %}{{ card.event.name }}{% endblock %}
+{% block body %}
+{% set ev = card.event %}
+<h1>{{ ev.name }}</h1>
+<div class="sub">{{ card.games | length }} games · {{ modetag(card.mode) }}
+  {% if card.lock %}· <a href="/review/{{ ev.id }}?mode={{ card.mode }}">how the picks did</a>{% endif %}
+  · <a href="/edge/night/{{ ev.id }}">betting edge</a></div>
+{% if card.lock %}
+<div class="banner info">🔒 Picks locked on {{ card.lock.locked_at[:16] | replace('T', ' ') }} UTC. They can't be changed now, and they're what gets graded after the games.</div>
+{% else %}
+<div class="banner">Picks are not final yet. They lock automatically at {{ lock_at[:16] | replace('T', ' ') }} UTC{% if not ev.start_time_utc %} (tip-off times aren't known, so they lock at noon Eastern){% endif %}.</div>
+{% endif %}
+<div class="grid">{% for item in card.games %}{{ gamerow(item, card.mode) }}{% else %}<p class="muted">No games on this night.</p>{% endfor %}</div>
+{% endblock %}

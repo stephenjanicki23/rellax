@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Data quality</h1>
+<div class="sub">Missing, stale and contradictory data, identity conflicts and source failures. Nothing here is silently patched.</div>
+<div class="grid g4" style="margin-bottom:14px">
+<div class="card stat"><div class="l">Ledger integrity</div><div class="v"><span class="status {{ 'good' if verify.ok else 'bad' }}">{{ 'intact' if verify.ok else 'BROKEN' }}</span></div><div class="d">{{ verify.rows }} predictions; {{ verify.hash_mismatches | length }} hash mismatches, {{ verify.chain_breaks | length }} chain breaks</div></div>
+<div class="card stat"><div class="l">Final scores stored</div><div class="v">{{ cov.results }}</div><div class="d">of {{ cov.games }} games</div></div>
+<div class="card stat"><div class="l">Full box scores</div><div class="v">{{ cov.full_box }}</div><div class="d">{{ cov.partial_box }} partial (no rebounds/turnovers): possessions unknown → imputed + flagged</div></div>
+<div class="card stat"><div class="l">Past nights not completed</div><div class="v">{{ stale | length }}</div><div class="d">results not yet ingested</div></div>
+</div>
+<div class="grid g2">
+<div class="card"><h2>Open issues by kind</h2><table class="small"><tr><th>Kind</th><th>Severity</th><th class="num">Count</th></tr>
+{% for s in summary %}<tr><td><a href="?kind={{ s.kind }}">{{ s.kind }}</a></td><td><span class="status {{ 'bad' if s.severity == 'error' else 'warn' if s.severity == 'warning' else 'info' }}">{{ s.severity }}</span></td><td class="num">{{ s.n }}</td></tr>{% else %}<tr><td colspan="3" class="muted">No open issues.</td></tr>{% endfor %}</table>
+<h3>Games by season</h3><table class="small"><tr><th>Season</th><th class="num">Games</th><th class="num">Finals</th><th class="num">Full box</th><th>Source</th></tr>
+{% for s in seasons %}<tr><td>{{ s.season }}</td><td class="num">{{ s.n }}</td><td class="num">{{ s.finals }}</td><td class="num">{{ s.box }}</td><td>{{ s.src }}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Source fetches</h2><div class="scroll"><table class="small"><tr><th>When</th><th>Provider</th><th>Resource</th><th>Status</th><th class="num">Rows</th></tr>
+{% for s in sources %}<tr><td>{{ s.retrieved_at }}</td><td>{{ s.provider }}</td><td title="{{ s.url }}">{{ s.resource }}</td><td><span class="status {{ 'good' if s.status in ('ok','cached') else 'warn' }}">{{ s.status }}</span>{% if s.error %} <span class="muted">{{ s.error }}</span>{% endif %}</td><td class="num">{{ s.rows or '' }}</td></tr>{% endfor %}</table></div>
+<p class="small muted">History through 2023-24: NBA.com team box scores via github.com/NocturneBear/NBA-Data-2010-2024. Later seasons, schedules and lines: ESPN's public scoreboard.</p></div>
+</div>
+{% if stale %}<div class="card" style="margin-top:14px"><h2>Stale nights</h2><ul class="small">{% for e in stale %}<li><a href="/night/{{ e.id }}">{{ e.name }}</a> — status {{ e.status }}; refresh history or import final scores to evaluate it.</li>{% endfor %}</ul></div>{% endif %}
+<div class="card scroll" style="margin-top:14px"><h2>Issues{% if kind %}: {{ kind }} <a class="small" href="/data-quality">(all)</a>{% endif %}</h2><table class="small">
+<tr><th>Detected</th><th>Entity</th><th>Kind</th><th>Message</th><th></th></tr>
+{% for i in issues %}<tr><td>{{ i.detected_at[:10] }}</td><td>{% if i.entity == 'game' and i.entity_id and i.entity_id.isdigit() %}<a href="/game/{{ i.entity_id }}">game {{ i.entity_id }}</a>{% elif i.entity == 'team' and i.entity_id and i.entity_id.isdigit() %}<a href="/team/{{ i.entity_id }}">team {{ i.entity_id }}</a>{% else %}{{ i.entity }} {{ i.entity_id or '' }}{% endif %}</td>
+<td><span class="status {{ 'bad' if i.severity == 'error' else 'warn' if i.severity == 'warning' else 'info' }}">{{ i.kind }}</span></td><td>{{ i.message }}</td>
+<td><form class="inline" method="post" action="/data-quality/resolve/{{ i.id }}"><button title="Mark reviewed">resolve</button></form></td></tr>{% else %}<tr><td colspan="5" class="muted">No open issues.</td></tr>{% endfor %}</table></div>
+<div class="card scroll" style="margin-top:14px"><h2>Recent jobs</h2><table class="small"><tr><th>Job</th><th>Started</th><th>Status</th><th>Message</th></tr>
+{% for j in jobs %}<tr><td>{{ j.job }}</td><td>{{ j.started_at }}</td><td>{{ j.status }}</td><td>{{ (j.message or '')[:240] }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

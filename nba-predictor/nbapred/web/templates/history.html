@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% from "macros.html" import modetag %}
+{% block body %}
+<h1>Past picks {{ modetag(mode) }}</h1>
+<div class="sub">Every locked pick next to what actually happened. <a href="?mode={{ 'live' if mode == 'replay' else 'replay' }}">Show {{ 'live' if mode == 'replay' else 'replay' }}</a></div>
+<div class="card scroll"><table>
+<tr><th>Date</th><th>Game</th><th>Pick</th><th>Final</th><th>Winner right?</th><th class="num">Margin miss</th><th class="num">Total miss</th><th>{{ term('ats', 'vs spread') }}</th><th>{{ term('confidence', 'Confidence') }}</th></tr>
+{% for r in rows %}
+<tr><td>{{ r.date }}</td>
+<td><a href="/game/{{ r.game_id }}?mode={{ mode }}"><span class="away">{{ r.away_name }}</span> at <span class="home">{{ r.home_name }}</span></a></td>
+<td>{{ r.home_name if r.predicted_winner_id == r.home_team_id else r.away_name }} ({{ [r.p_home, 1 - r.p_home] | max | pct }}) {{ bucket_label(r.predicted_bucket) }}</td>
+<td>{% if r.outcome == 'win' %}{{ r.away_score }}–{{ r.home_score }}{% if r.periods and r.periods > 4 %} OT{% endif %}{% elif r.outcome %}no result{% else %}<span class="muted">not played yet</span>{% endif %}</td>
+<td>{% if r.scored %}<span class="status {{ 'good' if r.correct_winner else 'bad' }}">{{ 'right' if r.correct_winner else 'wrong' }}</span>{% elif r.outcome %}<span class="muted">n/a</span>{% endif %}</td>
+<td class="num">{% if r.scored %}{{ '%.1f' % (r.margin_error | abs) }}{% endif %}</td>
+<td class="num">{% if r.scored and r.total_error is not none %}{{ '%.1f' % (r.total_error | abs) }}{% endif %}</td>
+<td>{% if r.ats_correct is not none %}{{ '✓' if r.ats_correct else '✕' }}{% endif %}</td>
+<td>{{ r.confidence }}</td></tr>
+{% else %}<tr><td colspan="9" class="muted">No locked predictions yet.</td></tr>{% endfor %}
+</table>
+<p><a href="?mode={{ mode }}&page={{ page_no + 1 }}">older →</a>{% if page_no %} · <a href="?mode={{ mode }}&page={{ page_no - 1 }}">← newer</a>{% endif %}</p></div>
+{% endblock %}
