@@ -1,0 +1,26 @@
+{"events": [
+ {"id": "401700001", "date": "2025-11-05T00:30Z", "name": "Boston Celtics at New York Knicks",
+  "season": {"year": 2026, "type": 2, "slug": "regular-season"},
+  "competitions": [{"id": "401700001", "date": "2025-11-05T00:30Z", "neutralSite": false,
+    "venue": {"fullName": "Madison Square Garden", "address": {"city": "New York", "state": "NY"}},
+    "status": {"period": 4, "type": {"name": "STATUS_FINAL", "state": "post", "completed": true, "description": "Final"}},
+    "competitors": [
+      {"homeAway": "home", "winner": true, "score": "112", "team": {"id": "18", "abbreviation": "NY", "displayName": "New York Knicks", "location": "New York", "name": "Knicks"},
+       "linescores": [{"value": 30}, {"value": 25}, {"value": 29}, {"value": 28}],
+       "statistics": [{"name": "rebounds", "displayValue": "45"}, {"name": "assists", "displayValue": "24"},
+                      {"name": "fieldGoalsAttempted", "displayValue": "88"}, {"name": "fieldGoalsMade", "displayValue": "41"},
+                      {"name": "freeThrowsAttempted", "displayValue": "20"}, {"name": "freeThrowsMade", "displayValue": "16"},
+                      {"name": "threePointFieldGoalsAttempted", "displayValue": "35"}, {"name": "threePointFieldGoalsMade", "displayValue": "14"},
+                      {"name": "points", "displayValue": "112"}]},
+      {"homeAway": "away", "winner": false, "score": "104", "team": {"id": "2", "abbreviation": "BOS", "displayName": "Boston Celtics", "location": "Boston", "name": "Celtics"},
+       "statistics": [{"name": "fieldGoalsAttempted", "displayValue": "90"}, {"name": "fieldGoalsMade", "displayValue": "38"},
+                      {"name": "freeThrowsAttempted", "displayValue": "14"}, {"name": "freeThrowsMade", "displayValue": "12"},
+                      {"name": "threePointFieldGoalsAttempted", "displayValue": "44"}, {"name": "threePointFieldGoalsMade", "displayValue": "16"}]}]}]},
+ {"id": "401700002", "date": "2025-11-05T03:00Z", "name": "Denver Nuggets at LA Clippers",
+  "season": {"year": 2026, "type": 2},
+  "competitions": [{"id": "401700002", "date": "2025-11-05T03:00Z", "neutralSite": false,
+    "status": {"period": 5, "type": {"name": "STATUS_FINAL", "state": "post", "completed": true}},
+    "competitors": [
+      {"homeAway": "home", "score": "118", "team": {"abbreviation": "LAC", "displayName": "LA Clippers"}},
+      {"homeAway": "away", "score": "121", "team": {"abbreviation": "DEN", "displayName": "Denver Nuggets"}}]}]}
+]}

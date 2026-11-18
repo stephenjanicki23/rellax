@@ -1,0 +1,61 @@
+{% macro na(v, fmt=None) -%}
+{%- if v is none -%}<span class="tag unavailable">unknown</span>{%- elif fmt -%}{{ fmt.format(v) }}{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+
+{% macro modetag(mode) -%}
+{%- if mode == 'replay' -%}<span class="tag replay tip" tabindex="0" data-tip="Past-season test: the engine predicted these games using only information available before each night, then they were checked against the real results.">past season test</span>
+{%- else -%}<span class="tag estimate tip" tabindex="0" data-tip="Real predictions for upcoming games.">live</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro edgebar(level, side) -%}
+<span class="edge {{ side }}" aria-hidden="true">{% for i in range(3) %}<i class="{{ 'on' if i < level }}"></i>{% endfor %}</span>
+{%- endmacro %}
+
+{% macro gamerow(item, mode) %}
+{% set g = item.game %}{% set p = item.payload %}{% set res = item.result %}
+<div class="card">
+  <div class="small muted" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+    <span>{% if g.tip_time_utc %}Tip-off {{ g.tip_time_utc[11:16] }} UTC{% else %}Tip-off time not listed{% endif %}</span>
+    {% if g.season_type != 'regular' %}<span>· <b>{{ season_label(g.season_type) }}</b></span>{% endif %}
+    {% if g.neutral_site %}<span>· neutral site{% if g.venue_city %} ({{ g.venue_city }}){% endif %}</span>{% endif %}
+    {% if g.status in ('canceled','postponed','replaced') %}<span class="status bad">{{ g.status }}</span>{% endif %}
+    {% if item.is_official %}<span class="tag confirmed tip" tabindex="0" data-tip="Saved before tip-off and never changed afterwards. This is the pick that gets graded.">locked pick</span>{% elif p %}<span class="tag estimate tip" tabindex="0" data-tip="Not final yet: this pick can still update (for example with an injury report) until the night locks shortly before the first tip-off.">early pick</span>{% endif %}
+  </div>
+  <div class="game">
+    <div class="side h"><span class="corner-dot a"></span><a class="nm" href="/team/{{ g.away_team_id }}">{{ g.away_name }}</a>
+      {% if p %}<div class="meta">{{ p.stats.away.wins }}-{{ p.stats.away.losses }} this season · away</div>{% endif %}</div>
+    <div>
+      {% if p %}
+        <div class="pbl"><span class="away">{{ p.p_away | pct }}</span><span class="tag estimate tip" tabindex="0" data-tip="How much to trust this pick, based on how much is known about both teams tonight. It is not the chance of winning.">{{ p.confidence.label }} confidence</span><span class="home">{{ p.p_home | pct }}</span></div>
+        {{ charts.prob_bar(p.p_away, g.away_name, g.home_name, (1 - p.confidence.interval80_p_home[1], 1 - p.confidence.interval80_p_home[0]), flip=True) | safe }}
+        <div class="small" style="text-align:center">
+          Pick: <b>{{ p.home.name if p.predicted_winner_id == g.home_team_id else p.away.name }}</b>
+          {{ bucket_label(p.predicted_bucket) }} · engine line {{ line(p.spread_view.engine_line_home, g.home_abbr or 'home') }} · total {{ '%.0f' % p.predicted_total }}
+        </div>
+      {% else %}<div class="muted small" style="text-align:center">No prediction yet</div>{% endif %}
+    </div>
+    <div class="side a"><a class="nm" href="/team/{{ g.home_team_id }}">{{ g.home_name }}</a><span class="corner-dot h" style="margin:0 0 0 5px"></span>
+      {% if p %}<div class="meta">{{ p.stats.home.wins }}-{{ p.stats.home.losses }} this season · home</div>{% endif %}</div>
+  </div>
+  {% if p %}
+  <div class="small" style="margin-top:6px">
+    <span class="muted">Biggest reasons:</span>
+    {% for x in (p.explanation.favoring_home[:2] + p.explanation.favoring_away[:2]) | sort(attribute='logit', reverse=True) %}
+      <span class="{{ 'home' if x.logit > 0 else 'away' }}">{{ FACTOR_NAMES.get(x.feature, x.feature) }}</span>{{ ',' if not loop.last }}
+    {% endfor %}
+    · <a href="/game/{{ g.id }}?mode={{ mode }}">see why →</a>
+  </div>
+  {% endif %}
+  {% if res %}
+  <div class="small" style="margin-top:6px">
+    <span class="tag confirmed">final</span>
+    {% if res.outcome == 'win' %}{{ g.away_name }} {{ res.away_score }} – {{ res.home_score }} {{ g.home_name }}{% if res.periods and res.periods > 4 %} ({{ 'OT' if res.periods == 5 else (res.periods - 4) ~ 'OT' }}){% endif %}
+    {% else %}Abandoned / no result{% endif %}
+    {% if item.evaluation and item.evaluation.scored %}
+      · <span class="status {{ 'good' if item.evaluation.correct_winner else 'bad' }}">{{ 'pick was right' if item.evaluation.correct_winner else 'pick was wrong' }}</span>
+      · margin off by {{ '%.1f' % (item.evaluation.margin_error | abs) }}
+    {% elif item.evaluation %}· <span class="muted">not graded</span>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}

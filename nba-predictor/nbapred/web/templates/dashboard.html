@@ -1,0 +1,78 @@
+{% extends "base.html" %}{% from "macros.html" import gamerow, modetag %}
+{% block body %}
+{% if next %}
+  {% set ev = next %}
+  <h1>{{ ev.name }}</h1>
+  <div class="sub">{{ card.games | length }} game{{ '' if card.games | length == 1 else 's' }}
+    {% if ev.start_time_utc %}· first tip-off {{ ev.start_time_utc[11:16] }} UTC{% endif %}
+    · <a href="/night/{{ ev.id }}">full night</a> · <a href="/edge/night/{{ ev.id }}">betting edge</a></div>
+{% else %}
+  <h1>No upcoming games loaded</h1>
+  <div class="banner warn">
+    {% if upcoming_provider == 'espn' %}The schedule refresh hasn't found an upcoming NBA night yet (off-season, or the schedule source was unreachable).
+    {% else %}The next NBA night hasn't been added yet, so there's nothing to predict right now.{% endif %}
+    {% if admin %}You can import it from the <a href="/settings">Settings</a> page.{% else %}Check back soon.{% endif %}
+    Meanwhile, here's how the engine did on the most recent night it was tested on.
+  </div>
+{% endif %}
+
+{% set correct = (perf.accuracy * perf.n) | round | int if perf.n else 0 %}
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card stat"><div class="l">Picks correct {{ modetag(mode) }}</div><div class="v">{{ perf.accuracy | pct if perf.n else '—' }}</div>
+    <div class="d">{% if perf.n %}{{ correct }} of {{ perf.n }} games — about {{ (perf.accuracy * 10) | round | int }} in every 10{% else %}no finished games yet{% endif %}</div></div>
+  <div class="card stat"><div class="l">{{ tip('Home team always wins', 'Picking the home team every time. NBA home teams win roughly 55–58% of games, so this is the simplest bar to beat.') }}</div><div class="v">{{ perf.baselines['Home team always wins'].accuracy | pct if perf.n and perf.baselines['Home team always wins'] else '—' }}</div>
+    <div class="d">on the same games</div></div>
+  <div class="card stat"><div class="l">Average margin miss</div><div class="v">{{ '%.1f' % perf.margin_mae if perf.n else '—' }}</div>
+    <div class="d">points between the expected and the final margin</div></div>
+  <div class="card stat"><div class="l">{{ term('honest', 'Are the percentages honest?') }}</div><div class="v">{{ ('Yes' if perf.ece < 0.03 else 'Mostly' if perf.ece < 0.07 else 'Not yet') if perf.n else '—' }}</div>
+    <div class="d">{% if perf.n %}off by {{ perf.ece | pct(1) }} on average{% endif %}</div></div>
+</div>
+
+{% if perf.n %}
+<div class="grid g2" style="margin-bottom:14px">
+  <div class="card"><h2>Recent results {{ modetag(mode) }}</h2>
+    <table><tr><th>Most recent</th><th class="num">Picks right</th></tr>
+    {% for w in perf.windows %}<tr><td>Last {{ w.n }} games</td>
+      {% if w.accuracy is not none %}<td class="num">{{ (w.accuracy * w.n) | round | int }} of {{ w.n }} ({{ w.accuracy | pct }})</td>
+      {% else %}<td class="muted">{{ w.note }}</td>{% endif %}</tr>{% endfor %}
+    </table>
+    <p class="small muted">A single night swings a lot by luck — judge the engine over hundreds of games.</p>
+  </div>
+  <div class="card"><h2>Compared with simple strategies</h2>
+    <p class="small muted" style="margin-top:-4px">Each strategy picked the same {{ perf.n }} games.</p>
+    <table><tr><th>Strategy</th><th class="num">Picks right</th><th class="num">{{ tip('Log loss', 'Scores the probabilities, not just the picks. Lower is better; a coin flip scores 0.693.') }}</th></tr>
+      <tr><td><b>This engine</b></td><td class="num"><b>{{ perf.accuracy | pct }}</b></td><td class="num"><b>{{ perf.log_loss | f(3) }}</b></td></tr>
+      {% for name, b in perf.baselines.items() %}{% if b %}<tr><td>{{ BASELINE_NAMES.get(name, name) }}</td><td class="num">{{ b.accuracy | pct }}</td><td class="num">{{ b.log_loss | f(3) }}</td></tr>{% endif %}{% endfor %}
+      {% if perf.market %}<tr><td>Betting favourite</td><td class="num">{{ perf.market.market_accuracy | pct }}</td><td class="num">{{ perf.market.market_log_loss | f(3) }}</td></tr>{% endif %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if card %}
+  <h2>Tonight's games</h2>
+  <div class="grid">{% for item in card.games %}{{ gamerow(item, 'live') }}{% endfor %}</div>
+{% elif replay_card %}
+  <h2>Most recent tested night: <a href="/night/{{ replay_card.event.id }}?mode=replay">{{ replay_card.event.name }}</a> {{ modetag('replay') }}</h2>
+  <p class="small muted">Shown because no upcoming night is loaded. These picks were made using only information from before that night, then checked against what actually happened.</p>
+  <div class="grid">{% for item in replay_card.games %}{{ gamerow(item, 'replay') }}{% endfor %}</div>
+{% endif %}
+
+{% if model.active %}{% set mp = model.params %}
+<details class="tech"><summary>Technical details (for the statistically curious)</summary>
+  <dl class="kv small">
+    <dt>Active model</dt><dd><b>{{ model.active.label }}</b> (activated {{ model.active.activated_at }})</dd>
+    <dt>Training data</dt><dd>{{ mp.diagnostics.n_train }} NBA games from {{ mp.diagnostics.train_first }} to {{ mp.diagnostics.train_last }} (cutoff {{ mp.cutoff }}, exclusive)</dd>
+    <dt>Data</dt><dd>{{ counts.games }} games, {{ counts.box_scores }} with box scores, latest final {{ counts.last_game_date or '—' }}{% if counts.last_history_source %}; last source fetch {{ counts.last_history_source.provider }} {{ counts.last_history_source.retrieved_at }} ({{ counts.last_history_source.status }}){% endif %}</dd>
+    <dt>Predictions stored</dt><dd>{{ counts.predictions_live }} live · {{ counts.predictions_replay }} replay</dd>
+    {% if perf.n %}<dt>Accuracy 95% CI</dt><dd>{{ perf.accuracy_ci[0] | pct }}–{{ perf.accuracy_ci[1] | pct }}</dd>
+    <dt>Log loss / Brier</dt><dd>{{ perf.log_loss | f(3) }} / {{ perf.brier | f(3) }} (coin flip 0.693 / 0.250)</dd>
+    <dt>ECE</dt><dd>{{ perf.ece | pct(1) }} (mean |stated − observed|, 5 bins)</dd>{% endif %}
+    <dt>Ensemble weights</dt><dd>{% for g, w in model.weights.items() %}{{ g }} {{ '%.2f' % w.effective }}{{ ' · ' if not loop.last }}{% endfor %}</dd>
+    <dt>Calibration</dt><dd>{{ mp.calibration.method }}{% if mp.calibration.temperature %} (T={{ mp.calibration.temperature | f(2) }}){% endif %}; margin sd {{ mp.margin.sigma | f(1) }} points; total sd {{ mp.total_model.sigma | f(1) }}</dd>
+    <dt>Last decision</dt><dd>{% if model.last_decision %}{{ model.last_decision.decision }} — {{ model.last_decision.reason[:220] }} ({{ model.last_decision.decided_at }}){% endif %}</dd>
+    {% if comparison %}<dt>Last candidate test</dt><dd>{{ comparison.description }} — {{ comparison.decision }} (incumbent {{ comparison.incumbent.log_loss | f(4) }} vs candidate {{ comparison.candidate.log_loss | f(4) }}, paired n={{ comparison.paired.n }})</dd>{% endif %}
+  </dl>
+</details>
+{% elif not model.active %}<p class="muted">No model trained yet.</p>{% endif %}
+{% endblock %}

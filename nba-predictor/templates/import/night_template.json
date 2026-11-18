@@ -1,0 +1,12 @@
+{
+  "night": {
+    "date": "2026-11-20",
+    "source_url": "https://www.nba.com/schedule"
+  },
+  "games": [
+    {"home": "BOS", "away": "MIA", "tip_time_utc": "2026-11-21T00:30:00Z"},
+    {"home": "Los Angeles Lakers", "away": "Denver Nuggets", "tip_time_utc": "2026-11-21T03:30:00Z",
+     "home_out": 1, "away_out": 0},
+    {"home": "SAS", "away": "WAS", "neutral_site": true, "venue_city": "Mexico City", "season_type": "regular"}
+  ]
+}

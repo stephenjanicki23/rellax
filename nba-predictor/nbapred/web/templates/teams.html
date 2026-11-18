@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Teams</h1>
+<div class="sub">Ratings as of today, computed from games already played (the same numbers the engine would use tonight).</div>
+<div class="card scroll"><table><tr><th>Team</th><th>Conf.</th><th class="num">W-L</th><th class="num">{{ stat('net') }}</th><th class="num">{{ stat('ortg') }}</th><th class="num">{{ stat('drtg') }}</th><th class="num">{{ stat('pace') }}</th><th class="num">{{ stat('elo') }}</th><th class="num">{{ stat('d_net') }}</th></tr>
+{% for t in rows %}<tr><td><a href="/team/{{ t.id }}">{{ t.name }}</a></td><td>{{ t.conference or '—' }}</td>
+<td class="num">{{ t.st.wins }}-{{ t.st.losses }}</td><td class="num">{{ stat_value('net', t.st.net) }}</td><td class="num">{{ stat_value('ortg', t.st.ortg) }}</td>
+<td class="num">{{ stat_value('drtg', t.st.drtg) }}</td><td class="num">{{ stat_value('pace', t.st.pace) }}</td><td class="num">{{ stat_value('elo', t.st.elo) }}</td><td class="num">{{ stat_value('d_net', t.st.d_net) }}</td></tr>
+{% else %}<tr><td colspan="9" class="muted">No teams yet.</td></tr>{% endfor %}</table>
+<p class="small muted">Season {{ season }}. Early in a season these lean on last season's numbers (pulled toward the league average).</p></div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{"events": [
+ {"id": "401800010", "date": "2099-01-11T00:00Z", "season": {"year": 2099, "type": 2},
+  "competitions": [{"id": "401800010", "date": "2099-01-11T00:00Z", "neutralSite": false,
+    "status": {"period": 0, "type": {"name": "STATUS_SCHEDULED", "state": "pre", "completed": false}},
+    "competitors": [
+      {"homeAway": "home", "team": {"abbreviation": "GS", "displayName": "Golden State Warriors"}},
+      {"homeAway": "away", "team": {"abbreviation": "UTAH", "displayName": "Utah Jazz"}}],
+    "odds": [{"provider": {"name": "ESPN BET"}, "details": "GS -7.5", "overUnder": 229.5, "spread": -7.5,
+              "homeTeamOdds": {"favorite": true, "moneyLine": -310, "spreadOdds": -110},
+              "awayTeamOdds": {"favorite": false, "moneyLine": 250, "spreadOdds": -110}}]}]},
+ {"id": "401800011", "date": "2099-01-11T02:30Z", "season": {"year": 2099, "type": 2},
+  "competitions": [{"id": "401800011", "date": "2099-01-11T02:30Z", "neutralSite": true,
+    "venue": {"address": {"city": "Mexico City"}},
+    "notes": [{"headline": "NBA Mexico City Game"}],
+    "status": {"type": {"name": "STATUS_SCHEDULED", "state": "pre", "completed": false}},
+    "competitors": [
+      {"homeAway": "home", "team": {"abbreviation": "SA", "displayName": "San Antonio Spurs"}},
+      {"homeAway": "away", "team": {"abbreviation": "WSH", "displayName": "Washington Wizards"}}],
+    "odds": [{"provider": {"name": "DraftKings"},
+              "moneyline": {"home": {"close": {"odds": "-150"}}, "away": {"close": {"odds": "+130"}}},
+              "pointSpread": {"home": {"close": {"line": "-3.5", "odds": "-112"}}, "away": {"close": {"line": "+3.5", "odds": "-108"}}},
+              "total": {"over": {"close": {"line": "o231.5", "odds": "-110"}}, "under": {"close": {"line": "u231.5", "odds": "-110"}}}}]}]},
+ {"id": "401800012", "date": "2099-01-11T01:00Z", "season": {"year": 2099, "type": 2},
+  "competitions": [{"status": {"type": {"name": "STATUS_POSTPONED", "state": "post", "completed": false}},
+    "competitors": [
+      {"homeAway": "home", "team": {"abbreviation": "MIA", "displayName": "Miami Heat"}},
+      {"homeAway": "away", "team": {"abbreviation": "ORL", "displayName": "Orlando Magic"}}]}]}
+]}
