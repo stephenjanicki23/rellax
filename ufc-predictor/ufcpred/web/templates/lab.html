@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Model Lab{% endblock %}
+{% macro pc(v) -%}{{ '—' if v is not defined or v is none else '%.0f%%' % (v * 100) }}{%- endmacro %}
+{% macro mark(s) -%}{% if s.verdict == 'better' %}<span class="gain tip" tabindex="0" data-tip="Clearly better than the official engine on these fights (log loss, more than 2 standard errors).">▲</span>{% elif s.verdict == 'worse' %}<span class="loss tip" tabindex="0" data-tip="Clearly worse than the official engine on these fights.">▼</span>{% endif %}{%- endmacro %}
+{% block body %}
+<h1>Model Lab</h1>
+<div class="sub">Four models that each look at the fight from one angle, tracked against the official engine. They are the engine's
+  own building blocks, scored on their own, so you can see whether one of them reads some divisions better than the combined
+  prediction. <b>Tracking only:</b> no model here places a bet, and nothing on this page changes a prediction.
+  {% if admin %}<form class="inline" method="post" action="/actions/sync_lab" style="margin-left:6px"><button>Refresh now</button></form>{% endif %}</div>
+
+<div class="card" style="margin-bottom:14px"><h2>The models</h2>
+<table class="small">{% for k, col, name, about in models %}<tr><td><b>{{ name }}</b></td><td class="muted">{{ about }}</td></tr>{% endfor %}</table>
+<p class="small muted">How to read the scores: <b>accuracy</b> is how often the model's favourite won.
+  {{ tip('Log loss', 'Punishes confident wrong calls. Lower is better; 0.693 is a coin flip. The fairest single score for comparing models.') }}
+  is the main score (lower is better). ▲ / ▼ mark a model that is clearly better / worse than the official engine on the same fights
+  (needs {{ r.min_n }}+ fights and a gap of more than two standard errors); anything else is within the noise.</p></div>
+
+<div class="filters small" style="margin-bottom:10px">Fights:
+  {% for m, label in [('all', 'Backtest + live'), ('replay', 'Backtest only'), ('live', 'Live only')] %}
+  <a class="btn{{ ' primary' if mode == m }}" href="/lab?mode={{ m }}">{{ label }}{% if m != 'all' %} ({{ r.modes.get(m, 0) }}){% endif %}</a>{% endfor %}
+  <span class="muted">Backtest = past cards replayed with only the information available before each fight.</span></div>
+
+{% if not r.n %}
+<div class="banner">No graded fights yet. The lab fills in automatically after the next scheduled run{% if admin %}, or press <b>Refresh now</b>{% endif %}.</div>
+{% else %}
+<div class="card scroll" style="margin-bottom:14px"><h2>Overall ({{ r.n }} fights)</h2>
+<table class="small"><tr><th>Model</th><th class="num">Fights</th><th class="num">Accuracy</th><th class="num">Log loss</th><th class="num">{{ tip('Brier', 'Average squared error of the chance given. Lower is better; 0.25 is a coin flip.') }}</th><th class="num">{{ tip('vs engine', 'Log loss improvement over the official engine on the same fights (positive = better), ± one standard error.') }}</th><th class="num">{{ tip('$50 on every pick', 'What $50 on each of this model\'s favourites would have made, on fights with odds imported before the fight. For interest only: not a betting strategy.') }}</th></tr>
+{% for o in r.overall %}{% set s = o.s %}{% set m = (models | selectattr(0, 'equalto', o.key) | first) %}
+<tr><td><b>{{ m[2] }}</b> {{ mark(o) }}</td><td class="num">{{ s.n }}</td>
+  <td class="num">{{ pc(s.accuracy) }}</td><td class="num">{{ '—' if not s.n else '%.3f' % s.log_loss }}</td><td class="num">{{ '—' if not s.n else '%.3f' % s.brier }}</td>
+  <td class="num">{% if s.vs_engine is defined %}{{ '%+.3f' % s.vs_engine }} <span class="muted">± {{ '%.3f' % s.vs_engine_se }}</span>{% else %}—{% endif %}</td>
+  <td class="num">{% if s.flat_pl is defined %}<span class="{{ 'gain' if s.flat_pl > 0 else 'loss' if s.flat_pl < 0 }}">{{ '%+.0f' % s.flat_pl }}</span> <span class="muted">({{ s.flat_n }})</span>{% else %}—{% endif %}</td></tr>{% endfor %}
+</table></div>
+
+{% for sp in r.splits %}
+<div class="card scroll" style="margin-bottom:14px"><h2>{{ sp.title }}</h2>
+<table class="small"><tr><th>Group</th><th class="num">Fights</th>{% for k in ('engine',) + alt %}{% set m = (models | selectattr(0, 'equalto', k) | first) %}<th class="num">{{ m[2] | replace(' model', '') }}</th>{% endfor %}<th>{{ tip('Lowest log loss', 'The model with the best (lowest) log loss in this group. Only meaningful when it is marked ▲, or the group has many fights.') }}</th></tr>
+{% for row in sp.rows %}<tr><td>{{ row.group }}</td><td class="num">{{ row.n }}</td>
+  {% for k in ('engine',) + alt %}{% set c = row.cells[k] %}<td class="num{{ ' sel' if row.best == k }}">{% if c.n %}<span class="tip" tabindex="0" data-tip="log loss {{ '%.3f' % c.log_loss }} · Brier {{ '%.3f' % c.brier }} · {{ c.n }} fights">{{ pc(c.accuracy) }}</span> {{ mark(c) }}{% else %}—{% endif %}</td>{% endfor %}
+  <td class="small">{% set m = (models | selectattr(0, 'equalto', row.best) | first) %}{{ m[2] | replace(' model', '') if m else '—' }}{% if row.n < r.min_n %} <span class="muted">(small sample)</span>{% endif %}</td></tr>{% endfor %}
+</table></div>
+{% endfor %}
+{% endif %}
+
+{% if next_ev and picks %}
+<div class="card scroll"><h2>Each model's picks for {{ next_ev.name }} ({{ next_ev.date }})</h2>
+<table class="small"><tr><th>Fight</th>{% for k in ('engine',) + alt + ('elo',) %}{% set m = (models | selectattr(0, 'equalto', k) | first) %}<th>{{ m[2] | replace(' model', '') | replace(' (benchmark)', '') }}</th>{% endfor %}</tr>
+{% for x in picks %}<tr><td><a href="/fight/{{ x.fight.id }}?mode=live">{{ x.fight.red_name }} vs {{ x.fight.blue_name }}</a>{% if not x.agree %} <span class="tag estimate tip" tabindex="0" data-tip="The models disagree on the winner.">split</span>{% endif %}</td>
+  {% for k in ('engine',) + alt + ('elo',) %}{% set p = x.picks.get(k) %}<td>{% if p %}<span class="{{ 'red' if p.red else 'blue' }}">{{ p.name }}</span> <span class="muted">{{ pc(p.p) }}</span>{% else %}—{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</table></div>
+{% endif %}
+{% endblock %}

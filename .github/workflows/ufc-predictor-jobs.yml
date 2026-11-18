@@ -12,7 +12,7 @@ on:
       command:
         description: Job to run
         type: choice
-        options: [tick, refresh, bootstrap, learn, backup, report, diagnose]
+        options: [tick, refresh, bootstrap, learn, backup, report, diagnose, betreport]
         default: tick
       replay_start:
         description: 'bootstrap only: first event date to replay (YYYY-MM-DD)'
@@ -74,6 +74,7 @@ jobs:
             backup)  python -m ufcpred backup ;;
             report)  python -m ufcpred report --out report.md; cat report.md >> "$GITHUB_STEP_SUMMARY" ;;
             diagnose) pip install -q "httpx>=0.27"; python -m ufcpred.diagnose ;;
+            betreport) python -m ufcpred.bet_report ;;
             bootstrap)
               [[ "$REPLAY_START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "::error::replay_start must be YYYY-MM-DD"; exit 1; }
               python -m ufcpred refresh

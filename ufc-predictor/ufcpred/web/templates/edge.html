@@ -10,12 +10,23 @@
   {{ '%.0f' % (rules.bet * 100) }}%+ (High or Medium confidence), and no bet on near coin flips (under {{ '%.0f' % (rules.bet * 100) }}%)
   or Low-confidence picks — those are still tracked. A qualifying pick is only bet when the price is right: the engine's chance must
   give at least {{ '%+.0f' % (min_ev * 100) }}% expected return at the odds, otherwise it's a pass. Nothing here is a real wager, and the prediction engine never sees any of it.
-  · <a href="/edge/bets">Full bet ledger →</a>
+  · <a href="/edge/bets{{ '?' ~ sq if sq }}">Full bet ledger →</a>
   {% if admin %}<form class="inline" method="post" action="/actions/sync_bets" style="margin-left:6px"><button>Update bets now</button></form>{% endif %}</div>
+
+<div class="card scroll" style="margin-bottom:14px"><h2>{{ tip('Strategies side by side', 'Every strategy follows the same locked picks; only the staking rule differs. Each has its own profit and loss. Pick one to see its full dashboard.') }}</h2>
+<table class="small"><tr><th>Strategy</th><th>Rule</th><th class="num">Bets settled</th><th class="num">Won</th><th class="num">Staked</th><th class="num">Net P/L</th><th class="num">ROI</th><th class="num">Open</th></tr>
+{% for c in compare %}<tr{% if c.key == strat %} class="sel"{% endif %}><td><a href="/edge{{ '' if c.key == 'confidence_flat' else '?strategy=' ~ c.key }}"><b>{{ c.name }}</b></a>{% if c.key == strat %} <span class="tag">viewing</span>{% endif %}</td>
+  <td class="muted">{{ c.about }}{% if c.key == 'market_check' %} (limit {{ '%.0f' % (rules.mc_gap * 100) }} points){% elif c.key == 'market_agree' %} (limit {{ '%.0f' % (rules.ma_gap * 100) }} points){% endif %}</td>
+  <td class="num">{{ c.decided }}</td><td class="num">{{ c.wins }}</td><td class="num">{{ c.settled_stake | money(false) }}</td>
+  <td class="num">{{ pl(c.net) }}</td><td class="num">{{ roi(c.roi) }}</td><td class="num">{{ c.pending }}</td></tr>{% endfor %}
+</table>
+<p class="small muted">Side strategies were added after the first cards and filled in for them from the same locked picks and the odds
+  captured before each fight. Small samples swing a lot: judge them after 10+ cards.</p></div>
+{% if strat != 'confidence_flat' %}<div class="banner info" style="margin-bottom:14px">Viewing <b>{{ strategies[strat].name }}</b>: {{ strategies[strat].about }} The tiles below are for this strategy. <a href="/edge">Back to the main rule</a></div>{% endif %}
 
 {% if events %}{% set le = events[0] %}
 <div class="banner {{ 'info' if le.net >= 0 else 'warn' }}" style="margin-bottom:14px">
-  <b>Latest card — <a href="/edge/event/{{ le.event_id }}">{{ le.name }}</a></b> ({{ le.date }}):
+  <b>Latest card — <a href="/edge/event/{{ le.event_id }}{{ '?' ~ sq if sq }}">{{ le.name }}</a></b> ({{ le.date }}):
   {% if le.settled %}{{ pl(le.net) }} overall · High {{ pl(le.tiers.High.net) }} · Medium {{ pl(le.tiers.Medium.net) }}
     · ROI {{ roi(le.roi) }}{% if le.pending %} · {{ le.pending }} bet{{ 's' if le.pending != 1 }} still open{% endif %}
   {% elif le.bets %}{{ le.bets }} bet{{ 's' if le.bets != 1 }} placed ({{ le.staked | money(false) }} staked), waiting for results.
@@ -38,7 +49,7 @@
   <div class="card stat kpi"><div class="l">{{ tip('Win rate', 'Winning bets divided by bets that won or lost (pushes and voids excluded).') }}</div>
     <div class="v">{{ pct1(s.win_rate) }}</div><div class="d">{{ s.wins }} of {{ s.decided }}</div></div>
   <div class="card stat kpi"><div class="l">Total bets</div><div class="v">{{ s.total }}</div>
-    <div class="d">{{ s.settled }} settled · {{ s.pending }} open{% if s.needs_odds %} · <a href="/edge/bets?status=needs_odds">{{ s.needs_odds }} need odds</a>{% endif %}</div></div>
+    <div class="d">{{ s.settled }} settled · {{ s.pending }} open{% if s.needs_odds %} · <a href="/edge/bets?status=needs_odds{{ '&' ~ sq if sq }}">{{ s.needs_odds }} need odds</a>{% endif %}</div></div>
   <div class="card stat kpi"><div class="l">{{ tip('Total risked', 'Sum of stakes on every recorded bet except voided ones. Open exposure is the part still waiting for a result.') }}</div>
     <div class="v">{{ s.risked | money(false) }}</div><div class="d">{{ s.exposure | money(false) }} open exposure</div></div>
   <div class="card stat kpi"><div class="l">{{ tip('Low-confidence picks', 'Tracked to see how the engine does on them, but no money is staked.') }}</div>
@@ -93,7 +104,7 @@
   <tr><th>Date</th><th>Event</th><th class="num">High picks</th><th class="num">Medium picks</th><th class="num">Staked</th>
     <th class="num">High P/L</th><th class="num">Medium P/L</th><th class="num">Card P/L</th><th class="num">High win %</th>
     <th class="num">Medium win %</th><th class="num">ROI</th><th class="num">Open</th><th>Result</th></tr>
-  {% for e in events %}<tr><td>{{ e.date }}</td><td><a href="/edge/event/{{ e.event_id }}">{{ e.name }}</a></td>
+  {% for e in events %}<tr><td>{{ e.date }}</td><td><a href="/edge/event/{{ e.event_id }}{{ '?' ~ sq if sq }}">{{ e.name }}</a></td>
     <td class="num">{{ e.tiers.High.picks }}</td><td class="num">{{ e.tiers.Medium.picks }}</td><td class="num">{{ e.staked | money(false) }}</td>
     <td class="num">{{ pl(e.tiers.High.net) }}</td><td class="num">{{ pl(e.tiers.Medium.net) }}</td><td class="num"><b>{{ pl(e.net) }}</b></td>
     <td class="num">{{ pct1(e.tiers.High.win_rate) }}</td><td class="num">{{ pct1(e.tiers.Medium.win_rate) }}</td>

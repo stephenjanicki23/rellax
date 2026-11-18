@@ -17,6 +17,8 @@ Rules
 * Settlement: win → +profit; loss → −stake; draw → push (0); no contest → void (0); canceled or replaced
   bout → void (0). Pending bets never touch realised P/L. A returned stake is never counted as profit.
 * Admin corrections are explicit, require a reason, and are logged in ``sim_bet_events`` (append-only).
+* Side-by-side strategies (``SIDE_STRATEGIES``) follow the main bet's locked pick and stake by their own rule
+  using the pre-fight market price; each has its own ledger and P/L. They never change the main bet.
 """
 from __future__ import annotations
 
@@ -33,6 +35,18 @@ from .evaluation.metrics import wilson
 from .util import dumps, loads, utcnow
 
 STRATEGY = "confidence_flat"
+# Side-by-side strategies: the same locked picks, staked by a different rule, each with its own P/L.
+# They read the market price (the tracker already does for the price rule); the engine never sees it.
+STRATEGIES = {
+    "confidence_flat": {"name": "Main rule",
+                        "about": "Confidence and win-chance tiers, bet only at +EV prices."},
+    "market_check": {"name": "Market check",
+                     "about": "The main rule, but no bet when the engine rates its pick far above the market."},
+    "market_agree": {"name": "Agree with market",
+                     "about": "A Medium stake only when the market favours the same fighter and the engine is "
+                              "not far above the market."},
+}
+SIDE_STRATEGIES = ("market_check", "market_agree")
 TIERS = ("High", "Medium", "Low")
 SETTLED = ("win", "loss", "push", "void")
 
@@ -113,7 +127,9 @@ def _stakes(conn) -> dict:
             "Low": _cents(float(setting(conn, "betting.stake_low")) * 100),
             "_min_p_high": float(setting(conn, "betting.min_prob_high")),
             "_min_p_bet": float(setting(conn, "betting.min_prob_bet")),
-            "_min_ev": float(setting(conn, "betting.min_ev"))}
+            "_min_ev": float(setting(conn, "betting.min_ev")),
+            "_mc_gap": float(setting(conn, "betting.market_check_max_gap")),
+            "_ma_gap": float(setting(conn, "betting.market_agree_max_gap"))}
 
 
 def price_check(p_pick: float | None, decimal: float | None, rules: dict) -> tuple[bool, str, float | None]:
@@ -200,6 +216,50 @@ def _odds_for(conn, bet, fight, cutoff: str | None):
     return None
 
 
+def _market(conn, fight, pick_fighter_id, cutoff: str | None) -> dict | None:
+    """Latest pre-result price for the pick plus the market's no-vig chance for it."""
+    for o in conn.execute("SELECT * FROM odds WHERE fight_id=? ORDER BY captured_at DESC, id DESC",
+                          (fight["id"],)).fetchall():
+        if cutoff and _t(o["captured_at"]) >= _t(cutoff):
+            continue
+        red = pick_fighter_id == fight["red_fighter_id"]
+        dec, other = (float(o["red_decimal"]), float(o["blue_decimal"])) if red else \
+            (float(o["blue_decimal"]), float(o["red_decimal"]))
+        return {"odds_decimal": dec, "odds_american": decimal_to_american(dec),
+                "odds_source": "feed" if o["provider"] != "manual" else "import",
+                "odds_bookmaker": o["bookmaker"], "odds_captured_at": o["captured_at"], "odds_id": o["id"],
+                "market_p": (1 / dec) / (1 / dec + 1 / other)}
+    return None
+
+
+def side_rule(strategy: str, tier: str, p_pick: float | None, market: dict | None, rules: dict) -> tuple[int, str]:
+    """Stake (cents) and reason for a side-by-side strategy, from the pick and the market price."""
+    if p_pick is None:
+        return 0, "no win probability recorded"
+    if market is None:
+        return 0, "no price yet: this strategy needs the market price"
+    m, dec = market["market_p"], market["odds_decimal"]
+    gap = p_pick - m
+    vs = f"engine {p_pick:.0%} vs market {m:.0%}"
+    if strategy == "market_check":
+        base = rules.get(tier, 0) if tier in ("High", "Medium") else 0
+        if not base:
+            return 0, "the main rule does not bet this pick (tier)"
+        ev = p_pick * dec - 1
+        if ev < rules["_min_ev"]:
+            return 0, f"expected return {ev:+.1%} is below the {rules['_min_ev']:+.0%} minimum: passed"
+        if gap > rules["_mc_gap"]:
+            return 0, f"{vs}: engine is {gap * 100:.0f} points above the market (limit {rules['_mc_gap'] * 100:.0f}): skipped"
+        return base, f"{tier} stake; {vs}; expected return {ev:+.1%}"
+    if strategy == "market_agree":
+        if m <= 0.5:
+            return 0, f"{vs}: the market favours the other fighter"
+        if gap > rules["_ma_gap"]:
+            return 0, f"{vs}: engine is {gap * 100:.0f} points above the market (limit {rules['_ma_gap'] * 100:.0f})"
+        return rules["Medium"], f"{vs}: same favourite, within {rules['_ma_gap'] * 100:.0f} points: Medium stake"
+    raise ValueError(f"unknown strategy {strategy}")
+
+
 def _decide(bet, fight, ev, res) -> dict:
     """Settlement state implied by the facts (ignores manual overrides)."""
     stake = bet["stake_cents"]
@@ -256,6 +316,8 @@ def sync(conn, actor: str = "system") -> dict:
                    WHERE f.event_id=?""", (event_id,)).fetchall()
             for f in fights:
                 _sync_fight(conn, ev, lock, f, official.get(f["id"]), latest.get(f["id"]), stakes, out, actor)
+                for strategy in SIDE_STRATEGIES:
+                    _sync_side(conn, ev, f, strategy, stakes, out, actor)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -365,6 +427,77 @@ def _sync_fight(conn, ev, lock, f, official, latest, stakes, out, actor):
         out[action] += 1
 
 
+MIRROR = ("prediction_id", "prediction_version", "tier", "confidence_score", "pick_fighter_id", "pick_name",
+          "opponent_fighter_id", "opponent_name", "p_pick", "event_name", "event_date", "weight_class", "locked_at")
+
+
+def _sync_side(conn, ev, f, strategy, stakes, out, actor):
+    """A side-by-side strategy follows the main bet's pick and lock, and stakes by its own rule.
+
+    The stake is re-decided while the card is unlocked (prices move); after the lock it is decided once,
+    from the last pre-fight price, and then frozen. Settlement uses the same rules as the main bet."""
+    main = conn.execute("SELECT * FROM sim_bets WHERE fight_id=? AND strategy=?", (f["id"], STRATEGY)).fetchone()
+    if main is None:
+        return
+    row = conn.execute("SELECT * FROM sim_bets WHERE fight_id=? AND strategy=?", (f["id"], strategy)).fetchone()
+    if row is not None and row["manual_override"]:
+        return
+    res = conn.execute("SELECT * FROM fight_results WHERE fight_id=? ORDER BY revision DESC LIMIT 1",
+                       (f["id"],)).fetchone()
+    first_res = conn.execute("SELECT MIN(recorded_at) FROM fight_results WHERE fight_id=?", (f["id"],)).fetchone()[0]
+    why = loads(row["rationale_json"], {}) if row is not None else {}
+    frozen = row is not None and row["locked_at"] and why.get("decided")
+    want = {k: main[k] for k in MIRROR}
+    if not frozen:
+        market = _market(conn, f, main["pick_fighter_id"], first_res)
+        stake, text = side_rule(strategy, main["tier"], main["p_pick"], market, stakes)
+        base = loads(main["rationale_json"], {}) or {}
+        base.pop("price_rule", None)
+        rationale = base | {"stake_rule": text, "strategy": strategy,
+                            "market_p": None if market is None else round(market["market_p"], 4),
+                            "decided": bool(main["locked_at"] and market is not None)}
+        if row is None and res is not None:
+            rationale["recorded_after_result"] = True
+        want |= {"stake_cents": stake, "rationale_json": dumps(rationale)}
+        if market is not None:
+            want |= {k: market[k] for k in ("odds_decimal", "odds_american", "odds_source", "odds_bookmaker",
+                                            "odds_captured_at", "odds_id")}
+    if row is None:
+        now = utcnow()
+        fields = want | {"strategy": strategy, "event_id": ev["id"], "fight_id": f["id"],
+                         "status": "pending" if want["stake_cents"] else "no_bet", "created_at": now, "updated_at": now}
+        bid = conn.execute(f"INSERT INTO sim_bets({', '.join(fields)}) VALUES ({', '.join('?' * len(fields))})",
+                           tuple(fields.values())).lastrowid
+        _log(conn, bid, "created", None, {k: fields[k] for k in ("tier", "pick_name", "stake_cents", "prediction_id")},
+             loads(fields["rationale_json"], {}).get("stake_rule"), actor)
+        out[f"{strategy}_created"] += 1
+        row = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bid,)).fetchone()
+    else:
+        changed = {k: v for k, v in want.items() if row[k] != v}
+        if changed:
+            if "stake_cents" in changed and row["status"] in ("pending", "no_bet"):
+                changed["status"] = "pending" if changed["stake_cents"] else "no_bet"
+            _update(conn, row["id"], changed)
+            keys = [k for k in ("pick_name", "stake_cents", "odds_american", "locked_at") if k in changed]
+            if keys:
+                _log(conn, row["id"], "updated", {k: row[k] for k in keys}, {k: changed[k] for k in keys},
+                     loads(want.get("rationale_json") or row["rationale_json"], {}).get("stake_rule"), actor)
+            out[f"{strategy}_updated"] += 1
+            row = conn.execute("SELECT * FROM sim_bets WHERE id=?", (row["id"],)).fetchone()
+    if res is not None and row["odds_decimal"] is not None:
+        c = _odds_for(conn, row, f, first_res)
+        if c and (c["odds_decimal"], c["odds_captured_at"]) != (row["closing_decimal"], row["closing_captured_at"]):
+            _update(conn, row["id"], {"closing_decimal": c["odds_decimal"], "closing_captured_at": c["odds_captured_at"]})
+            row = conn.execute("SELECT * FROM sim_bets WHERE id=?", (row["id"],)).fetchone()
+    d = _decide(row, f, ev, res)
+    cur = {k: row[k] for k in d}
+    if cur != d:
+        was_settled = row["status"] in SETTLED and row["result_id"] is not None
+        _update(conn, row["id"], d | {"settled_at": utcnow() if d["status"] != "pending" else None})
+        _log(conn, row["id"], "resettled" if was_settled else "settled", cur, d, None, actor)
+        out[f"{strategy}_settled"] += 1
+
+
 # ------------------------------------------------------------------ admin corrections (audited)
 class CorrectionError(ValueError):
     pass
@@ -431,11 +564,26 @@ def correct(conn, bet_id: int, *, reason: str, actor: str = "admin", odds_americ
 
 
 # ------------------------------------------------------------------ reading & statistics
-def bets(conn) -> list[dict]:
+def bets(conn, strategy: str = STRATEGY) -> list[dict]:
     rows = conn.execute(
         """SELECT b.*, f.bout_order FROM sim_bets b JOIN fights f ON f.id=b.fight_id WHERE b.strategy=?
-           ORDER BY b.event_date, b.event_id, COALESCE(f.bout_order, 999) DESC, b.id""", (STRATEGY,)).fetchall()
+           ORDER BY b.event_date, b.event_id, COALESCE(f.bout_order, 999) DESC, b.id""", (strategy,)).fetchall()
     return [dict(r) for r in rows]
+
+
+def bet_by_id(conn, bet_id: int) -> dict | None:
+    r = conn.execute("SELECT b.*, f.bout_order FROM sim_bets b JOIN fights f ON f.id=b.fight_id WHERE b.id=?",
+                     (bet_id,)).fetchone()
+    return dict(r) if r else None
+
+
+def compare_strategies(conn) -> list[dict]:
+    """Headline numbers for every strategy, side by side."""
+    out = []
+    for key, meta in STRATEGIES.items():
+        s = summary(bets(conn, key))
+        out.append({"key": key, **meta, **s})
+    return out
 
 
 def history(conn, bet_id: int) -> list[dict]:
