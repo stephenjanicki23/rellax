@@ -17,6 +17,7 @@ def main(argv=None):
     r.add_argument("--local-dir", help="read the mirror CSVs from a directory instead of the network")
     r.add_argument("--mirror-only", action="store_true", help="skip the ESPN backfill of recent seasons")
     sub.add_parser("refresh-upcoming", help="fetch upcoming game nights (and their lines) from the configured provider")
+    sub.add_parser("probe-sources", help="check which data sources answer from this machine")
     bx = sub.add_parser("refresh-boxes", help="fetch missing full box scores for recent ESPN games")
     bx.add_argument("--limit", type=int)
     for name in ("import-night", "import-results", "import-odds", "import-availability"):
@@ -86,6 +87,14 @@ def main(argv=None):
             out = lifecycle.refresh_history(conn, progress=lambda m: print(m, file=sys.stderr, flush=True))
     elif a.cmd == "refresh-upcoming":
         out = lifecycle.refresh_upcoming(conn)
+    elif a.cmd == "probe-sources":
+        from .providers.http import probe
+        day = utcnow()[:10].replace("-", "")
+        out = probe([f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={day}",
+                     "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json",
+                     "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json",
+                     "https://cdn.nba.com/static/json/liveData/odds/odds_todaysGames.json",
+                     "https://raw.githubusercontent.com/NocturneBear/NBA-Data-2010-2024/main/README.md"])
     elif a.cmd == "refresh-boxes":
         out = lifecycle.refresh_boxes(conn, a.limit)
     elif a.cmd.startswith("import-"):
@@ -151,6 +160,16 @@ def main(argv=None):
         ms = services.model_status(conn)
         out["active_model"] = ms["active"]["label"] if ms["active"] else None
     print(json.dumps(out, indent=2, default=str))
+    # a data step whose source failed must not look like success: the jobs workflow turns red
+    if a.cmd in ("refresh", "refresh-upcoming") and _has_error(out):
+        print("ERROR: a data source failed; see the 'error' entries above", file=sys.stderr)
+        sys.exit(1)
+
+
+def _has_error(out) -> bool:
+    if isinstance(out, dict):
+        return "error" in out or any(_has_error(v) for v in out.values())
+    return False
 
 
 if __name__ == "__main__":
