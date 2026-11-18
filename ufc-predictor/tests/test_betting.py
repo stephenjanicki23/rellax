@@ -95,7 +95,7 @@ def _odds(conn, fight, red, blue, at="2020-01-01T00:00:00Z"):
 
 
 def _bet(conn, fight):
-    return conn.execute("SELECT * FROM sim_bets WHERE fight_id=?", (fight["id"],)).fetchone()
+    return conn.execute("SELECT * FROM sim_bets WHERE fight_id=? AND strategy=?", (fight["id"], betting.STRATEGY)).fetchone()
 
 
 @pytest.fixture
@@ -137,8 +137,8 @@ def test_qualification_stakes_and_duplicate_prevention(card):
         betting.sync(conn)
     predict.predict_event(conn, ev, mode="live", reason="re-run")   # predictions recalculated
     betting.sync(conn)
-    rows = conn.execute("SELECT fight_id, COUNT(*) AS n FROM sim_bets GROUP BY fight_id").fetchall()
-    assert len(rows) == 3 and all(r["n"] == 1 for r in rows)
+    rows = conn.execute("SELECT fight_id, strategy, COUNT(*) AS n FROM sim_bets GROUP BY fight_id, strategy").fetchall()
+    assert len(rows) == 3 * len(betting.STRATEGIES) and all(r["n"] == 1 for r in rows)
     b1, b2, b3 = (_bet(conn, f) for f in fights)
     assert b1["stake_cents"] == 5000 and b1["tier"] == "Medium"     # re-prediction before lock → followed, logged
     assert b2["tier"] == "Medium" and b2["stake_cents"] == 5000 and b2["status"] == "pending"
@@ -395,3 +395,136 @@ def test_price_rule_passes_overpriced_favourites_and_tracks_closing_line(card):
     sc = betting.scorecard(betting.bets(conn))
     assert sc["n"] == 1 and sc["win_rate"] == 1.0 and sc["clv_n"] == 1 and sc["clv_avg"] > 0
     assert sc["brier"] == pytest.approx((1 - p) ** 2) and sc["roi"] > 0
+
+
+# ------------------------------------------------------------------ side-by-side strategies
+RULES = {"High": 10000, "Medium": 5000, "Low": 0, "_min_p_high": 0.6, "_min_p_bet": 0.55, "_min_ev": 0.05,
+         "_mc_gap": 0.15, "_ma_gap": 0.10}
+
+
+def _mkt(dec, other):
+    return {"odds_decimal": dec, "market_p": (1 / dec) / (1 / dec + 1 / other)}
+
+
+def test_market_check_is_the_main_rule_minus_big_disagreements():
+    # engine 70% on a +240 dog the market gives ~28%: main rule would bet (EV +138%), market check skips
+    stake, why = betting.side_rule("market_check", "High", 0.70, _mkt(3.4, 1.333), RULES)
+    assert stake == 0 and "above the market" in why
+    # engine 72% vs market ~68%: same bet as the main rule
+    stake, why = betting.side_rule("market_check", "High", 0.72, _mkt(1.5263, 2.6), RULES)
+    assert stake == 10000 and "High stake" in why
+    assert betting.side_rule("market_check", "Low", 0.9, _mkt(2.0, 1.8), RULES)[0] == 0          # main rule tier
+    assert betting.side_rule("market_check", "Medium", 0.6, _mkt(1.5, 2.7), RULES)[0] == 0       # EV below 5%
+    assert betting.side_rule("market_check", "High", 0.7, None, RULES) == (0, betting.side_rule(
+        "market_agree", "High", 0.7, None, RULES)[1])                                              # no price → no bet
+
+
+def test_market_agree_needs_the_same_favourite_and_a_small_gap():
+    assert betting.side_rule("market_agree", "Low", 0.58, _mkt(1.5, 2.7), RULES)[0] == 5000       # any tier
+    assert "other fighter" in betting.side_rule("market_agree", "High", 0.7, _mkt(2.25, 1.667), RULES)[1]
+    stake, why = betting.side_rule("market_agree", "High", 0.87, _mkt(1.4545, 2.8), RULES)       # 87% vs ~66%
+    assert stake == 0 and "above the market" in why
+    assert betting.side_rule("market_agree", "Medium", 0.60, _mkt(1.25, 4.1), RULES)[0] == 5000   # engine below market
+
+
+def test_side_strategies_follow_the_main_pick_lock_and_settle_separately(card):
+    from ufcpred import ledger
+    conn, ev, fights = card
+    db.set_setting(conn, "betting.min_ev", 0.05)
+    conn.commit()
+    betting.sync(conn)
+    main = [_bet(conn, f) for f in fights]
+    pick_red = [m["pick_fighter_id"] == f["red_fighter_id"] for m, f in zip(main, fights)]
+
+    def price(i, pick_dec, other_dec, at):
+        _odds(conn, fights[i], *((pick_dec, other_dec) if pick_red[i] else (other_dec, pick_dec)), at=at)
+
+    price(0, 1.40, 3.0, "2020-01-01T00:00:00Z")    # fight 1: the market agrees, a short price
+    price(1, 6.00, 1.15, "2020-01-01T00:00:00Z")   # fight 2: a big outsider for the market
+    betting.sync(conn)
+
+    def side(strategy, i):
+        return conn.execute("SELECT * FROM sim_bets WHERE fight_id=? AND strategy=?",
+                            (fights[i]["id"], strategy)).fetchone()
+
+    for s in betting.SIDE_STRATEGIES:
+        for i, f in enumerate(fights):
+            r = side(s, i)
+            assert r is not None and r["pick_fighter_id"] == main[i]["pick_fighter_id"]
+            assert r["prediction_id"] == _bet(conn, f)["prediction_id"] and r["locked_at"] is None
+    assert side("market_agree", 1)["stake_cents"] == 0                      # market favours the other fighter
+    assert side("market_check", 1)["stake_cents"] == 0                      # engine far above the market
+    assert side("market_agree", 1)["odds_decimal"] == pytest.approx(6.0)    # price shown even when not bet
+    assert side("market_agree", 2)["odds_decimal"] is None                  # no odds for fight 3: no price, no bet
+
+    ledger.lock_event(conn, ev, "live", utcnow()[:10], "test lock")
+    betting.sync(conn)
+    frozen = {(s, i): dict(side(s, i)) for s in betting.SIDE_STRATEGIES for i in range(3)}
+    assert all(r["locked_at"] for r in frozen.values())
+    price(1, 1.30, 3.5, "2020-01-02T00:00:00Z")    # the line moves after the lock: decided bets do not change
+    betting.sync(conn)
+    for (s, i), r in frozen.items():
+        if json.loads(r["rationale_json"])["decided"]:
+            assert side(s, i)["stake_cents"] == r["stake_cents"] and side(s, i)["odds_id"] == r["odds_id"]
+
+    for i, f in enumerate(fights):
+        _win_for_pick(conn, f, main[i])
+    before = {r["id"]: (r["status"], r["net_cents"]) for r in betting.bets(conn)}
+    betting.sync(conn)
+    for s in betting.SIDE_STRATEGIES:
+        for r in betting.bets(conn, s):
+            if r["stake_cents"]:
+                assert r["status"] == "win" and r["net_cents"] == betting.profit_cents(r["stake_cents"],
+                                                                                        decimal=r["odds_decimal"])
+            else:
+                assert r["status"] == "no_bet"
+    comp = {c["key"]: c for c in betting.compare_strategies(conn)}
+    assert set(comp) == set(betting.STRATEGIES)
+    assert comp["market_agree"]["net"] == sum(r["net_cents"] or 0 for r in betting.bets(conn, "market_agree"))
+    n = conn.execute("SELECT COUNT(*) FROM sim_bet_events").fetchone()[0]
+    betting.sync(conn)                                                       # idempotent
+    assert conn.execute("SELECT COUNT(*) FROM sim_bet_events").fetchone()[0] == n
+    assert all(r["status"] in ("win", "loss", "no_bet", "pending") for r in betting.bets(conn))
+    assert len(before) == 3
+
+
+def test_side_strategies_are_filled_in_for_cards_settled_before_they_existed(card, monkeypatch):
+    from ufcpred import ledger
+    conn, ev, fights = card
+    monkeypatch.setattr(betting, "SIDE_STRATEGIES", ())                     # the card is tracked before they existed
+    betting.sync(conn)
+    main = _bet(conn, fights[0])
+    pick_red = main["pick_fighter_id"] == fights[0]["red_fighter_id"]
+    dec, other = 1 / main["p_pick"], 1 / (1 - main["p_pick"])                # the market agrees with the engine
+    _odds(conn, fights[0], *((dec, other) if pick_red else (other, dec)), at="2020-01-01T00:00:00Z")
+    ledger.lock_event(conn, ev, "live", utcnow()[:10], "test lock")
+    betting.sync(conn)
+    _win_for_pick(conn, fights[0], main)
+    _odds(conn, fights[0], *((3.0, 1.4) if pick_red else (1.4, 3.0)), at="2999-01-01T00:00:00Z")   # after result
+    betting.sync(conn)
+    assert conn.execute("SELECT COUNT(*) FROM sim_bets WHERE strategy != ?", (betting.STRATEGY,)).fetchone()[0] == 0
+    monkeypatch.setattr(betting, "SIDE_STRATEGIES", ("market_check", "market_agree"))
+    betting.sync(conn)
+    r = conn.execute("SELECT * FROM sim_bets WHERE fight_id=? AND strategy='market_agree'",
+                     (fights[0]["id"],)).fetchone()
+    assert r["odds_decimal"] == pytest.approx(dec)                           # the pre-fight price, not the later one
+    assert r["status"] == "win" and r["net_cents"] == betting.profit_cents(5000, decimal=dec) and r["locked_at"]
+    assert json.loads(r["rationale_json"]).get("recorded_after_result") is True
+
+
+def test_strategy_pages_render(card):
+    conn, ev, fights = card
+    betting.sync(conn)
+    from fastapi.testclient import TestClient
+    from ufcpred.web.app import app
+    c = TestClient(app)
+    r = c.get("/edge")
+    assert r.status_code == 200 and "Strategies side by side" in r.text and "Agree with market" in r.text
+    for s in betting.SIDE_STRATEGIES:
+        for url in (f"/edge?strategy={s}", f"/edge/bets?strategy={s}", f"/edge/event/{ev}?strategy={s}",
+                    f"/edge/bets.csv?strategy={s}"):
+            assert c.get(url).status_code == 200, url
+        bid = betting.bets(conn, s)[0]["id"]
+        page = c.get(f"/edge/bet/{bid}")
+        assert page.status_code == 200 and betting.STRATEGIES[s]["name"] in page.text
+    assert c.get("/edge?strategy=nonsense").status_code == 200                # unknown → main rule

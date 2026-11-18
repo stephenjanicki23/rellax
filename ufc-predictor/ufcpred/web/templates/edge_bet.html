@@ -2,7 +2,7 @@
 {% block title %}Bet: {{ b.pick_name }}{% endblock %}
 {% from "macros.html" import edgebar %}
 {% block body %}
-<div class="small"><a href="/edge/event/{{ b.event_id }}">← {{ b.event_name }}</a></div>
+<div class="small"><a href="/edge/event/{{ b.event_id }}{{ '' if b.strategy == 'confidence_flat' else '?strategy=' ~ b.strategy }}">← {{ b.event_name }}</a></div>
 <h1>{{ b.pick_name }} <span class="muted">to beat</span> {{ b.opponent_name }}</h1>
 <div class="sub">{{ b.event_date }} · {{ b.weight_class or 'Catch weight' }} · <a href="/fight/{{ b.fight_id }}?mode=live">fight analysis</a></div>
 {% if msg %}<div class="banner info">{{ msg }}</div>{% endif %}
@@ -10,6 +10,7 @@
 <div class="grid g2">
 <div class="card"><h2>The bet</h2>
   <dl class="kv">
+    <dt>Strategy</dt><dd>{{ strategy_name }}</dd>
     <dt>Stake tier</dt><dd><span class="pill {{ b.tier }}">{{ b.tier }}</span>{% if why.stake_rule %} <span class="small muted">{{ why.stake_rule }}</span>{% endif %}</dd>
     {% if why.price_rule %}<dt>Price check</dt><dd class="small">{{ why.price_rule }}</dd>{% endif %}
     {% if b.closing_decimal %}<dt>Closing line</dt><dd>{{ '%+d' % (b.closing_decimal | american) }} · {{ '%+.1f%%' % ((b.odds_decimal / b.closing_decimal - 1) * 100) }} vs our price</dd>{% endif %}

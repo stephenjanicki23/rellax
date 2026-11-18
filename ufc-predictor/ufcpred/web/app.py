@@ -292,9 +292,17 @@ def rollback(version_id: int, reason: str = Form("manual rollback from Learning 
     return RedirectResponse("/learning", status_code=303)
 
 
+def _strategy(request: Request) -> tuple[str, str]:
+    """The strategy a Betting Edge page shows (main rule unless ?strategy= names a side strategy)."""
+    key = request.query_params.get("strategy", "")
+    key = key if key in betting.STRATEGIES else betting.STRATEGY
+    return key, ("" if key == betting.STRATEGY else f"strategy={key}")
+
+
 @app.get("/edge", response_class=HTMLResponse)
 def edge(request: Request, conn=Depends(get_db)):
-    rows = betting.bets(conn)
+    strat, sq = _strategy(request)
+    rows = betting.bets(conn, strat)
     ev = services.edge_event(conn)
     min_n = int(setting(conn, "betting.min_sample"))
     return render(request, "edge.html", rows=rows, s=betting.summary(rows),
@@ -304,7 +312,10 @@ def edge(request: Request, conn=Depends(get_db)):
                   record=services.betting_track_record(conn), edge_min=services.EDGE_MIN,
                   stakes={t: setting(conn, f"betting.stake_{t.lower()}") for t in ("High", "Medium", "Low")},
                   rules={"high": float(setting(conn, "betting.min_prob_high")),
-                         "bet": float(setting(conn, "betting.min_prob_bet"))})
+                         "bet": float(setting(conn, "betting.min_prob_bet")),
+                         "mc_gap": float(setting(conn, "betting.market_check_max_gap")),
+                         "ma_gap": float(setting(conn, "betting.market_agree_max_gap"))},
+                  compare=betting.compare_strategies(conn), strat=strat, sq=sq, strategies=betting.STRATEGIES)
 
 
 @app.get("/edge/event/{event_id}", response_class=HTMLResponse)
@@ -312,11 +323,13 @@ def edge_event(request: Request, event_id: int, conn=Depends(get_db)):
     ev = conn.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
     if ev is None:
         raise HTTPException(404, "no such event")
-    rows = [r for r in betting.bets(conn) if r["event_id"] == event_id]
+    strat, sq = _strategy(request)
+    rows = [r for r in betting.bets(conn, strat) if r["event_id"] == event_id]
     stats = betting.event_stats(rows)
     rows.sort(key=lambda r: (r["bout_order"] or 999, r["id"]))      # main event first
     return render(request, "edge_event.html", ev=ev, rows=rows, st=stats[0] if stats else None,
-                  data=services.betting_edge(conn, event_id), edge_min=services.EDGE_MIN)
+                  data=services.betting_edge(conn, event_id), edge_min=services.EDGE_MIN,
+                  strat=strat, sq=sq, strategies=betting.STRATEGIES)
 
 
 def _ledger_query(request: Request) -> dict:
@@ -327,30 +340,32 @@ def _ledger_query(request: Request) -> dict:
 @app.get("/edge/bets", response_class=HTMLResponse)
 def edge_bets(request: Request, conn=Depends(get_db)):
     q = _ledger_query(request)
-    all_rows = betting.bets(conn)
+    strat, sq = _strategy(request)
+    all_rows = betting.bets(conn, strat)
     rows = betting.filter_rows(all_rows, q)
     events = sorted({(r["event_id"], r["event_date"], r["event_name"]) for r in all_rows}, key=lambda e: e[1] or "",
                     reverse=True)
     return render(request, "edge_bets.html", rows=rows, q=q, s=betting.summary(rows), events=events,
-                  qs=request.url.query)
+                  qs=request.url.query, strat=strat, sq=sq, strategies=betting.STRATEGIES)
 
 
 @app.get("/edge/bets.csv")
 def edge_bets_csv(request: Request, conn=Depends(get_db)):
     from fastapi.responses import Response
-    rows = betting.filter_rows(betting.bets(conn), _ledger_query(request))
+    rows = betting.filter_rows(betting.bets(conn, _strategy(request)[0]), _ledger_query(request))
     return Response(betting.to_csv(rows), media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=ufc-bet-ledger.csv"})
 
 
 @app.get("/edge/bet/{bet_id}", response_class=HTMLResponse)
 def edge_bet(request: Request, bet_id: int, msg: str = "", conn=Depends(get_db)):
-    row = next((r for r in betting.bets(conn) if r["id"] == bet_id), None)
+    row = betting.bet_by_id(conn, bet_id)
     if row is None:
         raise HTTPException(404, "no such bet")
     hist = [h | {"changes": betting.describe(h)} for h in betting.history(conn, bet_id)]
     return render(request, "edge_bet.html", b=row, hist=hist,
-                  why=loads(row["rationale_json"], {}), msg=msg)
+                  why=loads(row["rationale_json"], {}), msg=msg,
+                  strategy_name=betting.STRATEGIES.get(row["strategy"], {}).get("name", row["strategy"]))
 
 
 @app.post("/edge/bet/{bet_id}/correct")
