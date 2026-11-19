@@ -154,12 +154,20 @@ def refresh_upcoming(conn) -> dict:
     return out
 
 
-def refresh_odds(conn) -> dict:
+def refresh_odds(conn, force: bool = False) -> dict:
     """Store current lines from The Odds API for unplayed games. Comparison only: the engine never reads them."""
     from .ingest import store_odds
     from .providers.odds import TheOddsAPIProvider
     if setting(conn, "providers.odds") != "the_odds_api":
-        return {"skipped": f"odds provider is {setting(conn, 'providers.odds')} (ESPN lines arrive with the schedule)"}
+        return {"skipped": f"odds provider is {setting(conn, 'providers.odds')}"}
+    import os
+    if not os.environ.get("ODDS_API_KEY"):
+        return {"skipped": "ODDS_API_KEY is not set: add it as a repository secret (GitHub Actions) to track lines"}
+    hours = float(setting(conn, "providers.odds.min_interval_hours"))
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=hours)).isoformat(timespec="seconds")
+    if not force and conn.execute("SELECT 1 FROM job_runs WHERE job='refresh_odds' AND status='ok' AND started_at>=?",
+                                  (since,)).fetchone():
+        return {"skipped": f"lines were fetched less than {hours:g} hours ago (API credit budget)"}
     jid = _job(conn, "refresh_odds")
     rows = conn.execute(
         """SELECT g.id, th.name AS home_name, ta.name AS away_name FROM games g JOIN events e ON e.id=g.event_id
@@ -171,7 +179,7 @@ def refresh_odds(conn) -> dict:
         _finish(conn, jid, "skipped", "no upcoming games")
         return {"skipped": "no upcoming games"}
     books = [b.strip() for b in str(setting(conn, "providers.odds.bookmakers") or "").split(",") if b.strip()]
-    prov = TheOddsAPIProvider(bookmakers=books)
+    prov = TheOddsAPIProvider(bookmakers=books, markets=str(setting(conn, "providers.odds.markets")))
     games = [{"external_id": str(r["id"]), "home_name": r["home_name"], "away_name": r["away_name"]} for r in rows]
     try:
         b: Bundle = prov.fetch_odds(games)

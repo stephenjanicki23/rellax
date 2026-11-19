@@ -1,21 +1,29 @@
-"""Simulated betting tracker: flat stakes by confidence tier, settled against official results.
+"""Simulated betting tracker: moneyline and point-spread bets, staked by win chance and price.
 
 This module only *reads* predictions, results and odds. Nothing in the prediction engine or the learning
 loop reads from here, so tracking bets can never change a prediction.
 
+Markets (one row per game per market: ``UNIQUE(game_id, strategy)`` with strategy = market)
+------------------------------------------------------------------------------------------
+* ``moneyline`` — the engine's predicted winner at the moneyline price.
+* ``spread`` — the side the engine expects to cover the bookmaker's spread, from its margin distribution
+  (P(cover) = P(margin + line > 0)). Created once a spread line exists before the lock.
+
 Rules
 -----
-* One bet per game per strategy (``UNIQUE(game_id, strategy)``); every sync is idempotent.
-* The bet follows the engine's confidence label (High / Medium / Low) as stored on the prediction.
-  Stakes come from settings at the moment the bet is recorded; changing settings never rewrites
-  recorded stakes. Low-confidence picks are tracked with a $0 stake and never count as bets.
-* Before the night locks, a bet follows the newest prediction; each change is logged. When the night's
-  predictions lock (before the first tip-off), the bet is locked to the official prediction.
-* Odds are snapshotted from imported/feed moneylines captured before the game's result arrived. A locked bet
-  keeps its odds; odds are never invented. Without odds a decided bet waits ("needs odds") and is left
-  out of realised P/L until an admin enters them.
-* Settlement: win → +profit; loss → −stake; abandoned game → void (0); postponed or canceled game →
-  void (0). Pending bets never touch realised P/L. A returned stake is never counted as profit.
+* Stake by the engine's chance and the price, not the confidence label: a big stake ($100 by default) at
+  ``betting.<market>_prob_high`` or more, a standard stake ($50) from ``betting.<market>_prob_bet``; below that,
+  or early in the season (either team under ``betting.min_season_games`` games), the pick is tracked with no
+  stake. A staked pick is only bet when the expected return at the offered price clears ``betting.min_ev``.
+  Stakes come from settings at the moment the bet is recorded; changing settings never rewrites locked bets.
+* Before the night locks, a bet follows the newest prediction and the latest line (a spread pick can switch
+  sides when the line moves); each change is logged. At the lock, pick, line, price and stake are frozen.
+* Odds and lines are snapshotted from feed/imported lines captured before the game's result. They are never
+  invented. Without a price a decided bet waits ("needs odds") and stays out of realised P/L.
+* Settlement: moneyline win → +profit, loss → −stake; spread cover → +profit, miss → −stake, exactly on
+  the line → push (stake returned); abandoned, postponed or canceled game → void (stake returned).
+* Closing line: the last line before the result is stored, for closing-line value (price for moneylines,
+  points for spreads).
 * Admin corrections are explicit, require a reason, and are logged in ``sim_bet_events`` (append-only).
 """
 from __future__ import annotations
@@ -32,9 +40,11 @@ from .db import audit
 from .evaluation.metrics import wilson
 from .util import dumps, loads, utcnow
 
-STRATEGY = "confidence_flat"
-TIERS = ("High", "Medium", "Low")
+MARKETS = ("moneyline", "spread")
+STRATEGY = "moneyline"            # kept for callers that predate the spread market
+TIERS = ("High", "Medium", "Low")  # stake tiers: big stake, standard stake, tracked only
 SETTLED = ("win", "loss", "push", "void")
+MARKET_LABEL = {"moneyline": "Moneyline", "spread": "Spread"}
 
 
 # ------------------------------------------------------------------ money (integer cents, exact)
@@ -108,12 +118,12 @@ def _t(ts: str | None) -> str:
 
 
 def _stakes(conn) -> dict:
-    return {"High": _cents(float(setting(conn, "betting.stake_high")) * 100),
-            "Medium": _cents(float(setting(conn, "betting.stake_medium")) * 100),
-            "Low": _cents(float(setting(conn, "betting.stake_low")) * 100),
-            "_min_p_high": float(setting(conn, "betting.min_prob_high")),
-            "_min_p_bet": float(setting(conn, "betting.min_prob_bet")),
-            "_min_ev": float(setting(conn, "betting.min_ev"))}
+    g = lambda k: float(setting(conn, k))
+    return {"High": _cents(g("betting.stake_high") * 100), "Medium": _cents(g("betting.stake_medium") * 100),
+            "Low": _cents(g("betting.stake_low") * 100), "_min_ev": g("betting.min_ev"),
+            "_min_games": int(g("betting.min_season_games")),
+            "moneyline": (g("betting.moneyline_prob_high"), g("betting.moneyline_prob_bet")),
+            "spread": (g("betting.spread_prob_high"), g("betting.spread_prob_bet"))}
 
 
 def price_check(p_pick: float | None, decimal: float | None, rules: dict) -> tuple[bool, str, float | None]:
@@ -127,24 +137,20 @@ def price_check(p_pick: float | None, decimal: float | None, rules: dict) -> tup
                    f"is below the {rules['_min_ev']:+.0%} minimum: price too short, passed")), ev
 
 
-def bet_tier(confidence_label: str | None, p_pick: float | None, rules: dict) -> tuple[str, str]:
-    """Stake tier from the engine's confidence AND its win probability, with the reason.
-
-    Confidence says how reliable the probability is, not how likely the pick is to win, so a
-    High-confidence 50% call is still a coin flip and gets no bet."""
-    label = confidence_label if confidence_label in TIERS else "Low"
+def stake_tier(market: str, p_pick: float | None, season_games: int | None, rules: dict) -> tuple[str, str]:
+    """Stake tier from the engine's chance for this market, with the reason (the confidence label is not used)."""
+    hi, lo = rules[market]
+    what = "to win" if market == "moneyline" else "to cover"
     if p_pick is None:
-        return "Low", "no win probability recorded"
-    if label == "Low":
-        return "Low", "Low confidence: tracked, not bet"
-    if p_pick < rules["_min_p_bet"]:
-        return "Low", f"{p_pick:.0%} is too close to a coin flip (needs {rules['_min_p_bet']:.0%}+): tracked, not bet"
-    if label == "High" and p_pick >= rules["_min_p_high"]:
-        return "High", f"High confidence and {p_pick:.0%} chance (needs {rules['_min_p_high']:.0%}+)"
-    if label == "High":
-        return "Medium", (f"High confidence but only {p_pick:.0%} chance (under {rules['_min_p_high']:.0%}): "
-                          "Medium stake")
-    return "Medium", f"Medium confidence and {p_pick:.0%} chance"
+        return "Low", "no probability recorded"
+    if season_games is not None and season_games < rules["_min_games"]:
+        return "Low", (f"early season (a team has played {season_games} games; staking starts at "
+                       f"{rules['_min_games']}): tracked, not bet")
+    if p_pick >= hi:
+        return "High", f"{p_pick:.0%} {what} (big stake from {hi:.0%})"
+    if p_pick >= lo:
+        return "Medium", f"{p_pick:.0%} {what} (standard stake from {lo:.0%})"
+    return "Low", f"{p_pick:.0%} {what} is too close to a coin flip (needs {lo:.0%}+): tracked, not bet"
 
 
 def _log(conn, bet_id, action, before=None, after=None, reason=None, actor="system"):
@@ -154,20 +160,61 @@ def _log(conn, bet_id, action, before=None, after=None, reason=None, actor="syst
                                              dumps(after) if after is not None else None, reason))
 
 
-def _snapshot(pred, game, ev, stakes) -> dict:
-    """Bet fields taken from one prediction, as it was when the bet was recorded."""
+def _odds_rows(conn, game, cutoff: str | None, market: str):
+    col = "home_decimal" if market == "moneyline" else "spread_home"
+    for o in conn.execute(f"SELECT * FROM odds WHERE game_id=? AND {col} IS NOT NULL "
+                          "ORDER BY captured_at DESC, id DESC", (game["id"],)).fetchall():
+        if cutoff and _t(o["captured_at"]) >= _t(cutoff):
+            continue
+        yield o
+
+
+def _latest_odds(conn, game, cutoff, market):
+    return next(_odds_rows(conn, game, cutoff, market), None)
+
+
+def _pick(market: str, pred, game, odds) -> dict | None:
+    """The side, line and engine probability for one market (None: no spread line yet)."""
+    from .models.engine import p_home_covers
     p = loads(pred["payload_json"], {})
-    home = pred["predicted_winner_id"] == game["home_team_id"]
-    side, other = ("home", "away") if home else ("away", "home")
+    if market == "moneyline":
+        home = pred["predicted_winner_id"] == game["home_team_id"]
+        return {"home": home, "p": p.get("p_home" if home else "p_away"), "line": None}
+    if odds is None or odds["spread_home"] is None:
+        return None
+    mu, sigma = p["margin"]["mu"], p["margin"]["sigma"]
+    pc = p_home_covers(mu, sigma, odds["spread_home"])
+    home = pc >= 0.5
+    return {"home": home, "p": pc if home else 1 - pc, "line": odds["spread_home"] if home else -odds["spread_home"]}
+
+
+def _price(market: str, odds, home: bool):
+    if odds is None:
+        return None
+    if market == "moneyline":
+        return odds["home_decimal"] if home else odds["away_decimal"]
+    return odds["spread_home_decimal"] if home else odds["spread_away_decimal"]
+
+
+def _snapshot(pred, game, ev, stakes, market: str = "moneyline", odds=None) -> dict | None:
+    """Bet fields for one market from one prediction (and, for spreads, the current line)."""
+    pk = _pick(market, pred, game, odds)
+    if pk is None:
+        return None
+    p = loads(pred["payload_json"], {})
+    side, other = ("home", "away") if pk["home"] else ("away", "home")
+    st = p.get("stats") or {}
+    games = min((st.get("home") or {}).get("season_games", 99) or 0, (st.get("away") or {}).get("season_games", 99) or 0)
+    tier, why = stake_tier(market, pk["p"], games, stakes)
     conf = p.get("confidence") or {}
-    tier, why = bet_tier(conf.get("label"), p.get(f"p_{side}"), stakes)
     expl = p.get("explanation") or {}
-    favour = expl.get("favoring_home" if home else "favoring_away") or []
-    against = expl.get("favoring_away" if home else "favoring_home") or []
+    favour = expl.get("favoring_home" if pk["home"] else "favoring_away") or []
+    against = expl.get("favoring_away" if pk["home"] else "favoring_home") or []
     rationale = {
-        "prediction_id": pred["id"], "prediction_version": pred["version"], "made_at": pred["created_at"],
-        "model": (p.get("model") or {}).get("version"), "p_pick": p.get(f"p_{side}"),
+        "market": market, "prediction_id": pred["id"], "prediction_version": pred["version"],
+        "made_at": pred["created_at"], "model": (p.get("model") or {}).get("version"), "p_pick": pk["p"],
         "margin": pred["predicted_margin"], "band": pred["predicted_bucket"],
+        "engine_line_home": -(p.get("margin") or {}).get("mu", 0.0), "line": pk["line"],
         "confidence": {"label": conf.get("label"), "score": conf.get("score"), "reasons": conf.get("reasons", [])},
         "stake_rule": why,
         "for_pick": [{"feature": x.get("feature"), "logit": x.get("logit"), "text": x.get("text")} for x in favour[:3]],
@@ -179,30 +226,23 @@ def _snapshot(pred, game, ev, stakes) -> dict:
         "confidence_score": conf.get("score"),
         "pick_team_id": game[f"{side}_team_id"], "pick_name": game[f"{side}_name"],
         "opponent_team_id": game[f"{other}_team_id"], "opponent_name": game[f"{other}_name"],
-        "pick_is_home": int(home), "p_pick": p.get(f"p_{side}"), "stake_cents": stakes[tier],
+        "pick_is_home": int(pk["home"]), "p_pick": pk["p"], "line": pk["line"], "stake_cents": stakes[tier],
         "event_name": ev["name"], "event_date": ev["date"], "season_type": game["season_type"],
         "rationale_json": dumps(rationale),
     }
 
 
-def _odds_for(conn, bet, game, cutoff: str | None):
-    """Latest stored moneyline for the pick, captured before `cutoff` (the game's first result)."""
-    rows = conn.execute("SELECT * FROM odds WHERE game_id=? AND home_decimal IS NOT NULL "
-                        "ORDER BY captured_at DESC, id DESC", (game["id"],)).fetchall()
-    for o in rows:
-        if cutoff and _t(o["captured_at"]) >= _t(cutoff):
-            continue
-        home = bet["pick_team_id"] == game["home_team_id"]
-        dec = float(o["home_decimal"] if home else o["away_decimal"])
-        return {"odds_decimal": dec, "odds_american": decimal_to_american(dec),
-                "odds_source": "feed" if o["provider"] != "manual" else "import",
-                "odds_bookmaker": o["bookmaker"], "odds_captured_at": o["captured_at"], "odds_id": o["id"]}
-    return None
+def _odds_fields(market, odds, home: bool) -> dict:
+    dec = _price(market, odds, home)
+    return {"odds_decimal": dec, "odds_american": decimal_to_american(dec) if dec else None,
+            "odds_source": ("feed" if odds["provider"] != "manual" else "import"),
+            "odds_bookmaker": odds["bookmaker"], "odds_captured_at": odds["captured_at"], "odds_id": odds["id"]}
 
 
 def _decide(bet, game, ev, res) -> dict:
     """Settlement state implied by the facts (ignores manual overrides)."""
     stake = bet["stake_cents"]
+    market = bet["strategy"] if bet["strategy"] in MARKETS else "moneyline"
     if res is None:
         if game["status"] in ("canceled", "postponed", "replaced") or ev["status"] == "canceled":
             note = "game postponed; a rescheduled game is tracked separately" if game["status"] == "postponed" \
@@ -214,22 +254,27 @@ def _decide(bet, game, ev, res) -> dict:
     if not bet["locked_at"]:
         return {"status": "void" if stake else "no_bet", "net_cents": 0 if stake else None, "result_id": res["id"],
                 "settle_note": "not locked before the game (the night missed its lock), so it is not graded"}
-    if res["outcome"] == "win":
-        won = res["winner_team_id"] == bet["pick_team_id"]
+    if res["outcome"] != "win":
         if not stake:
-            return {"status": "no_bet", "net_cents": None, "result_id": res["id"],
-                    "settle_note": "pick won" if won else "pick lost"}
-        if bet["odds_decimal"] is None:
-            return {"status": "win" if won else "loss", "net_cents": None, "result_id": res["id"],
-                    "settle_note": "needs odds: enter the odds that were available to settle this bet"}
-        amt = settle_amounts(stake, "win" if won else "loss", bet["odds_american"] if bet["odds_source"] == "manual"
-                             else None, bet["odds_decimal"])
-        return {"status": "win" if won else "loss", "net_cents": amt["net"], "result_id": res["id"],
-                "settle_note": None}
-    kind, note = "void", "game abandoned: stake returned"
+            return {"status": "no_bet", "net_cents": None, "result_id": res["id"], "settle_note": "no result"}
+        return {"status": "void", "net_cents": 0, "result_id": res["id"], "settle_note": "game abandoned: stake returned"}
+    if market == "moneyline":
+        outcome = "win" if res["winner_team_id"] == bet["pick_team_id"] else "loss"
+    else:
+        home_margin = res["home_score"] - res["away_score"]
+        cover = (home_margin if bet["pick_is_home"] else -home_margin) + (bet["line"] or 0)
+        outcome = "win" if cover > 0 else "loss" if cover < 0 else "push"
     if not stake:
-        return {"status": "no_bet", "net_cents": None, "result_id": res["id"], "settle_note": note.split(":")[0]}
-    return {"status": kind, "net_cents": 0, "result_id": res["id"], "settle_note": note}
+        note = {"win": "pick won", "loss": "pick lost", "push": "push"}[outcome]
+        return {"status": "no_bet", "net_cents": None, "result_id": res["id"], "settle_note": note}
+    if outcome == "push":
+        return {"status": "push", "net_cents": 0, "result_id": res["id"], "settle_note": "landed on the line: stake returned"}
+    if bet["odds_decimal"] is None:
+        return {"status": outcome, "net_cents": None, "result_id": res["id"],
+                "settle_note": "needs odds: enter the price that was available to settle this bet"}
+    amt = settle_amounts(stake, outcome, bet["odds_american"] if bet["odds_source"] == "manual" else None,
+                         bet["odds_decimal"])
+    return {"status": outcome, "net_cents": amt["net"], "result_id": res["id"], "settle_note": None}
 
 
 def _update(conn, bet_id: int, fields: dict) -> None:
@@ -237,9 +282,13 @@ def _update(conn, bet_id: int, fields: dict) -> None:
     conn.execute(f"UPDATE sim_bets SET {cols}, updated_at=? WHERE id=?", (*fields.values(), utcnow(), bet_id))
 
 
+def _get(conn, bet_id):
+    return conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet_id,)).fetchone()
+
+
 # ------------------------------------------------------------------ sync (idempotent)
 def sync(conn, actor: str = "system") -> dict:
-    """Create, update, lock, price and settle bets for every live-predicted game. Safe to run any time."""
+    """Create, update, lock, price and settle bets in every market for every live-predicted game."""
     stakes = _stakes(conn)
     out = defaultdict(int)
     try:
@@ -254,8 +303,10 @@ def sync(conn, actor: str = "system") -> dict:
                 """SELECT g.*, th.name AS home_name, ta.name AS away_name FROM games g
                    JOIN teams th ON th.id=g.home_team_id JOIN teams ta ON ta.id=g.away_team_id
                    WHERE g.event_id=?""", (event_id,)).fetchall()
-            for f in games:
-                _sync_game(conn, ev, lock, f, official.get(f["id"]), latest.get(f["id"]), stakes, out, actor)
+            for g in games:
+                for market in MARKETS:
+                    _sync_game(conn, ev, lock, g, official.get(g["id"]), latest.get(g["id"]), stakes, out, actor,
+                               market)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -263,75 +314,82 @@ def sync(conn, actor: str = "system") -> dict:
     return dict(out)
 
 
-def _sync_game(conn, ev, lock, f, official, latest, stakes, out, actor):
-    bet = conn.execute("SELECT * FROM sim_bets WHERE game_id=? AND strategy=?", (f["id"], STRATEGY)).fetchone()
+TRACKED = ("prediction_id", "tier", "pick_name", "line", "stake_cents", "p_pick")
+
+
+def _sync_game(conn, ev, lock, g, official, latest, stakes, out, actor, market="moneyline"):
+    bet = conn.execute("SELECT * FROM sim_bets WHERE game_id=? AND strategy=?", (g["id"], market)).fetchone()
     res = conn.execute("SELECT * FROM game_results WHERE game_id=? ORDER BY revision DESC LIMIT 1",
-                       (f["id"],)).fetchone()
-    first_res = conn.execute("SELECT MIN(recorded_at) FROM game_results WHERE game_id=?", (f["id"],)).fetchone()[0]
+                       (g["id"],)).fetchone()
+    first_res = conn.execute("SELECT MIN(recorded_at) FROM game_results WHERE game_id=?", (g["id"],)).fetchone()[0]
     pred = official if lock else latest
+    # the line the pick is made against: the latest before the lock (or before the result, if no lock yet)
+    line_cut = lock["locked_at"] if lock else first_res
+    odds = _latest_odds(conn, g, line_cut, market)
     if bet is None:
-        # a bet needs a pre-game pick: the locked prediction, or (before the lock) the newest one
         if pred is None or (res is not None and not (lock and official)):
             return
-        snap = _snapshot(pred, f, ev, stakes)
+        snap = _snapshot(pred, g, ev, stakes, market, odds)
+        if snap is None:                       # spread: no line yet
+            return
         now = utcnow()
-        snap.update(strategy=STRATEGY, event_id=ev["id"], game_id=f["id"],
+        snap.update(strategy=market, event_id=ev["id"], game_id=g["id"],
                     status="pending" if snap["stake_cents"] else "no_bet",
                     locked_at=lock["locked_at"] if lock else None, created_at=now, updated_at=now)
+        if odds is not None:
+            snap.update(_odds_fields(market, odds, bool(snap["pick_is_home"])))
         if res is not None:
-            snap["rationale_json"] = dumps({**loads(snap["rationale_json"], {}),
-                                            "recorded_after_result": True})
+            snap["rationale_json"] = dumps({**loads(snap["rationale_json"], {}), "recorded_after_result": True})
         cols = ", ".join(snap)
         bid = conn.execute(f"INSERT INTO sim_bets({cols}) VALUES ({', '.join('?' * len(snap))})",
                            tuple(snap.values())).lastrowid
-        _log(conn, bid, "created", None, {k: snap[k] for k in ("tier", "pick_name", "stake_cents", "prediction_id")},
+        _log(conn, bid, "created", None, {k: snap.get(k) for k in TRACKED},
              "recorded from the locked pre-game prediction after the result arrived" if res is not None else None,
              actor)
-        out["created"] += 1
-        bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bid,)).fetchone()
-    elif not bet["locked_at"] and pred is not None and res is None and (
-            pred["id"] != bet["prediction_id"]
-            or (snap := _snapshot(pred, f, ev, stakes))["tier"] != bet["tier"]
-            or (bet["odds_decimal"] is None and snap["stake_cents"] != bet["stake_cents"])):
-        snap = _snapshot(pred, f, ev, stakes)
-        before = {k: bet[k] for k in ("prediction_id", "tier", "pick_name", "stake_cents", "p_pick")}
-        _update(conn, bet["id"], {k: v for k, v in snap.items() if k not in ("event_name", "event_date")}
-                | {"status": "pending" if snap["stake_cents"] else "no_bet"})
-        _log(conn, bet["id"], "prediction_changed" if pred["id"] != bet["prediction_id"] else "stake_resized", before,
-             {k: snap[k] for k in ("prediction_id", "tier", "pick_name", "stake_cents", "p_pick")},
-             ("the engine re-predicted this game before the night locked; the bet follows the newest prediction"
-              if pred["id"] != bet["prediction_id"] else
-              "stake rule changed before the night locked: " + loads(snap["rationale_json"], {}).get("stake_rule", "")),
-             actor)
-        out["updated"] += 1
-        bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()
+        out[f"{market}_created"] += 1
+        bet = _get(conn, bid)
+    elif not bet["locked_at"] and pred is not None and res is None and not bet["manual_override"]:
+        snap = _snapshot(pred, g, ev, stakes, market, odds)
+        if snap is not None and (pred["id"] != bet["prediction_id"] or snap["tier"] != bet["tier"]
+                                 or snap["line"] != bet["line"] or snap["pick_team_id"] != bet["pick_team_id"]):
+            before = {k: bet[k] for k in TRACKED}
+            fields = {k: v for k, v in snap.items() if k not in ("event_name", "event_date")}
+            fields["status"] = "pending" if snap["stake_cents"] else "no_bet"
+            if odds is not None:
+                fields.update(_odds_fields(market, odds, bool(snap["pick_is_home"])))
+            _update(conn, bet["id"], fields)
+            why = ("the engine re-predicted this game before the night locked" if pred["id"] != bet["prediction_id"]
+                   else "the line moved before the night locked" if snap["line"] != bet["line"]
+                   else "stake rule changed before the night locked")
+            _log(conn, bet["id"], "prediction_changed" if pred["id"] != bet["prediction_id"] else "repriced", before,
+                 {k: snap[k] for k in TRACKED}, why, actor)
+            out[f"{market}_updated"] += 1
+            bet = _get(conn, bet["id"])
 
     if not bet["locked_at"] and lock is not None:
-        before = {k: bet[k] for k in ("prediction_id", "tier", "pick_name", "stake_cents")}
-        if official is not None and official["id"] != bet["prediction_id"]:
-            snap = _snapshot(official, f, ev, stakes)
-            _update(conn, bet["id"], {k: v for k, v in snap.items() if k not in ("event_name", "event_date")}
-                    | {"status": "pending" if snap["stake_cents"] else "no_bet"})
+        before = {k: bet[k] for k in TRACKED}
         _update(conn, bet["id"], {"locked_at": lock["locked_at"]})
-        bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()
-        _log(conn, bet["id"], "locked", before, {k: bet[k] for k in before},
-             "night's predictions locked: selection and stake are now final", actor)
-        out["locked"] += 1
+        bet = _get(conn, bet["id"])
+        _log(conn, bet["id"], "locked", before, {k: bet[k] for k in TRACKED},
+             "night's predictions locked: pick, line, price and stake are now final", actor)
+        out[f"{market}_locked"] += 1
 
-    # odds: follow the market until the lock; afterwards only fill a missing price, never replace one
-    qualifies = stakes.get(bet["tier"], 0) > 0
-    if qualifies and not bet["manual_override"] and (not bet["locked_at"] or bet["odds_decimal"] is None):
-        o = _odds_for(conn, bet, f, first_res)
-        if o and (o["odds_id"] != bet["odds_id"]) and bet["odds_source"] != "manual":
+    # price: follow the market until the lock; afterwards only fill a missing price, never replace one
+    if (not bet["manual_override"] and odds is not None and odds["id"] != bet["odds_id"] and res is None
+            and (not bet["locked_at"] or bet["odds_decimal"] is None) and bet["odds_source"] != "manual"):
+        same_line = market == "moneyline" or odds["spread_home"] == (bet["line"] if bet["pick_is_home"]
+                                                                     else -(bet["line"] or 0))
+        f = _odds_fields(market, odds, bool(bet["pick_is_home"]))
+        if same_line and f["odds_decimal"] is not None:
             before = {k: bet[k] for k in ("odds_american", "odds_bookmaker", "odds_captured_at")}
-            _update(conn, bet["id"], o)
+            _update(conn, bet["id"], f)
             _log(conn, bet["id"], "odds_set", before if bet["odds_decimal"] is not None else None,
-                 {k: o[k] for k in ("odds_american", "odds_bookmaker", "odds_captured_at")}, None, actor)
-            out["odds_set"] += 1
-            bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()
+                 {k: f[k] for k in ("odds_american", "odds_bookmaker", "odds_captured_at")}, None, actor)
+            out[f"{market}_odds_set"] += 1
+            bet = _get(conn, bet["id"])
 
-    # price rule: once a price exists, stake only if the expected return clears the minimum. Re-checked while the
-    # line can move (before the lock); decided once for a bet that was locked before any price arrived.
+    # price rule: a staked tier is bet only when the expected return clears the minimum
+    qualifies = stakes.get(bet["tier"], 0) > 0
     why = loads(bet["rationale_json"], {}) or {}
     if (qualifies and not bet["manual_override"] and res is None and bet["odds_decimal"] is not None
             and (not bet["locked_at"] or "price_rule" not in why)):
@@ -342,19 +400,24 @@ def _sync_game(conn, ev, lock, f, official, latest, stakes, out, actor):
             _update(conn, bet["id"], {"stake_cents": stake, "status": "pending" if stake else "no_bet",
                                       "rationale_json": dumps(why | {"price_rule": text})})
             _log(conn, bet["id"], "priced", before, {"stake_cents": stake, "price_rule": text}, None, actor)
-            out["priced"] += 1
-            bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()
+            out[f"{market}_priced"] += 1
+            bet = _get(conn, bet["id"])
 
-    # closing line: the last price before the game, compared with the price the bet took
+    # closing line: the last line before the result, compared with the one the bet took
     if res is not None and bet["odds_decimal"] is not None:
-        c = _odds_for(conn, bet, f, first_res)
-        if c and (c["odds_decimal"], c["odds_captured_at"]) != (bet["closing_decimal"], bet["closing_captured_at"]):
-            _update(conn, bet["id"], {"closing_decimal": c["odds_decimal"], "closing_captured_at": c["odds_captured_at"]})
-            bet = conn.execute("SELECT * FROM sim_bets WHERE id=?", (bet["id"],)).fetchone()
+        c = _latest_odds(conn, g, first_res, market)
+        if c is not None:
+            close_dec = _price(market, c, bool(bet["pick_is_home"]))
+            close_line = None if market == "moneyline" else (c["spread_home"] if bet["pick_is_home"] else -c["spread_home"])
+            if (close_dec, c["captured_at"], close_line) != (bet["closing_decimal"], bet["closing_captured_at"],
+                                                            bet["closing_line"]):
+                _update(conn, bet["id"], {"closing_decimal": close_dec, "closing_captured_at": c["captured_at"],
+                                          "closing_line": close_line})
+                bet = _get(conn, bet["id"])
 
     if bet["manual_override"]:
         return
-    d = _decide(bet, f, ev, res)
+    d = _decide(bet, g, ev, res)
     cur = {k: bet[k] for k in d}
     if cur != d:
         was_settled = bet["status"] in SETTLED and bet["result_id"] is not None
@@ -362,7 +425,7 @@ def _sync_game(conn, ev, lock, f, official, latest, stakes, out, actor):
         action = "resettled" if was_settled else "settled"
         _log(conn, bet["id"], action, cur, d,
              "official result revised" if was_settled and d.get("result_id") != cur.get("result_id") else None, actor)
-        out[action] += 1
+        out[f"{market}_{action}"] += 1
 
 
 # ------------------------------------------------------------------ admin corrections (audited)
@@ -431,10 +494,13 @@ def correct(conn, bet_id: int, *, reason: str, actor: str = "admin", odds_americ
 
 
 # ------------------------------------------------------------------ reading & statistics
-def bets(conn) -> list[dict]:
+def bets(conn, market: str | None = None) -> list[dict]:
+    """Bets in one market (moneyline / spread), or in both when market is None."""
+    markets = (market,) if market in MARKETS else MARKETS
     rows = conn.execute(
-        """SELECT b.*, g.tip_time_utc FROM sim_bets b JOIN games g ON g.id=b.game_id WHERE b.strategy=?
-           ORDER BY b.event_date, b.event_id, COALESCE(g.tip_time_utc, ''), b.id""", (STRATEGY,)).fetchall()
+        f"""SELECT b.*, g.tip_time_utc FROM sim_bets b JOIN games g ON g.id=b.game_id
+            WHERE b.strategy IN ({','.join('?' * len(markets))})
+            ORDER BY b.event_date, b.event_id, COALESCE(g.tip_time_utc, ''), b.id, b.strategy""", markets).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -495,7 +561,7 @@ def needs_odds(r) -> bool:
 
 
 def pick_won(r):
-    """Whether the pick won, for every tracked pick including Low (None = undecided/no result)."""
+    """Whether the pick won, for every tracked pick including unstaked ones (None = undecided or push)."""
     if r["status"] in ("win", "loss"):
         return r["status"] == "win"
     if r["status"] == "no_bet" and r["settle_note"] in ("pick won", "pick lost"):
@@ -529,7 +595,12 @@ def summary(rows: list[dict]) -> dict:
 
 
 def clv(r) -> float | None:
-    """Closing line value: how much better the price taken was than the closing price (+ is good)."""
+    """Closing line value (+ is good). Moneyline: price taken vs closing price. Spread: points (line taken
+    minus closing line, from the pick's side)."""
+    if r.get("strategy") == "spread":
+        if r.get("line") is None or r.get("closing_line") is None:
+            return None
+        return r["line"] - r["closing_line"]
     if not r.get("odds_decimal") or not r.get("closing_decimal"):
         return None
     return r["odds_decimal"] / r["closing_decimal"] - 1
@@ -554,6 +625,7 @@ def scorecard(rows: list[dict], min_n: int = 30) -> dict:
         "log_loss": -sum(math.log(p if y else 1 - p) for p, y in zip(ps, won)) / n if n else None,
         "roi": net / stake if stake else None, "net": net,
         "clv_n": len(clvs), "clv_avg": sum(clvs) / len(clvs) if clvs else None,
+        "clv_unit": "points" if rows and all(r.get("strategy") == "spread" for r in rows) else "price",
         "clv_beat": sum(1 for c in clvs if c > 0) / len(clvs) if clvs else None,
         "passed_on_price": sum(1 for r in rows if r["status"] == "no_bet" and r["tier"] in ("High", "Medium")
                                and "price too short" in ((loads(r["rationale_json"], {}) or {}).get("price_rule") or "")),
@@ -665,17 +737,19 @@ def feedback(rows: list[dict], min_n: int = 30) -> dict:
         diff = hi["rate"] - med["rate"]
         se = math.sqrt(hi["rate"] * (1 - hi["rate"]) / hi["n"] + med["rate"] * (1 - med["rate"]) / med["n"]) or 1e-9
         z = diff / se
-        tier_verdict = (f"High-confidence picks win {diff * 100:+.0f} points more often than Medium "
+        tier_verdict = (f"Big-stake picks win {diff * 100:+.0f} points more often than standard-stake picks "
                         + ("— a clear difference." if z > 1.96 else
                            "— but not yet a clear difference." if z > -1.96 else
-                           "— Medium is doing clearly better, so the tiers are not ordered as expected."))
+                           "— standard stakes are doing clearly better, so the thresholds are not ordered as expected."))
     else:
-        tier_verdict = (f"Not enough settled picks yet to compare tiers (need {min_n} each; have "
-                        f"{hi['n']} High and {med['n']} Medium).")
+        tier_verdict = (f"Not enough settled picks yet to compare stake levels (need {min_n} each; have "
+                        f"{hi['n']} big and {med['n']} standard).")
     action = [r for r in rows if is_realised(r) and r["status"] in ("win", "loss") and r["odds_decimal"]]
     expected = sum(r["stake_cents"] * (r["p_pick"] * r["odds_decimal"] - 1) for r in action if r["p_pick"] is not None)
-    fav = _group([r for r in rows if r["odds_decimal"]],
-                 lambda r: "Pick was the betting favourite" if r["odds_decimal"] < 2 else "Pick was the underdog")
+    fav = _group([r for r in rows if r["odds_decimal"] or r.get("line") is not None],
+                 lambda r: (("Pick gave points" if (r["line"] or 0) < 0 else "Pick got points")
+                            if r.get("strategy") == "spread" else
+                            "Pick was the betting favourite" if r["odds_decimal"] < 2 else "Pick was the underdog"))
     band = lambda r: (None if r["confidence_score"] is None else
                       f"score {min(int(r['confidence_score'] * 10), 9) / 10:.1f}–{min(int(r['confidence_score'] * 10), 9) / 10 + .1:.1f}")
     return {"min_n": min_n, "tiers": tiers, "tier_verdict": tier_verdict,
@@ -708,6 +782,8 @@ def filter_rows(rows: list[dict], q: dict) -> list[dict]:
         except ValueError:
             return None
     out = [r for r in rows if r["tier"] in ("High", "Medium") or q.get("tier") == "Low"]
+    if q.get("market") in MARKETS:
+        out = [r for r in out if r["strategy"] == q["market"]]
     if q.get("tier"):
         out = [r for r in out if r["tier"] == q["tier"]]
     if q.get("event"):
@@ -735,7 +811,8 @@ def filter_rows(rows: list[dict], q: dict) -> list[dict]:
     return out
 
 
-CSV_COLUMNS = ["bet_id", "event_date", "event", "season_type", "pick", "opponent", "pick_is_home", "tier", "confidence_score",
+CSV_COLUMNS = ["bet_id", "market", "event_date", "event", "season_type", "pick", "opponent", "pick_is_home", "line",
+               "closing_line", "tier", "confidence_score",
                "predicted_win_probability", "odds_american", "odds_decimal", "odds_source", "odds_bookmaker",
                "stake", "status", "net_pl", "stake_returned", "total_returned", "settle_note", "prediction_id",
                "recorded_at", "locked_at", "settled_at"]
@@ -752,8 +829,8 @@ def to_csv(rows: list[dict]) -> str:
             r["stake_cents"] if realised and r["status"] == "win" else 0 if realised else None)
         tot = (r["stake_cents"] + r["net_cents"]) if realised and r["status"] == "win" else (
             ret if realised else None)
-        w.writerow([r["id"], r["event_date"], r["event_name"], r["season_type"], r["pick_name"], r["opponent_name"],
-                    r["pick_is_home"],
+        w.writerow([r["id"], r["strategy"], r["event_date"], r["event_name"], r["season_type"], r["pick_name"],
+                    r["opponent_name"], r["pick_is_home"], r.get("line"), r.get("closing_line"),
                     r["tier"], r["confidence_score"], None if r["p_pick"] is None else round(r["p_pick"], 4),
                     r["odds_american"], None if r["odds_decimal"] is None else round(r["odds_decimal"], 4),
                     r["odds_source"], r["odds_bookmaker"], f"{r['stake_cents'] / 100:.2f}",

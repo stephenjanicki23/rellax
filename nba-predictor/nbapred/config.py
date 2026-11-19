@@ -96,14 +96,19 @@ DEFAULT_SETTINGS: dict = {
     "providers.espn.backfill_from": "2024-10-01",
     "providers.espn.days_ahead": 2,              # how many days of upcoming games to load
     "providers.espn.max_box_fetch": 1500,        # per run: full box scores fetched for games missing them
-    "providers.odds": "none",                    # none | manual | espn | the_odds_api
+    "providers.odds": "the_odds_api",            # the_odds_api (needs ODDS_API_KEY) | manual | espn | none
     "providers.odds.bookmakers": "williamhill_us",  # The Odds API bookmaker keys, comma-separated; empty = all US books
-    "betting.stake_high": 100,                   # simulated stake (dollars) per High-confidence pick
-    "betting.stake_medium": 50,                  # per Medium-confidence pick
-    "betting.stake_low": 0,                      # Low-confidence picks are tracked, not bet
-    "betting.min_prob_high": 0.60,               # High stake needs High confidence AND at least this win chance
-    "betting.min_prob_bet": 0.55,                # below this win chance a pick is a near coin flip: no bet
-    "betting.min_ev": 0.05,                      # stake only when expected return at the offered odds is at least this
+    "providers.odds.markets": "h2h,spreads",     # each market costs one API credit per request
+    "providers.odds.min_interval_hours": 6,      # at most one odds request per this many hours (free tier: 500/month)
+    "betting.stake_high": 100,                   # simulated stake (dollars) for a big-stake pick
+    "betting.stake_medium": 50,                  # for a standard-stake pick
+    "betting.stake_low": 0,                      # picks below the thresholds are tracked, not bet
+    "betting.moneyline_prob_high": 0.65,         # moneyline: big stake from this win chance
+    "betting.moneyline_prob_bet": 0.55,          # moneyline: standard stake from this win chance
+    "betting.spread_prob_high": 0.60,            # spread: big stake from this chance to cover
+    "betting.spread_prob_bet": 0.55,             # spread: standard stake from this chance to cover
+    "betting.min_season_games": 10,              # no stakes until both teams have played this many games
+    "betting.min_ev": 0.05,                      # stake only when expected return at the offered price is at least this
     "betting.min_sample": 30,                    # settled bets before a segment is treated as evidence
     "providers.nba_mirror.base_url": "https://raw.githubusercontent.com/NocturneBear/NBA-Data-2010-2024/main",
     "providers.min_request_interval_s": 1.0,

@@ -32,6 +32,9 @@ T.filters["f"] = lambda v, d=3: "—" if v is None else f"{v:.{d}f}"
 T.filters["loads"] = lambda s: loads(s, {})
 T.filters["money"] = betting.money
 T.filters["american"] = betting.decimal_to_american
+T.filters["betline"] = lambda r: ("" if r.get("line") is None else ("PK" if r["line"] == 0 else "%+g" % r["line"]))
+T.filters["market"] = lambda r: betting.MARKET_LABEL.get(r.get("strategy"), "Moneyline")
+T.filters["stake_label"] = lambda t: {"High": "Big", "Medium": "Standard", "Low": "Not bet"}.get(t, t)
 T.globals.update(charts=charts, now=lambda: utcnow())
 plain.install(T)
 
@@ -297,18 +300,23 @@ def rollback(version_id: int, reason: str = Form("manual rollback from Learning 
 
 
 @app.get("/edge", response_class=HTMLResponse)
-def edge(request: Request, conn=Depends(get_db)):
-    rows = betting.bets(conn)
+def edge(request: Request, market: str = "moneyline", conn=Depends(get_db)):
+    market = market if market in betting.MARKETS else "moneyline"
+    rows = betting.bets(conn, market)
+    both = betting.bets(conn)
     ev = services.edge_event(conn)
     min_n = int(setting(conn, "betting.min_sample"))
-    return render(request, "edge.html", rows=rows, s=betting.summary(rows),
+    g = lambda k: float(setting(conn, k))
+    return render(request, "edge.html", rows=rows, s=betting.summary(rows), market=market,
+                  market_label=betting.MARKET_LABEL[market],
+                  totals={m: betting.summary([r for r in both if r["strategy"] == m]) for m in betting.MARKETS},
                   tiers=[betting.tier_stats(rows, t) for t in ("High", "Medium")], events=betting.event_stats(rows),
                   curve=betting.cumulative(rows), fb=betting.feedback(rows, min_n), next_ev=ev,
-                  sc=betting.scorecard(rows, min_n), min_ev=float(setting(conn, "betting.min_ev")),
+                  sc=betting.scorecard(rows, min_n), min_ev=g("betting.min_ev"),
                   record=services.betting_track_record(conn), edge_min=services.EDGE_MIN,
                   stakes={t: setting(conn, f"betting.stake_{t.lower()}") for t in ("High", "Medium", "Low")},
-                  rules={"high": float(setting(conn, "betting.min_prob_high")),
-                         "bet": float(setting(conn, "betting.min_prob_bet"))})
+                  rules={"high": g(f"betting.{market}_prob_high"), "bet": g(f"betting.{market}_prob_bet"),
+                         "games": int(g("betting.min_season_games"))})
 
 
 @app.get("/edge/night/{event_id}", response_class=HTMLResponse)
@@ -318,13 +326,13 @@ def edge_event(request: Request, event_id: int, conn=Depends(get_db)):
         raise HTTPException(404, "no such game night")
     rows = [r for r in betting.bets(conn) if r["event_id"] == event_id]
     stats = betting.event_stats(rows)
-    rows.sort(key=lambda r: (r["tip_time_utc"] or "", r["id"]))
+    rows.sort(key=lambda r: (r["tip_time_utc"] or "", r["game_id"], r["strategy"] != "moneyline", r["id"]))
     return render(request, "edge_night.html", ev=ev, rows=rows, st=stats[0] if stats else None,
                   data=services.betting_edge(conn, event_id), edge_min=services.EDGE_MIN)
 
 
 def _ledger_query(request: Request) -> dict:
-    keys = ("tier", "event", "date_from", "date_to", "status", "team", "odds_min", "odds_max", "sort", "dir")
+    keys = ("market", "tier", "event", "date_from", "date_to", "status", "team", "odds_min", "odds_max", "sort", "dir")
     return {k: request.query_params.get(k, "") for k in keys}
 
 
@@ -510,7 +518,7 @@ def action(name: str, event_id: int | None = Form(None), reason: str = Form(""),
         elif name == "refresh_upcoming":
             msg = str(lifecycle.refresh_upcoming(conn))
         elif name == "refresh_odds":
-            msg = "odds: " + str(lifecycle.refresh_odds(conn))
+            msg = "odds: " + str(lifecycle.refresh_odds(conn, force=True))
         elif name == "refresh_boxes":
             msg = "box scores: " + str(lifecycle.refresh_boxes(conn))
         elif name == "tick":
