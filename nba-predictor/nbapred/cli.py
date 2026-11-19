@@ -94,7 +94,8 @@ def main(argv=None):
                      "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json",
                      "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json",
                      "https://cdn.nba.com/static/json/liveData/odds/odds_todaysGames.json",
-                     "https://raw.githubusercontent.com/NocturneBear/NBA-Data-2010-2024/main/README.md"])
+                     "https://raw.githubusercontent.com/NocturneBear/NBA-Data-2010-2024/main/README.md",
+                     "https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-data/main/README.md"])
     elif a.cmd == "refresh-boxes":
         out = lifecycle.refresh_boxes(conn, a.limit)
     elif a.cmd.startswith("import-"):

@@ -91,12 +91,12 @@ DEFAULT_SETTINGS: dict = {
     "lifecycle.scheduler_enabled": False,
     "lifecycle.scheduler_interval_minutes": 60,
     "providers.historical": "nba_mirror",
-    "providers.upcoming": "espn",                # manual | espn
-    "providers.recent": "espn",                  # seasons after the mirror's last season: espn | none
+    "providers.upcoming": "hoopr",               # hoopr (GitHub mirror of ESPN data) | espn | manual
+    "providers.recent": "hoopr",                 # seasons after the mirror's last season: hoopr | espn | none
     "providers.espn.backfill_from": "2024-10-01",
     "providers.espn.days_ahead": 2,              # how many days of upcoming games to load
     "providers.espn.max_box_fetch": 1500,        # per run: full box scores fetched for games missing them
-    "providers.odds": "espn",                    # none | manual | espn | the_odds_api
+    "providers.odds": "none",                    # none | manual | espn | the_odds_api
     "providers.odds.bookmakers": "williamhill_us",  # The Odds API bookmaker keys, comma-separated; empty = all US books
     "betting.stake_high": 100,                   # simulated stake (dollars) per High-confidence pick
     "betting.stake_medium": 50,                  # per Medium-confidence pick

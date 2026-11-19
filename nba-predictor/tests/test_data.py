@@ -150,3 +150,51 @@ def test_devig_and_the_odds_api_parser():
     b = parse_the_odds_api(data, [{"external_id": "7", "home_name": "Boston Celtics", "away_name": "Miami Heat"}])
     o = b.odds[0]
     assert (o.home_decimal, o.spread_home, o.total, o.under_decimal) == (1.4, -7.5, 220.5, 1.92)
+
+
+def test_hoopr_schedule_and_box_scores_parse_and_skip_all_star_games():
+    from nbapred.providers.base import Bundle
+    from nbapred.providers.hoopr import hoopr_season, parse_schedule, parse_team_box
+    import datetime as dt
+    sched = [
+        {"game_id": 401910002, "game_date": dt.date(2026, 11, 17), "start_date": "2026-11-18T00:30Z", "season": 2027,
+         "season_type": 2, "status_type_name": "STATUS_FINAL", "status_type_completed": True, "status_period": 5.0,
+         "home_abbreviation": "TOR", "home_display_name": "Toronto Raptors", "away_abbreviation": "NY",
+         "away_display_name": "New York Knicks", "home_score": 109, "away_score": 111, "neutral_site": False},
+        {"game_id": 401910099, "game_date": dt.date(2026, 11, 19), "start_date": "2026-11-20T01:00Z", "season": 2027,
+         "season_type": 2, "status_type_name": "STATUS_SCHEDULED", "status_type_completed": False,
+         "home_abbreviation": "SA", "home_display_name": "San Antonio Spurs", "away_abbreviation": "WSH",
+         "away_display_name": "Washington Wizards", "home_score": 0, "away_score": 0, "neutral_site": True,
+         "venue_address_city": "Mexico City"},
+        {"game_id": 401800000, "game_date": dt.date(2026, 2, 15), "season": 2026, "season_type": 2,
+         "status_type_name": "STATUS_FINAL", "status_type_completed": True, "home_abbreviation": "CHK",
+         "home_display_name": "Team Chuck", "away_abbreviation": "SHQ", "away_display_name": "Team Shaq",
+         "home_score": 180, "away_score": 175},
+    ]
+    b = Bundle(provider="hoopr")
+    parse_schedule(sched, b)
+    assert [g.external_id for g in b.games] == ["espn:401910002", "espn:401910099"]   # All-Star game skipped
+    final, upcoming = b.games
+    assert (final.home_name, final.away_name, final.season, final.status) == ("Toronto Raptors", "New York Knicks",
+                                                                             "2026-27", "completed")
+    assert b.results[0].periods == 5 and b.results[0].away_score == 111
+    assert upcoming.status == "scheduled" and upcoming.venue_city == "Mexico City" and upcoming.neutral_site
+    box = [{"game_id": 401910002, "team_home_away": "away", "team_score": 111, "field_goals_made": 41,
+            "field_goals_attempted": 78, "three_point_field_goals_made": 12, "three_point_field_goals_attempted": 33,
+            "free_throws_made": 17, "free_throws_attempted": 20, "offensive_rebounds": 12, "defensive_rebounds": 33,
+            "assists": 25, "steals": 7, "blocks": 4, "turnovers": 12, "total_turnovers": 13, "fouls": 19}]
+    parse_team_box(box, b, {"espn:401910002"}, {"espn:401910002": 5})
+    st = b.stats[0].stats
+    assert b.stats[0].side == "away" and st["tov"] == 13 and st["oreb"] == 12 and st["minutes"] == 265.0
+    assert hoopr_season("2026-11-18") == 2027 and hoopr_season("2027-04-01") == 2027
+
+
+def test_hoopr_parquet_round_trip():
+    pytest.importorskip("pyarrow")
+    import io
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from nbapred.providers.hoopr import read_parquet
+    buf = io.BytesIO()
+    pq.write_table(pa.Table.from_pylist([{"game_id": 1, "team_home_away": "home"}]), buf)
+    assert read_parquet(buf.getvalue()) == [{"game_id": 1, "team_home_away": "home"}]

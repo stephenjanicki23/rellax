@@ -6,8 +6,8 @@
 <div class="card"><h2>Data providers &amp; credentials</h2>
 <dl class="kv small">
 <dt>History (2010-11 → 2023-24)</dt><dd>NBA.com team box scores, GitHub mirror — <code>{{ values['providers.nba_mirror.base_url'] }}</code></dd>
-<dt>Recent seasons</dt><dd><b>{{ values['providers.recent'] }}</b>{% if values['providers.recent'] == 'espn' %} — ESPN scoreboard from {{ values['providers.espn.backfill_from'] }}, full box scores from game summaries (up to {{ values['providers.espn.max_box_fetch'] }} per run){% endif %}</dd>
-<dt>Upcoming games</dt><dd><b>{{ values['providers.upcoming'] }}</b>{% if values['providers.upcoming'] == 'manual' %} — import below{% else %} — ESPN scoreboard, {{ values['providers.espn.days_ahead'] }} days ahead{% endif %}</dd>
+<dt>Recent seasons</dt><dd><b>{{ values['providers.recent'] }}</b>{% if values['providers.recent'] == 'hoopr' %} — SportsDataverse hoopR mirror of ESPN data on GitHub (schedules, finals, full box scores; updated daily){% endif %}{% if values['providers.recent'] == 'espn' %} — ESPN scoreboard from {{ values['providers.espn.backfill_from'] }}, full box scores from game summaries (up to {{ values['providers.espn.max_box_fetch'] }} per run){% endif %}</dd>
+<dt>Upcoming games</dt><dd><b>{{ values['providers.upcoming'] }}</b>{% if values['providers.upcoming'] == 'manual' %} — import below{% else %} — {{ 'hoopR mirror' if values['providers.upcoming'] == 'hoopr' else 'ESPN scoreboard' }}, {{ values['providers.espn.days_ahead'] }} days ahead{% endif %}</dd>
 <dt>Odds</dt><dd><b>{{ values['providers.odds'] }}</b>{% if values['providers.odds'] == 'espn' %} · ESPN scoreboard lines{% endif %}{% if values['providers.odds'] == 'the_odds_api' %} · bookmakers <code>{{ values['providers.odds.bookmakers'] or 'all US' }}</code>{% endif %} · ODDS_API_KEY {{ 'set' if env.ODDS_API_KEY else 'not set' }} · shown on Betting Edge only, never used by the engine</dd>
 <dt>AI analyst</dt><dd><b>{{ values['analyst.provider'] }}</b> · ANTHROPIC_API_KEY {{ 'set' if env.ANTHROPIC_API_KEY else 'not set' }}</dd>
 <dt>Database</dt><dd><b>{{ backend }}</b> · <code>{{ env.database }}</code>{% if on_vercel and backend == 'sqlite' %} <span class="status bad">ephemeral — set DATABASE_URL (Neon) in the Vercel project</span>{% endif %}</dd>
@@ -39,8 +39,8 @@
 <div class="grid g3">{% for k, d in defaults.items() %}<label class="small">{{ k }}<br>
 {% if d is sameas true or d is sameas false %}<input type="checkbox" name="{{ k }}" {{ 'checked' if values[k] }}>
 {% elif k == 'promotion.mode' %}<select name="{{ k }}">{% for o in ['auto','manual'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
-{% elif k == 'providers.upcoming' %}<select name="{{ k }}">{% for o in ['manual','espn'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
-{% elif k == 'providers.recent' %}<select name="{{ k }}">{% for o in ['espn','none'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
+{% elif k == 'providers.upcoming' %}<select name="{{ k }}">{% for o in ['hoopr','espn','manual'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
+{% elif k == 'providers.recent' %}<select name="{{ k }}">{% for o in ['hoopr','espn','none'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
 {% elif k == 'providers.odds' %}<select name="{{ k }}">{% for o in ['none','manual','espn','the_odds_api'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
 {% elif k == 'analyst.provider' %}<select name="{{ k }}">{% for o in ['deterministic','anthropic'] %}<option {{ 'selected' if values[k] == o }}>{{ o }}</option>{% endfor %}</select>
 {% else %}<input name="{{ k }}" value="{{ values[k] }}" size="28">{% endif %}

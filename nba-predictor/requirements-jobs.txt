@@ -1,0 +1,3 @@
+-r requirements.txt
+# jobs only (GitHub Actions): reading the hoopR Parquet mirror
+pyarrow>=15

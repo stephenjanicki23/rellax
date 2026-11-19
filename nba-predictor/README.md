@@ -34,8 +34,9 @@ SQLite locally / Postgres on Vercel, GitHub Actions jobs, backups.
 | Need | Provider | Status |
 | --- | --- | --- |
 | History 2010-11 → 2023-24 (team box scores, regular season + playoffs) | `nba_mirror` — [NocturneBear/NBA-Data-2010-2024](https://github.com/NocturneBear/NBA-Data-2010-2024) (NBA.com data) | Working. 17,828 games. Downloaded at runtime into `data/cache/`, never committed. |
-| Seasons after 2023-24, upcoming nights, results, lines | `espn` — ESPN public scoreboard (`/scoreboard?dates=`) and game summaries (`/summary?event=`) | Implemented and **fixture-tested only**: ESPN is not reachable from the build sandbox. It runs in GitHub Actions and on Vercel. |
-| Odds | ESPN scoreboard lines (default), The Odds API (`ODDS_API_KEY`, `basketball_nba`, h2h/spreads/totals) or a CSV import | Comparison only; the engine never reads them unless a market-model candidate is validated. |
+| Seasons after 2023-24, upcoming nights, results, box scores | `hoopr` (default) — [sportsdataverse/hoopR-nba-data](https://github.com/sportsdataverse/hoopR-nba-data), a daily public GitHub mirror of ESPN's NBA data (schedules, finals, full team box scores, Parquet) | Working, verified against the live mirror: 2024-25 → today. Finals arrive the next day. Needs `pyarrow` (jobs only, `requirements-jobs.txt`). |
+| Same, directly | `espn` — ESPN public scoreboard and game summaries | Kept as an option, but ESPN answers **403** to GitHub Actions, and NBA.com's CDN does not answer cloud servers at all (checked with `python -m nbapred probe-sources`). |
+| Odds | None by default (the mirror carries no lines): The Odds API (`ODDS_API_KEY`, `basketball_nba`, h2h/spreads/totals) or a CSV import | Comparison only; the engine never reads them unless a market-model candidate is validated. |
 | Injuries | Game-day form on each game page, or `availability_template.csv` | No historical source, so absences are *unknown* for past games: the feature is inactive until data accumulates; today it lowers confidence. |
 | Rest, back-to-backs, travel, time zones, altitude | Computed from the schedule and approximate arena coordinates (`nbapred/teams.py`) | Working. |
 
