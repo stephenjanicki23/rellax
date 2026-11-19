@@ -25,16 +25,17 @@ def cache_dir() -> Path:
     return p
 
 
-def _get(url: str, timeout: float) -> tuple[int, str]:
+def _get(url: str, timeout: float, binary: bool = False) -> tuple[int, str | bytes]:
     """GET with the standard library (honours HTTPS_PROXY and the system CA store)."""
     import urllib.error
     import urllib.request
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, r.read().decode("utf-8", errors="replace")
+            data = r.read()
+            return r.status, (data if binary else data.decode("utf-8", errors="replace"))
     except urllib.error.HTTPError as e:
-        return e.code, ""
+        return e.code, (b"" if binary else "")
 
 
 def robots_allows(url: str, check_robots: bool = True) -> bool:
@@ -67,11 +68,12 @@ def redact(url: str) -> str:
 
 def fetch(url: str, provider: str, resource: str, *, min_interval_s: float = 2.0,
           max_age_s: float | None = None, check_robots: bool = True, timeout: float = 60,
-          license: str | None = None) -> tuple[str, SourceMeta]:
-    """Fetch text with caching. On network failure a cached copy is returned and marked stale."""
+          license: str | None = None, binary: bool = False) -> tuple[str | bytes, SourceMeta]:
+    """Fetch text (or bytes) with caching. On network failure a cached copy is returned and marked stale."""
     cache = cache_dir() / provider / (resource.replace("/", "_"))
+    read = cache.read_bytes if binary else cache.read_text
     if max_age_s is not None and cache.exists() and time.time() - cache.stat().st_mtime < max_age_s:
-        text = cache.read_text()
+        text = read()
         return text, SourceMeta(provider, resource, redact(url), utcnow(), sha256(text), "cached", None, None, str(cache),
                                 license=license)
     if not robots_allows(url, check_robots):
@@ -82,20 +84,20 @@ def fetch(url: str, provider: str, resource: str, *, min_interval_s: float = 2.0
         time.sleep(wait)
     try:
         _last_request[host] = time.time()
-        code, text = _get(url, timeout)
+        code, text = _get(url, timeout, binary)
         if code != 200:
             raise ProviderError(f"HTTP {code} for {redact(url)}")
     except ProviderError:
         raise
     except Exception as e:  # network failure
         if cache.exists():
-            text = cache.read_text()
+            text = read()
             return text, SourceMeta(provider, resource, redact(url), utcnow(), sha256(text), "stale", None,
                                     f"network failure, served cache: {redact(str(e))}", str(cache), license=license)
         raise ProviderUnavailable(f"cannot reach {redact(url)}: {redact(str(e))}",
                                   "network access to the provider host (see Settings → Data providers)") from e
     cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text(text)
+    cache.write_bytes(text) if binary else cache.write_text(text)
     return text, SourceMeta(provider, resource, redact(url), utcnow(), sha256(text), "ok", 200, None, str(cache),
                             license=license)
 

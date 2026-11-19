@@ -34,6 +34,16 @@ def historical_provider(conn):
     return NBAMirrorProvider(base_url=setting(conn, "providers.nba_mirror.base_url"))
 
 
+def hoopr(conn):
+    from .providers.hoopr import HoopRProvider
+    return HoopRProvider(min_interval_s=float(setting(conn, "providers.min_request_interval_s")))
+
+
+def recent_provider(conn, name: str | None = None):
+    """The provider for seasons after the mirror and for upcoming games: hoopr (default) or espn."""
+    return espn(conn) if (name or setting(conn, "providers.recent")) == "espn" else hoopr(conn)
+
+
 def espn(conn):
     from .providers.espn import ESPNProvider
     return ESPNProvider(min_interval_s=float(setting(conn, "providers.min_request_interval_s")))
@@ -62,15 +72,17 @@ def refresh_history(conn, progress=None, force_mirror: bool = False) -> dict:
         except (ProviderError, OSError) as e:
             out["mirror"] = _fail(conn, jid, "nba_mirror", e)
             jid = _job(conn, "refresh_history")
-    if setting(conn, "providers.recent") == "espn":
+    if setting(conn, "providers.recent") in ("espn", "hoopr"):
         out["recent"] = refresh_recent(conn, progress)
-        out["box_scores"] = refresh_boxes(conn)
+        if setting(conn, "providers.recent") == "espn":     # hoopr already carries full box scores
+            out["box_scores"] = refresh_boxes(conn)
     _finish(conn, jid, "ok" if not any("error" in (v or {}) for v in out.values()) else "partial", str(out))
     return out
 
 
 def refresh_recent(conn, progress=None) -> dict:
-    """ESPN results for every date from `providers.espn.backfill_from` (resuming where the database ends)."""
+    """Results and box scores for every date from `providers.espn.backfill_from` (resuming where the database
+    ends), from the hoopR mirror (default) or ESPN directly."""
     jid = _job(conn, "refresh_recent")
     today = utcnow()[:10]
     start = setting(conn, "providers.espn.backfill_from")
@@ -83,9 +95,10 @@ def refresh_recent(conn, progress=None) -> dict:
         _finish(conn, jid, "skipped", "up to date")
         return {"skipped": "up to date"}
     try:
-        b = espn(conn).fetch_range(start, end, today, progress)
+        prov = recent_provider(conn)
+        b = prov.fetch_range(start, end, today, progress) if prov.name == "espn" else prov.fetch_range(start, end, today)
     except ProviderError as e:
-        return _fail(conn, jid, "espn", e)
+        return _fail(conn, jid, setting(conn, "providers.recent"), e)
     out = ingest_bundle(conn, b)
     out["dates"] = f"{start} → {end}"
     _finish(conn, jid, "ok", str(out))
@@ -94,6 +107,8 @@ def refresh_recent(conn, progress=None) -> dict:
 
 def refresh_boxes(conn, limit: int | None = None) -> dict:
     """Full team box scores (offensive rebounds, turnovers…) for completed ESPN games that lack them."""
+    if setting(conn, "providers.recent") != "espn":
+        return {"skipped": "box scores come with the hoopR mirror"}
     limit = int(limit or setting(conn, "providers.espn.max_box_fetch"))
     todo = games_missing_box(conn, limit)
     if not todo:
@@ -122,15 +137,16 @@ def refresh_boxes(conn, limit: int | None = None) -> dict:
 
 def refresh_upcoming(conn) -> dict:
     jid = _job(conn, "refresh_upcoming")
-    if setting(conn, "providers.upcoming") != "espn":
+    if setting(conn, "providers.upcoming") not in ("espn", "hoopr"):
         msg = ("no automatic schedule provider configured (providers.upcoming=manual): import the night with "
                "templates/import/night_template.json")
         _finish(conn, jid, "skipped", msg)
         return {"skipped": msg}
     try:
-        b = espn(conn).fetch_upcoming(int(setting(conn, "providers.espn.days_ahead")))
+        b = recent_provider(conn, setting(conn, "providers.upcoming")).fetch_upcoming(
+            int(setting(conn, "providers.espn.days_ahead")))
     except ProviderError as e:
-        return _fail(conn, jid, "espn", e)
+        return _fail(conn, jid, setting(conn, "providers.upcoming"), e)
     if setting(conn, "providers.odds") != "espn":
         b.odds = []
     out = ingest_bundle(conn, b, reconcile_nights=True)
