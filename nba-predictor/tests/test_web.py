@@ -51,6 +51,16 @@ def test_betting_edge_compares_lines_without_feeding_the_engine(synth):
     assert "Expected return" in page and "TestBook" in page and "Spread" in page and "Total 221.5" in page
     after = [tuple(x) for x in conn.execute("SELECT id, p_home, content_sha256 FROM predictions WHERE event_id=?", (ev,))]
     assert after == before
+    # both markets are tracked and every betting screen renders them
+    from nbapred import betting
+    betting.sync(conn)
+    assert {r["strategy"] for r in betting.bets(conn)} == {"moneyline", "spread"}
+    spread_bet = betting.bets(conn, "spread")[0]
+    for url, text in [("/edge", "Point spread"), ("/edge?market=spread", "cover"), (f"/edge/bets?market=spread&tier={spread_bet['tier']}", "Spread"),
+                      (f"/edge/night/{ev}", "Spread"), (f"/edge/bet/{spread_bet['id']}", "Line taken"),
+                      (f"/edge/bets.csv?market=spread&tier={spread_bet['tier']}", "\r\n" + str(spread_bet["id"]) + ",spread,")]:
+        r = c.get(url)
+        assert r.status_code == 200 and text in r.text, (url, r.text[-800:])
 
 
 def test_game_day_form_records_absences_and_repredicts(synth):

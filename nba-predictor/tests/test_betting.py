@@ -80,11 +80,11 @@ def _games(conn, ev):
     return conn.execute("SELECT * FROM games WHERE event_id=? ORDER BY id", (ev,)).fetchall()
 
 
-def _result(conn, game, home_score, away_score, outcome="win", revision=1):
+def _result(conn, game, home_score, away_score, outcome="win", revision=1, at=None):
     winner = None if outcome != "win" else (game["home_team_id"] if home_score > away_score else game["away_team_id"])
     conn.execute("INSERT INTO game_results(game_id, revision, outcome, winner_team_id, home_score, away_score, periods, "
                  "origin, recorded_at) VALUES (?,?,?,?,?,?,4,?,?)",
-                 (game["id"], revision, outcome, winner, home_score, away_score, "manual", utcnow()))
+                 (game["id"], revision, outcome, winner, home_score, away_score, "manual", at or utcnow()))
     conn.execute("UPDATE games SET status='completed' WHERE id=?", (game["id"],))
     conn.commit()
 
@@ -95,8 +95,15 @@ def _odds(conn, game, home, away, at="2020-01-01T00:00:00Z"):
     conn.commit()
 
 
-def _bet(conn, game):
-    return conn.execute("SELECT * FROM sim_bets WHERE game_id=?", (game["id"],)).fetchone()
+def _spread(conn, game, spread_home, home=1.91, away=1.91, at="2020-01-01T00:00:00Z"):
+    conn.execute("INSERT INTO odds(game_id, provider, bookmaker, spread_home, spread_home_decimal, spread_away_decimal, "
+                 "captured_at, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                 (game["id"], "the_odds_api", "TestBook", spread_home, home, away, at, utcnow()))
+    conn.commit()
+
+
+def _bet(conn, game, market="moneyline"):
+    return conn.execute("SELECT * FROM sim_bets WHERE game_id=? AND strategy=?", (game["id"], market)).fetchone()
 
 
 def _pick_wins(conn, game, bet):
@@ -124,8 +131,10 @@ def night(trained, monkeypatch):
     tier_of = {games[0]["id"]: "High", games[1]["id"]: "Medium", games[2]["id"]: "Low"}
     real = betting._snapshot
 
-    def snap(pred, game, e, stakes):
-        s = real(pred, game, e, stakes)
+    def snap(pred, game, e, stakes, market="moneyline", odds=None):
+        s = real(pred, game, e, stakes, market, odds)
+        if s is None or market != "moneyline":
+            return s
         t = tier_of.get(game["id"], s["tier"])
         if pred["version"] > 1 and game["id"] == games[0]["id"]:
             t = "Medium"
@@ -138,10 +147,10 @@ def night(trained, monkeypatch):
 def test_qualification_stakes_and_duplicate_prevention(night):
     conn, ev, games = night
     out = betting.sync(conn)
-    assert out["created"] == 3
+    assert out["moneyline_created"] == 3 and out.get("spread_created", 0) == 0   # no spread lines yet
     assert [_bet(conn, g)["stake_cents"] for g in games] == [10000, 5000, 0]
     assert _bet(conn, games[2])["status"] == "no_bet"
-    assert betting.sync(conn).get("created", 0) == 0
+    assert betting.sync(conn).get("moneyline_created", 0) == 0
     with pytest.raises(db.IntegrityError):
         b = dict(_bet(conn, games[0]))
         conn.execute("INSERT INTO sim_bets(strategy, event_id, game_id, prediction_id, tier, stake_cents, status, "
@@ -188,7 +197,7 @@ def test_settlement_win_loss_abandon_cancel_and_revisions(night):
     flip = (100, 110) if b0["pick_team_id"] == g0["home_team_id"] else (110, 100)
     _result(conn, g0, *flip, revision=2)
     out = betting.sync(conn)
-    assert out["resettled"] == 1 and _bet(conn, g0)["status"] == "loss"
+    assert out["moneyline_resettled"] == 1 and _bet(conn, g0)["status"] == "loss"
     assert betting.history(conn, b0["id"])[-1]["action"] == "resettled"
     # an abandoned game voids the stake
     _result(conn, games[1], None, None, outcome="nc", revision=2)
@@ -243,7 +252,7 @@ def test_ledger_filters_and_csv(night):
     assert all(team.lower() in (r["pick_name"] + r["opponent_name"]).lower()
                for r in betting.filter_rows(rows, {"team": team}))
     csv = betting.to_csv(rows)
-    assert csv.splitlines()[0].startswith("bet_id,event_date,event,season_type,pick,opponent,pick_is_home")
+    assert csv.splitlines()[0].startswith("bet_id,market,event_date,event,season_type,pick,opponent,pick_is_home,line")
 
 
 def test_price_check_requires_positive_expected_return():
@@ -251,3 +260,104 @@ def test_price_check_requires_positive_expected_return():
     assert betting.price_check(0.6, 1.9, rules)[0] is True          # 0.6 × 1.9 − 1 = +14%
     assert betting.price_check(0.6, 1.6, rules)[0] is False         # −4%: price too short
     assert betting.price_check(None, 1.6, rules)[0] is False
+
+
+# ------------------------------------------------------------------ point spread
+def test_stake_tier_uses_probability_per_market_and_waits_for_early_season():
+    rules = {"_min_games": 10, "moneyline": (0.65, 0.55), "spread": (0.60, 0.55)}
+    assert betting.stake_tier("moneyline", 0.70, 30, rules)[0] == "High"
+    assert betting.stake_tier("moneyline", 0.62, 30, rules)[0] == "Medium"
+    assert betting.stake_tier("spread", 0.62, 30, rules)[0] == "High"
+    assert betting.stake_tier("spread", 0.52, 30, rules)[0] == "Low"
+    tier, why = betting.stake_tier("moneyline", 0.80, 4, rules)
+    assert tier == "Low" and "early season" in why
+
+
+def _spread_night(trained):
+    conn = trained[0]
+    db.set_setting(conn, "betting.min_ev", -1.0)
+    db.set_setting(conn, "betting.min_season_games", 0)
+    ev = _night(conn, [("BOS", "MIA")], date="2099-03-01")
+    predict.predict_event(conn, ev, mode="live", reason="test")
+    return conn, ev, _games(conn, ev)[0]
+
+
+def test_spread_bet_needs_a_line_and_picks_the_side_likely_to_cover(trained):
+    conn, ev, g = _spread_night(trained)
+    betting.sync(conn)
+    assert _bet(conn, g, "spread") is None and _bet(conn, g) is not None     # moneyline only until a line exists
+    _spread(conn, g, -3.5)
+    out = betting.sync(conn)
+    assert out["spread_created"] == 1
+    b = _bet(conn, g, "spread")
+    from nbapred.models.engine import p_home_covers
+    from nbapred.util import loads
+    pred = conn.execute("SELECT * FROM predictions WHERE id=?", (b["prediction_id"],)).fetchone()
+    m = loads(pred["payload_json"])["margin"]
+    pc = p_home_covers(m["mu"], m["sigma"], -3.5)
+    assert bool(b["pick_is_home"]) == (pc >= 0.5)
+    assert b["line"] == (-3.5 if b["pick_is_home"] else 3.5)
+    assert b["p_pick"] == pytest.approx(max(pc, 1 - pc))
+    assert b["odds_decimal"] == 1.91
+
+
+def test_spread_settles_cover_loss_and_push(trained):
+    from nbapred import ledger
+    conn, ev, g = _spread_night(trained)
+    db.set_setting(conn, "betting.spread_prob_high", 0.99)   # a standard stake whatever the engine says
+    db.set_setting(conn, "betting.spread_prob_bet", 0.0)
+    _spread(conn, g, -4.0)
+    betting.sync(conn)
+    assert _bet(conn, g, "spread")["stake_cents"] == 5000
+    ledger.lock_event(conn, ev, "live", "2099-03-01")
+    betting.sync(conn)
+    b = _bet(conn, g, "spread")
+    _result(conn, g, 104, 100)                # home by exactly 4 lands on the line for either side
+    betting.sync(conn)
+    b = _bet(conn, g, "spread")
+    assert b["status"] == "push" and b["net_cents"] == 0
+    win = (110, 100) if b["pick_is_home"] else (100, 110)
+    _result(conn, g, *win, revision=2)
+    betting.sync(conn)
+    b = _bet(conn, g, "spread")
+    assert b["status"] == "win" and b["net_cents"] == 4550
+    lose = (102, 100) if b["pick_is_home"] else (106, 100)   # home -4 wins by only 2 / away +4 loses by 6
+    _result(conn, g, *lose, revision=3)
+    betting.sync(conn)
+    b = _bet(conn, g, "spread")
+    assert b["status"] == "loss" and b["net_cents"] == -5000
+
+
+def test_spread_line_follows_market_until_lock_then_freezes_and_records_close(trained):
+    from nbapred import ledger
+    conn, ev, g = _spread_night(trained)
+    _spread(conn, g, -2.5, at="2020-01-01T00:00:00Z")
+    betting.sync(conn)
+    first = _bet(conn, g, "spread")
+    _spread(conn, g, -6.5, at="2020-01-02T00:00:00Z")
+    betting.sync(conn)
+    moved = _bet(conn, g, "spread")
+    assert moved["line"] == (-6.5 if moved["pick_is_home"] else 6.5)
+    assert any(h["action"] in ("repriced", "prediction_changed") for h in betting.history(conn, first["id"]))
+    ledger.lock_event(conn, ev, "live", "2099-03-01")
+    betting.sync(conn)
+    locked = _bet(conn, g, "spread")
+    _spread(conn, g, -9.5, at=utcnow())                     # after the lock, before the game
+    betting.sync(conn)
+    assert _bet(conn, g, "spread")["line"] == locked["line"]  # the bet keeps the line it took
+    _result(conn, g, 110, 100, at="2999-01-01T00:00:00Z")   # the result arrives after the last line
+    betting.sync(conn)
+    b = dict(_bet(conn, g, "spread"))
+    assert b["closing_line"] == (-9.5 if b["pick_is_home"] else 9.5)
+    assert betting.clv(b) == pytest.approx(b["line"] - b["closing_line"])
+
+
+def test_market_filter_and_bets_by_market(trained):
+    conn, ev, g = _spread_night(trained)
+    _spread(conn, g, -1.5)
+    betting.sync(conn)
+    rows = betting.bets(conn)
+    assert {r["strategy"] for r in rows} == {"moneyline", "spread"}
+    assert all(r["strategy"] == "spread" for r in betting.bets(conn, "spread"))
+    q = {"market": "spread", "tier": "Low"} if _bet(conn, g, "spread")["tier"] == "Low" else {"market": "spread"}
+    assert [r["strategy"] for r in betting.filter_rows(rows, q)] == ["spread"]

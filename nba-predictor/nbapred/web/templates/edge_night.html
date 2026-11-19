@@ -12,21 +12,21 @@
 {% if st %}
 <div class="grid g4" style="margin-bottom:14px">
   <div class="card stat"><div class="l">Night P/L</div><div class="v {{ 'gain' if st.net > 0 else 'loss' if st.net < 0 }}">{{ st.net | money }}</div><div class="d">{{ st.state }}</div></div>
-  <div class="card stat"><div class="l">High confidence</div><div class="v {{ 'gain' if st.tiers.High.net > 0 else 'loss' if st.tiers.High.net < 0 }}">{{ st.tiers.High.net | money }}</div>
+  <div class="card stat"><div class="l">Big stakes</div><div class="v {{ 'gain' if st.tiers.High.net > 0 else 'loss' if st.tiers.High.net < 0 }}">{{ st.tiers.High.net | money }}</div>
     <div class="d">{{ st.tiers.High.picks }} pick{{ 's' if st.tiers.High.picks != 1 }} · won {{ pct1(st.tiers.High.win_rate) }}</div></div>
-  <div class="card stat"><div class="l">Medium confidence</div><div class="v {{ 'gain' if st.tiers.Medium.net > 0 else 'loss' if st.tiers.Medium.net < 0 }}">{{ st.tiers.Medium.net | money }}</div>
+  <div class="card stat"><div class="l">Standard stakes</div><div class="v {{ 'gain' if st.tiers.Medium.net > 0 else 'loss' if st.tiers.Medium.net < 0 }}">{{ st.tiers.Medium.net | money }}</div>
     <div class="d">{{ st.tiers.Medium.picks }} pick{{ 's' if st.tiers.Medium.picks != 1 }} · won {{ pct1(st.tiers.Medium.win_rate) }}</div></div>
   <div class="card stat"><div class="l">Staked · ROI</div><div class="v">{{ st.staked | money(false) }}</div>
     <div class="d">ROI {{ '—' if st.roi is none else '%+.1f%%' % (st.roi * 100) }}{% if st.pending %} · {{ st.pending }} open{% endif %}</div></div>
 </div>
 {% endif %}
 
-<div class="card scroll" style="margin-bottom:14px"><h2>Moneyline bets on this night</h2>
+<div class="card scroll" style="margin-bottom:14px"><h2>Bets on this night</h2>
 {% if rows %}
 <table class="small ledger">
-  <tr><th>Pick</th><th>Opponent</th><th>Confidence</th><th class="num">Engine chance</th><th class="num">Odds</th><th class="num">Stake</th><th>Result</th><th class="num">Net P/L</th><th></th></tr>
-  {% for r in rows %}<tr class="{{ 'muted' if r.tier == 'Low' }}"><td><b>{{ r.pick_name }}</b> <span class="muted">{{ 'home' if r.pick_is_home else 'road' }}</span></td><td>{{ r.opponent_name }}</td>
-    <td><span class="pill {{ r.tier }}">{{ r.tier }}</span> <span class="muted">{{ r.confidence_score }}</span></td>
+  <tr><th>Market</th><th>Pick</th><th>Opponent</th><th>Stake level</th><th class="num">{{ tip('Engine chance', 'Moneyline: chance to win. Spread: chance to cover the line shown.') }}</th><th class="num">Odds</th><th class="num">Stake</th><th>Result</th><th class="num">Net P/L</th><th></th></tr>
+  {% for r in rows %}<tr class="{{ 'muted' if r.tier == 'Low' }}"><td>{{ r | market }}</td><td><b>{{ r.pick_name }}</b> {{ r | betline }} <span class="muted">{{ 'home' if r.pick_is_home else 'road' }}</span></td><td>{{ r.opponent_name }}</td>
+    <td><span class="pill {{ r.tier }}">{{ r.tier | stake_label }}</span></td>
     <td class="num">{{ '—' if r.p_pick is none else '%.0f%%' % (r.p_pick * 100) }}</td>
     <td class="num">{{ '—' if r.odds_american is none else '%+d' % r.odds_american }}</td>
     <td class="num">{{ 'no bet' if r.tier == 'Low' else (r.stake_cents | money(false)) }}</td>
@@ -34,7 +34,7 @@
     <td class="num">{{ pl(r.net_cents) if r.net_cents is not none else '' }}</td>
     <td><a href="/edge/bet/{{ r.id }}">details</a></td></tr>{% endfor %}
 </table>
-{% else %}<p class="muted">No bets recorded for this night. Bets are created from live predictions (High and Medium confidence).</p>{% endif %}
+{% else %}<p class="muted">No bets recorded for this night. Moneyline bets are created from live predictions; spread bets once a spread line is available.</p>{% endif %}
 </div>
 
 {% if data and data.n_odds %}
@@ -52,7 +52,7 @@
   {% endfor %}
 </table>
 <p class="small muted">Lines: {{ (data.rows | selectattr('edge') | map(attribute='edge.bookmaker') | reject('none') | unique | join(', ')) or 'imported' }}.
-  Spread and total rows are comparison only (the simulated tracker bets moneylines). A very large gap more often means the engine is missing something the market knows — usually injuries — than a free bet.</p>
+  The tracker bets moneylines and spreads; total rows are comparison only. A very large gap more often means the engine is missing something the market knows — usually injuries — than a free bet.</p>
 </div>
 {% elif data %}
 <div class="banner">No lines stored for this night yet. {% if admin %}Import an odds file on <a href="/settings">Settings</a>

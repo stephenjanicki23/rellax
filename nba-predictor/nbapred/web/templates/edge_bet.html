@@ -3,19 +3,21 @@
 {% from "macros.html" import edgebar %}
 {% block body %}
 <div class="small"><a href="/edge/night/{{ b.event_id }}">← {{ b.event_name }}</a></div>
-<h1>{{ b.pick_name }} <span class="muted">to beat</span> {{ b.opponent_name }}</h1>
-<div class="sub">{{ b.event_date }} · {{ season_label(b.season_type) }} · {{ 'home' if b.pick_is_home else 'road' }} pick · <a href="/game/{{ b.game_id }}?mode=live">game analysis</a></div>
+<h1>{% if b.strategy == 'spread' %}{{ b.pick_name }} {{ b | betline }} <span class="muted">against</span>{% else %}{{ b.pick_name }} <span class="muted">to beat</span>{% endif %} {{ b.opponent_name }}</h1>
+<div class="sub">{{ b | market }} · {{ b.event_date }} · {{ season_label(b.season_type) }} · {{ 'home' if b.pick_is_home else 'road' }} pick · <a href="/game/{{ b.game_id }}?mode=live">game analysis</a></div>
 {% if msg %}<div class="banner info">{{ msg }}</div>{% endif %}
 
 <div class="grid g2">
 <div class="card"><h2>The bet</h2>
   <dl class="kv">
-    <dt>Stake tier</dt><dd><span class="pill {{ b.tier }}">{{ b.tier }}</span>{% if why.stake_rule %} <span class="small muted">{{ why.stake_rule }}</span>{% endif %}</dd>
+    {% if b.strategy == 'spread' %}<dt>Line taken</dt><dd>{{ b.pick_name }} {{ b | betline }} <span class="small muted">(the pick must win by more than {{ '%g' % (-b.line) }}{% if b.line > 0 %} — or lose by less than {{ '%g' % b.line }}{% endif %}; landing exactly on it is a push)</span></dd>
+    {% if b.closing_line is not none %}<dt>Closing spread</dt><dd>{{ '%+g' % b.closing_line }} · {{ '%+.1f' % (b.line - b.closing_line) }} points vs the line taken</dd>{% endif %}{% endif %}
+    <dt>Stake level</dt><dd><span class="pill {{ b.tier }}">{{ b.tier | stake_label }}</span>{% if why.stake_rule %} <span class="small muted">{{ why.stake_rule }}</span>{% endif %}</dd>
     {% if why.price_rule %}<dt>Price check</dt><dd class="small">{{ why.price_rule }}</dd>{% endif %}
-    {% if b.closing_decimal %}<dt>Closing line</dt><dd>{{ '%+d' % (b.closing_decimal | american) }} · {{ '%+.1f%%' % ((b.odds_decimal / b.closing_decimal - 1) * 100) }} vs our price</dd>{% endif %}
+    {% if b.closing_decimal and b.odds_decimal %}<dt>Closing price</dt><dd>{{ '%+d' % (b.closing_decimal | american) }} · {{ '%+.1f%%' % ((b.odds_decimal / b.closing_decimal - 1) * 100) }} vs our price</dd>{% endif %}
     <dt>Engine confidence</dt><dd>{{ (why.confidence or {}).label or '—' }} · score {{ b.confidence_score }}</dd>
-    <dt>Engine's chance</dt><dd>{{ '—' if b.p_pick is none else '%.1f%%' % (b.p_pick * 100) }}</dd>
-    <dt>Stake</dt><dd>{{ 'no bet (Low confidence is tracked only)' if b.tier == 'Low' else (b.stake_cents | money(false)) }}</dd>
+    <dt>Engine's chance{{ ' to cover' if b.strategy == 'spread' else ' to win' }}</dt><dd>{{ '—' if b.p_pick is none else '%.1f%%' % (b.p_pick * 100) }}</dd>
+    <dt>Stake</dt><dd>{{ 'no bet (tracked only)' if b.tier == 'Low' else (b.stake_cents | money(false)) }}</dd>
     <dt>Odds</dt><dd>{% if b.odds_american is none %}<span class="tag unavailable">none recorded</span>{% else %}{{ '%+d' % b.odds_american }}
       <span class="muted small">({{ '%.3f' % b.odds_decimal }} decimal · {{ b.odds_bookmaker or b.odds_source }}{% if b.odds_captured_at %} · {{ b.odds_captured_at[:16] | replace('T', ' ') }}{% endif %})</span>{% endif %}</dd>
     <dt>Result</dt><dd>{% set r = b %}{% include "_bet_status.html" %}{% if b.settle_note %} <span class="small muted">{{ b.settle_note }}</span>{% endif %}</dd>

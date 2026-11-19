@@ -20,7 +20,7 @@ chronological out-of-sample test says the change helps.
 | Sub-models A–F on antisymmetric features | Same: A season strength, B recent form, C style matchup, D volatility & close games, E situation, F market |
 | Method of victory & round | **Margin distribution** (expected margin, winning-margin bands 1–5 / 6–12 / 13+, engine point spread), **total points**, **overtime** |
 | Fight-week form (short notice, missed weight) | **Game-day form / injury import**: rotation players ruled out |
-| Betting Edge on moneylines | Same simulated moneyline tracker, plus **spread and total comparisons** and an against-the-spread record |
+| Betting Edge on moneylines | Simulated tracker for **both moneyline and point spread** (one bet per game per market), plus total comparisons |
 | UFCStats mirror + ufcstats.com | NBA.com box scores (GitHub mirror) + **ESPN** for recent seasons, schedules, results and lines |
 
 Everything else is the same machinery: Bayesian logistic sub-models with Laplace uncertainty, a stacked
@@ -36,7 +36,7 @@ SQLite locally / Postgres on Vercel, GitHub Actions jobs, backups.
 | History 2010-11 → 2023-24 (team box scores, regular season + playoffs) | `nba_mirror` — [NocturneBear/NBA-Data-2010-2024](https://github.com/NocturneBear/NBA-Data-2010-2024) (NBA.com data) | Working. 17,828 games. Downloaded at runtime into `data/cache/`, never committed. |
 | Seasons after 2023-24, upcoming nights, results, box scores | `hoopr` (default) — [sportsdataverse/hoopR-nba-data](https://github.com/sportsdataverse/hoopR-nba-data), a daily public GitHub mirror of ESPN's NBA data (schedules, finals, full team box scores, Parquet) | Working, verified against the live mirror: 2024-25 → today. Finals arrive the next day. Needs `pyarrow` (jobs only, `requirements-jobs.txt`). |
 | Same, directly | `espn` — ESPN public scoreboard and game summaries | Kept as an option, but ESPN answers **403** to GitHub Actions, and NBA.com's CDN does not answer cloud servers at all (checked with `python -m nbapred probe-sources`). |
-| Odds | None by default (the mirror carries no lines): The Odds API (`ODDS_API_KEY`, `basketball_nba`, h2h/spreads/totals) or a CSV import | Comparison only; the engine never reads them unless a market-model candidate is validated. |
+| Odds | The Odds API (`ODDS_API_KEY`, `basketball_nba`, bookmaker `williamhill_us`, markets h2h + spreads; at most one request per 6 hours, ~240 credits/month of the free 500) or a CSV import | Used by the bet tracker and comparisons; the engine never reads them unless a market-model candidate is validated. |
 | Injuries | Game-day form on each game page, or `availability_template.csv` | No historical source, so absences are *unknown* for past games: the feature is inactive until data accumulates; today it lowers confidence. |
 | Rest, back-to-backs, travel, time zones, altitude | Computed from the schedule and approximate arena coordinates (`nbapred/teams.py`) | Working. |
 
@@ -60,7 +60,7 @@ nbapred/
   review.py      grading (winner, margin, band, total, vs spread/total), box-score factor checks, diagnostics
   evaluation/    metrics (accuracy/CI, Brier, log loss, ECE, calibration, bootstrap), rolling-origin backtests
   learning/      NBA segment hypotheses + FDR, candidates, promotion gates, the learning loop
-  betting.py     simulated moneyline tracker (read-only with respect to the engine)
+  betting.py     simulated moneyline + spread tracker (read-only with respect to the engine)
   lifecycle.py   schedule → predict → lock → results → evaluate → learn; tick() + scheduler
   replay.py      historical replay of the whole loop
   web/           FastAPI app, Jinja templates, inline-SVG charts
@@ -95,6 +95,13 @@ on **antisymmetric** features (`f(A,B) = side(A,B) − side(B,A)`, no intercept)
   `date < min(game date, decision time)`. Elo is sequential. Training rows are strictly before the model
   cutoff. Every prediction batch runs a leakage audit; failure blocks the write. Backtests freeze the model at
   the fold start while team states update night by night — exactly what a live night sees.
+* **Simulated bets: moneyline and point spread.** Every live game gets a moneyline bet on the engine's pick and,
+  once a spread line exists, a spread bet on the side the engine's margin (Normal(μ, σ)) says is likelier to cover.
+  Stakes come from the engine's probability for that market, not the confidence label: $100 from 65% to win / 60%
+  to cover, $50 from 55%, otherwise tracked with no stake; nothing is staked until both teams have played 10 games,
+  and a staked pick is only bet when its expected return at the price is at least +5%. Line and price follow the
+  market until the night locks, then freeze; spreads settle as win, loss or push (stake returned), and closing line
+  value is measured in price (moneyline) or points (spread). All thresholds are on the Settings screen.
 * **Immutable ledger.** Triggers abort UPDATE/DELETE on predictions, locks, decisions, bet history and the
   audit log (SQLite and Postgres). Rows are SHA-256 hash-chained (`nbapred verify`). After a night locks a
   new version needs an explicit reason, is marked post-lock, and is never graded in place of the locked one.

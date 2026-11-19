@@ -34,8 +34,10 @@ class TheOddsAPIProvider(OddsProvider):
     name = "the_odds_api"
     URL = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
 
-    def __init__(self, api_key: str | None = None, bookmakers: list[str] | None = None):
+    def __init__(self, api_key: str | None = None, bookmakers: list[str] | None = None,
+                 markets: str = "h2h,spreads"):
         self.api_key = api_key or os.environ.get("ODDS_API_KEY")
+        self.markets = ",".join(m.strip() for m in markets.split(",") if m.strip()) or "h2h"
         self.bookmakers = [b for b in (bookmakers or []) if b]
         self.seen_bookmakers: dict[str, str] = {}
 
@@ -44,7 +46,7 @@ class TheOddsAPIProvider(OddsProvider):
         if not self.api_key:
             raise ProviderUnavailable("The Odds API key is not configured", "set ODDS_API_KEY")
         scope = f"bookmakers={','.join(self.bookmakers)}" if self.bookmakers else "regions=us"
-        url = f"{self.URL}?{scope}&markets=h2h,spreads,totals&oddsFormat=decimal&apiKey={self.api_key}"
+        url = f"{self.URL}?{scope}&markets={self.markets}&oddsFormat=decimal&apiKey={self.api_key}"
         resource = "nba_odds_" + ("_".join(self.bookmakers) or "us") + ".json"
         text, meta = fetch(url, self.name, resource, min_interval_s=5, max_age_s=900, check_robots=False)
         meta.url = self.URL  # never store the key
