@@ -94,6 +94,16 @@
       "blue": "Alik Lorenz",
       "weight_class": "Light Heavyweight",
       "scheduled_rounds": 3
+    },
+    {
+      "bout_order": 12,
+      "card_segment": "prelim",
+      "red": "John Mitchell",
+      "blue": "Shoaib Yousaf",
+      "weight_class": "Lightweight",
+      "scheduled_rounds": 3,
+      "short_notice_red": true,
+      "short_notice_blue": true
     }
   ]
 }
